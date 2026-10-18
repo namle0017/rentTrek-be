@@ -2676,7 +2676,7 @@
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "Microsoft.EntityFrameworkCore.SqlServer >= 8.0.*"
+      "Microsoft.EntityFrameworkCore.SqlServer >= 8.0.31"
     ]
   },
   "packageFolders": {
@@ -2734,7 +2734,7 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore.SqlServer": {
             "target": "Package",
-            "version": "[8.0.*, )"
+            "version": "[8.0.31, )"
           }
         },
         "imports": [

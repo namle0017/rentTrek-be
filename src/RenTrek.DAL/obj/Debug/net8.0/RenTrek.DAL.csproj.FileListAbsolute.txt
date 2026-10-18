@@ -11,3 +11,4 @@ E:\FPT\FALL2026\PRN232\renTrek\BE\src\RenTrek.DAL\obj\Debug\net8.0\RenTrek.DAL.d
 E:\FPT\FALL2026\PRN232\renTrek\BE\src\RenTrek.DAL\obj\Debug\net8.0\refint\RenTrek.DAL.dll
 E:\FPT\FALL2026\PRN232\renTrek\BE\src\RenTrek.DAL\obj\Debug\net8.0\RenTrek.DAL.pdb
 E:\FPT\FALL2026\PRN232\renTrek\BE\src\RenTrek.DAL\obj\Debug\net8.0\ref\RenTrek.DAL.dll
+E:\FPT\FALL2026\PRN232\renTrek\BE\src\RenTrek.DAL\obj\Debug\net8.0\RenTrek..FE4361F6.Up2Date

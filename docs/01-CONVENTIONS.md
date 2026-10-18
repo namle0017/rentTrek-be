@@ -10,7 +10,8 @@
 3. [Cấu trúc Request](#3-cấu-trúc-request)
 4. [Cấu trúc Response](#4-cấu-trúc-response)
 5. [Git: Branch, Commit, Push](#5-git-branch-commit-push)
-6. [Checklist trước khi tạo PR](#6-checklist-trước-khi-tạo-pr)
+6. [Quy trình bắt đầu code một tính năng](#6-quy-trình-bắt-đầu-code-một-tính-năng)
+7. [Checklist trước khi tạo PR](#7-checklist-trước-khi-tạo-pr)
 
 ---
 
@@ -478,7 +479,538 @@ git push -u origin feature/RT-12-product-crud
 
 ---
 
-## 6. Checklist trước khi tạo PR
+## 6. Quy trình bắt đầu code một tính năng
+
+> Phần này hướng dẫn từng bước: từ lúc nhận task → tạo file / folder → code → test → tạo PR.
+> Ví dụ xuyên suốt: module **Category** (CRUD danh mục).
+>
+> ⚠️ Ví dụ dùng khoá `long Id` và tên cột PascalCase. Khi team chốt câu hỏi **A1** (`bigint` / `Guid`) và **A2** (snake_case) trong [`database/ERD_REVIEW.md`](database/ERD_REVIEW.md), làm theo quyết định đó.
+
+### 6.1. Chuẩn bị môi trường (chỉ làm lần đầu)
+
+| Công cụ | Phiên bản |
+|---|---|
+| .NET SDK | 8.0 trở lên (project target `net8.0`) |
+| SQL Server | 2019+ / LocalDB / Docker |
+| IDE | Visual Studio 2022 / Rider / VS Code + C# Dev Kit |
+| EF Core CLI | `dotnet tool install --global dotnet-ef` |
+
+```bash
+# 1. Clone và chuyển sang develop
+git clone <repo-url>
+cd BE
+git checkout develop
+
+# 2. Restore package
+dotnet restore
+
+# 3. (Tuỳ chọn) Connection string riêng của máy mình — lưu bằng user-secrets, KHÔNG sửa appsettings.json
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=.;Database=RenTrekDb;Trusted_Connection=True;TrustServerCertificate=True" --project src/RenTrek.API
+
+# 4. Tạo / cập nhật database theo migration hiện có
+dotnet ef database update -p src/RenTrek.DAL -s src/RenTrek.API
+
+# 5. Chạy API → mở https://localhost:7000/swagger
+dotnet run --project src/RenTrek.API --launch-profile https
+```
+
+> `-p` (project) là nơi chứa `AppDbContext` và migration (**DAL**), `-s` (startup) là project chạy được và có `appsettings` (**API**).
+
+### 6.2. Tổng quan các bước
+
+Code theo thứ tự **từ dưới lên: DAL → BLL → API**. Layer trên phụ thuộc layer dưới, làm ngược sẽ không compile được.
+
+```mermaid
+flowchart TD
+    A["1. Nhận task, đọc API contract + ERD"] --> B["2. Tạo nhánh từ develop"]
+    B --> C["3. DAL: Entity, Configuration, DbSet"]
+    C --> D["4. DAL: Tạo migration, update database"]
+    D --> E["5. BLL: DTOs, Validator, Mapping"]
+    E --> F["6. BLL: Service interface + implementation, đăng ký DI"]
+    F --> G["7. API: Controller"]
+    G --> H["8. Build, test qua Swagger"]
+    H --> I["9. Cập nhật 03-API-CONTRACT.md"]
+    I --> J["10. Commit, push, tạo PR"]
+```
+
+### 6.3. Danh sách file cần tạo / sửa
+
+Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵn):
+
+| # | Layer | File | |
+|---|---|---|---|
+| 1 | DAL | `src/RenTrek.DAL/Entities/Category.cs` | 🆕 |
+| 2 | DAL | `src/RenTrek.DAL/Entities/Enums/CategoryStatus.cs` | 🆕 |
+| 3 | DAL | `src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs` | 🆕 |
+| 4 | DAL | `src/RenTrek.DAL/Data/AppDbContext.cs` — thêm `DbSet` | ✏️ |
+| 5 | DAL | `src/RenTrek.DAL/Data/Migrations/*_AddCategoryTable.cs` — do EF sinh | 🆕 |
+| 6 | BLL | `src/RenTrek.BLL/DTOs/Category/CreateCategoryRequest.cs` | 🆕 |
+| 7 | BLL | `src/RenTrek.BLL/DTOs/Category/UpdateCategoryRequest.cs` | 🆕 |
+| 8 | BLL | `src/RenTrek.BLL/DTOs/Category/CategoryQueryRequest.cs` | 🆕 |
+| 9 | BLL | `src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs` | 🆕 |
+| 10 | BLL | `src/RenTrek.BLL/Validators/Category/CreateCategoryRequestValidator.cs` | 🆕 |
+| 11 | BLL | `src/RenTrek.BLL/Validators/Category/UpdateCategoryRequestValidator.cs` | 🆕 |
+| 12 | BLL | `src/RenTrek.BLL/Mappings/CategoryProfile.cs` | 🆕 |
+| 13 | BLL | `src/RenTrek.BLL/Services/Interfaces/ICategoryService.cs` | 🆕 |
+| 14 | BLL | `src/RenTrek.BLL/Services/Implementations/CategoryService.cs` | 🆕 |
+| 15 | BLL | `src/RenTrek.BLL/DependencyInjection.cs` — đăng ký service | ✏️ |
+| 16 | API | `src/RenTrek.API/Controllers/CategoriesController.cs` | 🆕 |
+| 17 | Docs | `docs/03-API-CONTRACT.md` | ✏️ |
+
+**Quy tắc tạo file / folder:**
+
+- DTO và Validator gom theo **thư mục module**: `DTOs/Category/`, `Validators/Category/`.
+- Service, Repository chia theo `Interfaces/` và `Implementations/`.
+- Namespace **khớp đường dẫn thư mục**: file `src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs` → `namespace RenTrek.BLL.DTOs.Category;`.
+- Dùng **file-scoped namespace** (`namespace X;`), mỗi file 1 class.
+- Thư mục chỉ có `.gitkeep`: thêm file thật vào rồi thì xoá `.gitkeep`.
+
+### 6.4. Bước 1–2: Nhận task và tạo nhánh
+
+1. Đọc mô tả task, endpoint tương ứng trong [`03-API-CONTRACT.md`](03-API-CONTRACT.md) và các bảng liên quan trong [`database/Logical_ERD_v2.md`](database/Logical_ERD_v2.md).
+2. Chưa có contract thì **viết contract trước** (URL, request, response, lỗi) và báo FE review, rồi mới code.
+3. Tạo nhánh theo [§5.2](#52-nhánh-làm-việc):
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/RT-15-category-crud
+```
+
+### 6.5. Bước 3: DAL — Entity và Configuration
+
+**Entity** — chỉ chứa property và navigation, **không** chứa logic, **không** dùng DataAnnotations (cấu hình bằng Fluent API).
+
+```csharp
+// src/RenTrek.DAL/Entities/Enums/CategoryStatus.cs
+namespace RenTrek.DAL.Entities.Enums;
+
+public enum CategoryStatus
+{
+    Active,
+    Inactive
+}
+```
+
+```csharp
+// src/RenTrek.DAL/Entities/Category.cs
+using RenTrek.DAL.Entities.Enums;
+
+namespace RenTrek.DAL.Entities;
+
+public class Category
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public CategoryStatus Status { get; set; } = CategoryStatus.Active;
+}
+```
+
+**Configuration** — mỗi entity 1 file trong `Data/Configurations/`. `AppDbContext` đã gọi `ApplyConfigurationsFromAssembly` nên **tự nhận**, không cần đăng ký.
+
+```csharp
+// src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using RenTrek.DAL.Entities;
+
+namespace RenTrek.DAL.Data.Configurations;
+
+public class CategoryConfiguration : IEntityTypeConfiguration<Category>
+{
+    public void Configure(EntityTypeBuilder<Category> builder)
+    {
+        builder.ToTable("Categories");
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.Name).HasMaxLength(100).IsRequired();
+        builder.Property(c => c.Description).HasMaxLength(500);
+        builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
+
+        builder.HasIndex(c => c.Name).IsUnique().HasDatabaseName("UQ_Categories_Name");
+    }
+}
+```
+
+**DbSet** — thêm vào `AppDbContext`:
+
+```csharp
+// src/RenTrek.DAL/Data/AppDbContext.cs
+public DbSet<Category> Categories => Set<Category>();
+```
+
+> **Khi nào cần Repository riêng?** Chỉ khi có query đặc thù được dùng lại nhiều nơi hoặc phức tạp (join nhiều bảng, raw SQL...).
+> CRUD thông thường dùng `_unitOfWork.Repository<Category>()` là đủ. Nếu tạo repository riêng: thêm `ICategoryRepository : IGenericRepository<Category>` + `CategoryRepository`, khai báo property trong `IUnitOfWork` / `UnitOfWork`, đăng ký trong `RenTrek.DAL/DependencyInjection.cs`.
+
+### 6.6. Bước 4: DAL — Migration
+
+```bash
+# Tạo migration (tên PascalCase, mô tả thay đổi)
+dotnet ef migrations add AddCategoryTable -p src/RenTrek.DAL -s src/RenTrek.API -o Data/Migrations
+
+# Áp dụng vào database local
+dotnet ef database update -p src/RenTrek.DAL -s src/RenTrek.API
+```
+
+- **Mở file migration vừa sinh và đọc lại** — chắc chắn chỉ có thay đổi của mình.
+- Sai thì **chưa push** → xoá bằng `dotnet ef migrations remove -p src/RenTrek.DAL -s src/RenTrek.API`, sửa entity rồi tạo lại.
+- Migration **đã merge vào `develop`** thì **không sửa / xoá** — tạo migration mới để sửa.
+- Luôn `git pull` / rebase `develop` **trước khi** tạo migration để tránh conflict `AppDbContextModelSnapshot.cs`.
+
+Commit gợi ý: `feat(category): add category entity and migration`
+
+### 6.7. Bước 5: BLL — DTOs, Validator, Mapping
+
+**DTO** — class đơn giản, chỉ chứa field FE cần gửi / nhận.
+
+```csharp
+// src/RenTrek.BLL/DTOs/Category/CreateCategoryRequest.cs
+namespace RenTrek.BLL.DTOs.Category;
+
+public class CreateCategoryRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+```
+
+```csharp
+// src/RenTrek.BLL/DTOs/Category/UpdateCategoryRequest.cs
+using RenTrek.DAL.Entities.Enums;
+
+namespace RenTrek.BLL.DTOs.Category;
+
+public class UpdateCategoryRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public CategoryStatus Status { get; set; }
+}
+```
+
+```csharp
+// src/RenTrek.BLL/DTOs/Category/CategoryQueryRequest.cs
+using RenTrek.BLL.DTOs.Common;
+using RenTrek.DAL.Entities.Enums;
+
+namespace RenTrek.BLL.DTOs.Category;
+
+public class CategoryQueryRequest : PagingRequest
+{
+    public CategoryStatus? Status { get; set; }
+}
+```
+
+```csharp
+// src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs
+using RenTrek.DAL.Entities.Enums;
+
+namespace RenTrek.BLL.DTOs.Category;
+
+public class CategoryResponse
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public CategoryStatus Status { get; set; }
+}
+```
+
+**Validator** — kiểm tra **format** input. `ValidationFilter` ở API **tự động chạy** validator cho mọi request DTO và trả `400` chuẩn, controller **không cần** gọi validate. Validator đặt trong `RenTrek.BLL` sẽ được `AddValidatorsFromAssembly` tự đăng ký.
+
+```csharp
+// src/RenTrek.BLL/Validators/Category/CreateCategoryRequestValidator.cs
+using FluentValidation;
+using RenTrek.BLL.DTOs.Category;
+
+namespace RenTrek.BLL.Validators.Category;
+
+public class CreateCategoryRequestValidator : AbstractValidator<CreateCategoryRequest>
+{
+    public CreateCategoryRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Tên danh mục không được để trống")
+            .MaximumLength(100).WithMessage("Tên danh mục tối đa 100 ký tự");
+
+        RuleFor(x => x.Description)
+            .MaximumLength(500).WithMessage("Mô tả tối đa 500 ký tự");
+    }
+}
+```
+
+> `UpdateCategoryRequestValidator` viết tương tự, thêm `RuleFor(x => x.Status).IsInEnum()`.
+
+**Mapping** — mỗi module 1 `Profile`, AutoMapper tự quét trong `RenTrek.BLL`.
+
+```csharp
+// src/RenTrek.BLL/Mappings/CategoryProfile.cs
+using AutoMapper;
+using RenTrek.BLL.DTOs.Category;
+using RenTrek.DAL.Entities;
+
+namespace RenTrek.BLL.Mappings;
+
+public class CategoryProfile : Profile
+{
+    public CategoryProfile()
+    {
+        CreateMap<Category, CategoryResponse>();
+        CreateMap<CreateCategoryRequest, Category>();
+        CreateMap<UpdateCategoryRequest, Category>();
+    }
+}
+```
+
+### 6.8. Bước 6: BLL — Service
+
+**Interface** — định nghĩa trước, controller chỉ biết interface này.
+
+```csharp
+// src/RenTrek.BLL/Services/Interfaces/ICategoryService.cs
+using RenTrek.BLL.DTOs.Category;
+using RenTrek.BLL.DTOs.Common;
+
+namespace RenTrek.BLL.Services.Interfaces;
+
+public interface ICategoryService
+{
+    Task<PagedResult<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default);
+    Task<CategoryResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<CategoryResponse> CreateAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default);
+    Task<CategoryResponse> UpdateAsync(long id, UpdateCategoryRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(long id, CancellationToken cancellationToken = default);
+}
+```
+
+**Implementation** — nơi duy nhất chứa business logic. Vi phạm nghiệp vụ thì **throw** exception trong `RenTrek.BLL.Exceptions`.
+
+```csharp
+// src/RenTrek.BLL/Services/Implementations/CategoryService.cs
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using RenTrek.BLL.DTOs.Category;
+using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Services.Interfaces;
+using RenTrek.DAL.Entities;
+using RenTrek.DAL.Repositories.Interfaces;
+using RenTrek.DAL.UnitOfWorks;
+
+namespace RenTrek.BLL.Services.Implementations;
+
+public class CategoryService : ICategoryService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMapper _mapper;
+
+    public CategoryService(IUnitOfWork unitOfWork, IMapper mapper)
+    {
+        _unitOfWork = unitOfWork;
+        _mapper = mapper;
+    }
+
+    private IGenericRepository<Category> Categories => _unitOfWork.Repository<Category>();
+
+    public async Task<PagedResult<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default)
+    {
+        var query = Categories.Query(); // AsNoTracking — chỉ đọc
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+            query = query.Where(c => c.Name.Contains(request.Search));
+
+        if (request.Status.HasValue)
+            query = query.Where(c => c.Status == request.Status.Value);
+
+        query = request.SortBy.ToLowerInvariant() switch
+        {
+            "name" => request.IsDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name),
+            _ => request.IsDescending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id)
+        };
+
+        return await query
+            .ProjectTo<CategoryResponse>(_mapper.ConfigurationProvider) // chỉ SELECT các cột cần
+            .ToPagedResultAsync(request, cancellationToken);
+    }
+
+    public async Task<CategoryResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    {
+        var category = await FindOrThrowAsync(id, cancellationToken);
+        return _mapper.Map<CategoryResponse>(category);
+    }
+
+    public async Task<CategoryResponse> CreateAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        if (await Categories.AnyAsync(c => c.Name == request.Name, cancellationToken))
+            throw new ConflictException("Tên danh mục đã tồn tại");
+
+        var category = _mapper.Map<Category>(request);
+        await Categories.AddAsync(category, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return _mapper.Map<CategoryResponse>(category);
+    }
+
+    public async Task<CategoryResponse> UpdateAsync(long id, UpdateCategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        var category = await FindOrThrowAsync(id, cancellationToken);
+
+        if (await Categories.AnyAsync(c => c.Id != id && c.Name == request.Name, cancellationToken))
+            throw new ConflictException("Tên danh mục đã tồn tại");
+
+        _mapper.Map(request, category); // entity đang được track → chỉ cần SaveChanges
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return _mapper.Map<CategoryResponse>(category);
+    }
+
+    public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
+    {
+        var category = await FindOrThrowAsync(id, cancellationToken);
+
+        Categories.Remove(category);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<Category> FindOrThrowAsync(long id, CancellationToken cancellationToken)
+        => await Categories.GetByIdAsync(id, cancellationToken)
+           ?? throw new NotFoundException($"Không tìm thấy danh mục với id '{id}'");
+}
+```
+
+**Đăng ký DI** — thêm vào `RenTrek.BLL/DependencyInjection.cs`:
+
+```csharp
+services.AddScoped<ICategoryService, CategoryService>();
+```
+
+> Thao tác ghi **nhiều bảng** cần all-or-nothing → bọc trong transaction:
+>
+> ```csharp
+> await _unitOfWork.BeginTransactionAsync(cancellationToken);
+> // ... AddAsync / Update nhiều repository ...
+> await _unitOfWork.CommitAsync(cancellationToken); // tự SaveChanges + Commit, lỗi thì tự Rollback
+> ```
+
+Commit gợi ý: `feat(category): add category service`
+
+### 6.9. Bước 7: API — Controller
+
+Controller **mỏng**: nhận request → gọi service → bọc `ApiResponse` → chọn status code. Không `try/catch`, không validate thủ công.
+
+```csharp
+// src/RenTrek.API/Controllers/CategoriesController.cs
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
+using RenTrek.BLL.DTOs.Category;
+using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.Services.Interfaces;
+
+namespace RenTrek.API.Controllers;
+
+[ApiController]
+[Route("api/v1/categories")]
+[Authorize(Roles = "Admin")]
+public class CategoriesController : ControllerBase
+{
+    private readonly ICategoryService _categoryService;
+
+    public CategoriesController(ICategoryService categoryService)
+    {
+        _categoryService = categoryService;
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAll([FromQuery] CategoryQueryRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _categoryService.GetAllAsync(request, cancellationToken);
+        return Ok(ApiResponse<PagedResult<CategoryResponse>>.Ok(result, "Lấy danh sách danh mục thành công"));
+    }
+
+    [HttpGet("{id:long}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetById(long id, CancellationToken cancellationToken)
+    {
+        var result = await _categoryService.GetByIdAsync(id, cancellationToken);
+        return Ok(ApiResponse<CategoryResponse>.Ok(result, "Lấy danh mục thành công"));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateCategoryRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _categoryService.CreateAsync(request, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponse<CategoryResponse>.Ok(result, "Tạo danh mục thành công", StatusCodes.Status201Created));
+    }
+
+    [HttpPut("{id:long}")]
+    public async Task<IActionResult> Update(long id, [FromBody] UpdateCategoryRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _categoryService.UpdateAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<CategoryResponse>.Ok(result, "Cập nhật danh mục thành công"));
+    }
+
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
+    {
+        await _categoryService.DeleteAsync(id, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Xoá danh mục thành công"));
+    }
+}
+```
+
+| Cần | Dùng |
+|---|---|
+| API public | `[AllowAnonymous]` |
+| Chỉ cần đăng nhập | `[Authorize]` |
+| Theo role | `[Authorize(Roles = "Admin")]`, nhiều role: `"Admin,Staff"` |
+| Lấy id user hiện tại | `User.FindFirstValue(ClaimTypes.NameIdentifier)` ở controller rồi truyền xuống service — service **không** đọc `HttpContext` |
+
+Commit gợi ý: `feat(category): add category endpoints`
+
+### 6.10. Bước 8: Build và test
+
+```bash
+dotnet build
+dotnet run --project src/RenTrek.API --launch-profile https
+```
+
+Mở `https://localhost:7000/swagger` và test **đủ các case**:
+
+- [ ] Happy case của từng endpoint (200 / 201)
+- [ ] Input sai → `400` với `errors` theo từng field
+- [ ] Id không tồn tại → `404`
+- [ ] Trùng dữ liệu → `409`
+- [ ] Không có token → `401`; token sai role → `403` (bấm **Authorize** trên Swagger để nhập token)
+- [ ] Danh sách: thử `pageNumber`, `pageSize`, `search`, `sortBy`, `sortOrder`
+- [ ] Response đúng format `ApiResponse` và đúng contract
+
+### 6.11. Bước 9–10: Cập nhật contract và tạo PR
+
+1. Cập nhật [`03-API-CONTRACT.md`](03-API-CONTRACT.md): đổi trạng thái endpoint, điền request / response thực tế, ghi changelog.
+2. Đi qua [Checklist trước khi tạo PR](#7-checklist-trước-khi-tạo-pr).
+3. Rebase `develop`, push, tạo PR theo [§5.4](#54-quy-trình-làm-việc--push).
+
+### 6.12. Lỗi thường gặp
+
+| Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|
+| `Unable to resolve service for type 'ICategoryService'` | Quên đăng ký DI | Thêm `AddScoped` trong `RenTrek.BLL/DependencyInjection.cs` |
+| Validator không chạy | Validator đặt ngoài `RenTrek.BLL` hoặc sai generic type | Đặt trong `RenTrek.BLL/Validators/...`, kế thừa `AbstractValidator<TênRequest>` |
+| `AutoMapperMappingException: Missing type map` | Chưa `CreateMap` cho cặp type đó | Thêm vào `{Module}Profile` |
+| Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ `Query()` (AsNoTracking) | Lấy bằng `GetByIdAsync` hoặc `QueryTracking()` khi cần sửa |
+| Migration rỗng / thiếu bảng | Chưa thêm `DbSet` hoặc Configuration sai namespace / assembly | Kiểm tra `AppDbContext` và file trong `Data/Configurations/` |
+| Conflict ở `AppDbContextModelSnapshot.cs` | 2 người cùng tạo migration | `migrations remove` migration của mình → rebase `develop` → `migrations add` lại |
+| `401` dù đã nhập token trên Swagger | Token hết hạn hoặc sai Issuer / Audience / SecretKey | Đăng nhập lại; kiểm tra cấu hình `Jwt` |
+| Trả về `500` thay vì lỗi nghiệp vụ | Throw `Exception` thường | Throw exception trong `RenTrek.BLL.Exceptions` (`NotFoundException`, `ConflictException`...) |
+
+---
+
+## 7. Checklist trước khi tạo PR
 
 - [ ] Tên nhánh, commit message đúng convention
 - [ ] `dotnet build` không lỗi, không thêm warning mới
