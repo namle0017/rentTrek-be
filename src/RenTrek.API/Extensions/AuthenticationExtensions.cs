@@ -33,6 +33,7 @@ public static class AuthenticationExtensions
                 // Trả 401 / 403 theo format ApiResponse thay vì body rỗng
                 options.Events = new JwtBearerEvents
                 {
+                    // TODO (logout): OnTokenValidated -> kiểm tra jti trong bảng AccessTokens, đã revoke thì context.Fail(...)
                     OnChallenge = async context =>
                     {
                         context.HandleResponse();

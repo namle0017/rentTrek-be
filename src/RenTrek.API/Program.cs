@@ -4,7 +4,9 @@ using RenTrek.API.Common;
 using RenTrek.API.Extensions;
 using RenTrek.API.Filters;
 using RenTrek.API.Middlewares;
+using RenTrek.API.Services;
 using RenTrek.BLL;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 
 const string CorsPolicyName = "DefaultCors";
@@ -37,6 +39,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddSwaggerWithJwt();
 
