@@ -8,6 +8,10 @@ public class AccessTokenConfiguration : IEntityTypeConfiguration<AccessToken>
 {
     public void Configure(EntityTypeBuilder<AccessToken> builder)
     {
-        // TODO: ToTable, HasKey, do dai cot, unique index, quan he (xem docs/database/Logical_ERD_v2.md)
+        // RefreshToken already cascades from User; avoid a second cascade path on SQL Server.
+        builder.HasOne(token => token.User)
+            .WithMany(user => user.AccessTokens)
+            .HasForeignKey(token => token.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }
