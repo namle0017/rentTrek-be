@@ -20,7 +20,7 @@
 - [Danh sách Endpoint](#danh-sách-endpoint)
 - [1. Auth](#1-auth)
 - [2. Users](#2-users)
-- [3. TODO_Module](#3-todo_module)
+- [3. Products](#3-products)
 - [Phụ lục: Enum](#phụ-lục-enum)
 - [Phụ lục: Mã lỗi](#phụ-lục-mã-lỗi)
 - [Template endpoint](#template-endpoint)
@@ -74,7 +74,9 @@
 | 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ⬜ TODO |
 | 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ⬜ TODO |
 | 2.3 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
-| 3.1 | TODO | `GET` | `/TODO` | TODO | TODO | ⬜ TODO |
+| 3.1 | Products | `GET` | `/products` | Public | Danh sách sản phẩm thuê / bán | ✅ Done |
+| 3.2 | Products | `GET` | `/products/{id}` | Public | Chi tiết sản phẩm, biến thể, ảnh, giá | ✅ Done |
+| 3.3 | Products | `GET` | `/products/categories` | Public | Danh mục lọc sản phẩm | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
@@ -278,11 +280,112 @@
 
 ---
 
-## 3. TODO_Module
+## 3. Products
 
-> Copy [Template endpoint](#template-endpoint) cho từng API của module.
+Chỉ đọc danh mục công khai. Không thay đổi API tạo / sửa / xoá sản phẩm hoặc auth.
+Chỉ trả sản phẩm, danh mục, biến thể có `status = Active`, chưa soft delete,
+và biến thể có ít nhất một giá thuê hoặc giá bán. Sản phẩm không có biến thể đủ điều kiện không xuất hiện.
+Ảnh và bảng giá đã soft delete không xuất hiện.
 
-### 3.1. TODO
+**Mô hình:** theo các bảng categories → products → product_variants → images / rental_price_tiers
+trong `database/rentrek_schema.sql`, chuyển sang SQL Server theo code hiện tại.
+ID dùng `long` như các entity hiện có. Bổ sung `SalePrice` nullable ở biến thể vì schema tham khảo
+chưa có giá bán. Không triển khai bundle, đơn hàng hoặc kiểm tra tồn kho theo ngày trong task này.
+Giá là số VND; `null` nghĩa là không cung cấp hình thức đó, giá `0` vẫn hợp lệ.
+`pricePerDay` là mức giá thuê thấp nhất trong các bậc giá và biến thể công khai;
+`salePrice` là giá bán thấp nhất. Đây là giá **từ**, không phải báo giá cho số ngày thuê cụ thể.
+`isRentable` / `isForSale` mô tả hình thức cung cấp, không khẳng định còn hàng.
+Ngày giờ trả ISO 8601 UTC. FE gọi qua Axios instance dùng chung và React Query.
+
+### 3.1. Danh sách sản phẩm
+
+`GET /products` · **Auth:** Public
+
+| Query | Kiểu | Mặc định | Validation / ý nghĩa |
+|---|---|---|---|
+| `pageNumber` | int | 1 | Dùng PagingRequest chung: nhỏ hơn 1 về 1; offset vượt Int32 trả 400 |
+| `pageSize` | int | 10 | Dùng PagingRequest chung: tối đa 100, nhỏ hơn 1 về 10 |
+| `search` | string | null | Tối đa 200 ký tự, trim, tìm tên hoặc mô tả |
+| `categoryId` | long? | null | ID dương |
+| `offeringType` | string? | null | `Rental`, `Sale`, `Both`; Both = sản phẩm có cả thuê và bán |
+| `sortBy` | string | createdAt | `createdAt`, `name`, `pricePerDay`, `salePrice` |
+| `sortOrder` | string | desc | `asc`, `desc` |
+
+Sắp xếp ổn định theo ID khi bằng giá trị; giá null luôn xếp cuối.
+Lọc theo hình thức ở cấp sản phẩm; response vẫn hiển thị tất cả hình thức sản phẩm cung cấp.
+Trang vượt tổng số trang trả items rỗng. Dữ liệu rỗng trả 200, không trả 404.
+Query sai trả 400 + `errors` theo field.
+
+**Response 200:** `ApiResponse<PagedResult<ProductResponse>>`, ví dụ `data`:
+
+```json
+{
+  "items": [{
+    "id": 1,
+    "name": "Lều cắm trại 2 người",
+    "categoryId": 1,
+    "categoryName": "Lều cắm trại",
+    "thumbnailUrl": "/images/products/tent.svg",
+    "isRentable": true,
+    "isForSale": true,
+    "pricePerDay": 90000,
+    "salePrice": 1800000,
+    "createdAt": "2026-10-23T00:00:00Z"
+  }],
+  "pageNumber": 1,
+  "pageSize": 10,
+  "totalItems": 1,
+  "totalPages": 1,
+  "hasPrevious": false,
+  "hasNext": false
+}
+```
+
+Thumbnail: ảnh primary trước, sau đó displayOrder, ID; null nếu chưa có ảnh.
+
+### 3.2. Chi tiết sản phẩm
+
+`GET /products/{id}` · **Auth:** Public · `id`: long
+
+**Response 200:** `ApiResponse<ProductDetailResponse>` gồm toàn bộ field ProductResponse và:
+
+```json
+{
+  "description": "Lều chống nước, phù hợp cho hai người.",
+  "variants": [{
+    "id": 1,
+    "sku": "TENT-2-GREEN",
+    "name": "2 người / xanh lá",
+    "size": "2 người",
+    "color": "Xanh lá",
+    "salePrice": 1800000,
+    "images": [{ "id": 1, "imageUrl": "/images/products/tent.svg", "isPrimary": true, "displayOrder": 0 }],
+    "rentalPriceTiers": [{ "id": 1, "minDays": 1, "maxDays": 3, "dailyPrice": 120000 }]
+  }]
+}
+```
+
+Biến thể được sắp theo ID, bậc giá theo minDays rồi ID. `maxDays = null` nghĩa là không giới hạn trên.
+ID không tồn tại, không dương hoặc sản phẩm không công khai trả 404 với wrapper chuẩn.
+ID không đúng định dạng số trả 400 theo model binding chuẩn.
+
+### 3.3. Danh mục sản phẩm
+
+`GET /products/categories` · **Auth:** Public
+
+**Response 200:** `ApiResponse<IReadOnlyList<ProductCategoryResponse>>`;
+`data = [{ "id": 1, "name": "Lều cắm trại" }]`, sắp theo tên rồi ID.
+Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ điều kiện.
+
+**Dữ liệu local:** sau `dotnet ef database update`, có thể chạy
+`docs/database/seed_product_catalog.sql` trên SQL Server `RenTrekDb`.
+Script chỉ thêm dữ liệu mẫu nếu bảng Products chưa có dữ liệu; không seed tự động khi khởi động API.
+
+**Kiểm tra local:** chạy `./tests/product-catalog.smoke.ps1 -WithDatabaseFixtures` tại thư mục BE.
+Script kiểm tra API và tạo fixture tạm trong database local, sau đó dọn fixture trong `finally`.
+Tại FE chạy `node --use-system-ca --test tests/product-catalog.render.test.mjs` để kiểm tra
+Axios + React render bằng dữ liệu thật (cần BE đang chạy, chứng chỉ dev đã trust, Node 24+).
+Đây là kiểm tra render trong Node; không thay thế kiểm tra trực quan desktop/mobile trên trình duyệt.
 
 ---
 
@@ -372,3 +475,4 @@ Copy khối dưới đây khi thêm API mới:
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
 | 2026-10-06 | — | — | Khởi tạo skeleton |
+| 2026-10-23 | — | Products | Thêm API danh sách, chi tiết và danh mục cho sản phẩm thuê / bán |

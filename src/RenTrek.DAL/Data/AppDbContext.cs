@@ -13,6 +13,11 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<ProductVariantImage> ProductVariantImages => Set<ProductVariantImage>();
+    public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
