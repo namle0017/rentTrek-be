@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Services.Interfaces.Authentication;
 
@@ -16,9 +17,11 @@ public class LoginController : ControllerBase
         _loginService = loginService;
     }
 
-    // TODO: implement
     [HttpPost("login")]
     [AllowAnonymous]
-    public Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
-        => throw new NotImplementedException();
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _loginService.LoginAsync(request, cancellationToken);
+        return Ok(ApiResponse<AuthResponse>.Ok(result, "Đăng nhập thành công"));
+    }
 }

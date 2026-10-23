@@ -8,6 +8,37 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
-        // TODO: ToTable, HasKey, do dai cot, unique index, quan he (xem docs/database/Logical_ERD_v2.md)
+        builder.ToTable("RefreshTokens");
+
+        builder.HasKey(rt => rt.RefreshTokenId);
+
+        builder.Property(rt => rt.FamilyId)
+            .IsRequired()
+            .HasMaxLength(64);
+
+        builder.HasIndex(rt => rt.FamilyId);
+
+        builder.Property(rt => rt.TokenHash)
+            .IsRequired()
+            .HasMaxLength(128);
+
+        builder.HasIndex(rt => rt.TokenHash)
+            .IsUnique();
+
+        builder.Property(rt => rt.CreatedAt)
+            .HasDefaultValueSql("GETUTCDATE()");
+
+        builder.Property(rt => rt.RevokedReason)
+            .HasMaxLength(255);
+
+        builder.HasOne(rt => rt.User)
+            .WithMany(u => u.RefreshTokens)
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(rt => rt.ReplacedByRefreshToken)
+            .WithMany()
+            .HasForeignKey(rt => rt.ReplacedByRefreshTokenId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Services.Interfaces.Authentication;
 
@@ -16,9 +17,11 @@ public class LogoutController : ControllerBase
         _logoutService = logoutService;
     }
 
-    // TODO: implement
     [HttpPost("logout")]
     [Authorize]
-    public Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
-        => throw new NotImplementedException();
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+    {
+        await _logoutService.LogoutAsync(request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đăng xuất thành công"));
+    }
 }

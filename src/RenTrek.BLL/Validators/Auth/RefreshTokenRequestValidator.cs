@@ -7,6 +7,7 @@ public class RefreshTokenRequestValidator : AbstractValidator<RefreshTokenReques
 {
     public RefreshTokenRequestValidator()
     {
-        // TODO: them rule
+        RuleFor(x => x.RefreshToken)
+            .NotEmpty().WithMessage("Refresh token không được để trống");
     }
 }

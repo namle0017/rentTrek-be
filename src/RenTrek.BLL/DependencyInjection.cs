@@ -29,8 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ILogoutService, LogoutService>();
 
-        // Service khác đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserService, UserService>();
+        // User & Profile
+        services.AddScoped<IUserService, UserService>();
 
         return services;
     }
