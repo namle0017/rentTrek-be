@@ -1,0 +1,56 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using RenTrek.API.Common;
+
+namespace RenTrek.API.Extensions;
+
+public static class AuthenticationExtensions
+{
+    public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        var jwt = configuration.GetSection("Jwt");
+        var secretKey = jwt["SecretKey"];
+        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+            throw new InvalidOperationException("Jwt:SecretKey chưa được cấu hình hoặc ngắn hơn 32 ký tự (dùng dotnet user-secrets).");
+
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwt["Issuer"],
+                    ValidateAudience = true,
+                    ValidAudience = jwt["Audience"],
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero
+                };
+
+                // Trả 401 / 403 theo format ApiResponse thay vì body rỗng
+                options.Events = new JwtBearerEvents
+                {
+                    // TODO (logout): OnTokenValidated -> kiểm tra jti trong bảng AccessTokens, đã revoke thì context.Fail(...)
+                    OnChallenge = async context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        await context.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(
+                            "Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn", StatusCodes.Status401Unauthorized));
+                    },
+                    OnForbidden = async context =>
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        await context.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(
+                            "Bạn không có quyền thực hiện thao tác này", StatusCodes.Status403Forbidden));
+                    }
+                };
+            });
+
+        services.AddAuthorization();
+        return services;
+    }
+}

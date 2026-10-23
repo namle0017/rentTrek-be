@@ -103,6 +103,8 @@ BE/
 │   │   │   └── ProductsController.cs
 │   │   ├── Middlewares/
 │   │   │   └── ExceptionHandlingMiddleware.cs
+│   │   ├── Filters/
+│   │   │   └── ValidationFilter.cs           # chạy FluentValidation cho request DTO
 │   │   ├── Common/
 │   │   │   └── ApiResponse.cs
 │   │   ├── Extensions/
@@ -135,11 +137,12 @@ BE/
 │   │   ├── Exceptions/
 │   │   │   ├── AppException.cs               # base
 │   │   │   ├── BadRequestException.cs
+│   │   │   ├── ValidationException.cs
 │   │   │   ├── NotFoundException.cs
 │   │   │   ├── ConflictException.cs
 │   │   │   ├── UnauthorizedException.cs
 │   │   │   └── ForbiddenException.cs
-│   │   ├── Helpers/                          # JwtHelper, PasswordHasher, ...
+│   │   ├── Helpers/                          # QueryableExtensions, JwtHelper, PasswordHasher, ...
 │   │   └── DependencyInjection.cs
 │   │
 │   └── RenTrek.DAL/                          # ── Data Access Layer
@@ -160,7 +163,7 @@ BE/
 │       │   └── Implementations/
 │       │       ├── GenericRepository.cs
 │       │       └── ProductRepository.cs
-│       ├── UnitOfWork/
+│       ├── UnitOfWorks/                      # số nhiều để namespace không trùng tên class UnitOfWork
 │       │   ├── IUnitOfWork.cs
 │       │   └── UnitOfWork.cs
 │       └── DependencyInjection.cs
@@ -461,9 +464,10 @@ public static class DependencyInjection
 // RenTrek.BLL/DependencyInjection.cs
 public static class DependencyInjection
 {
-    public static IServiceCollection AddBusinessLayer(this IServiceCollection services)
+    public static IServiceCollection AddBusinessLayer(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddAutoMapper(typeof(DependencyInjection).Assembly);
+        services.AddAutoMapper(cfg => cfg.LicenseKey = configuration["AutoMapper:LicenseKey"],
+            typeof(DependencyInjection).Assembly);
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
         services.AddScoped<IProductService, ProductService>();
         return services;
@@ -472,7 +476,7 @@ public static class DependencyInjection
 
 // RenTrek.API/Program.cs
 builder.Services.AddDataAccessLayer(builder.Configuration);
-builder.Services.AddBusinessLayer();
+builder.Services.AddBusinessLayer(builder.Configuration);
 ```
 
 > `RenTrek.API` reference `RenTrek.DAL` **chỉ** để gọi `AddDataAccessLayer`. Controller tuyệt đối không dùng type nào của DAL.
