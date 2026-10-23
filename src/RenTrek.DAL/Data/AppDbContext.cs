@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data;
 
@@ -8,8 +9,10 @@ public class AppDbContext : DbContext
     {
     }
 
-    // Khai báo DbSet cho từng entity tại đây, ví dụ:
-    // public DbSet<User> Users => Set<User>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
