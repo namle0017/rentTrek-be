@@ -5,6 +5,19 @@
 
 # dotenv files
 .env
+.env.*
+!.env.example
+
+# Secrets / local config (appsettings.json is kept as a template with empty secrets)
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
 
 # User-specific files
 *.rsuser
