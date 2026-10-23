@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Services.Interfaces.Authentication;
 
@@ -16,9 +17,11 @@ public class RefreshTokenController : ControllerBase
         _refreshTokenService = refreshTokenService;
     }
 
-    // TODO: implement
     [HttpPost("refresh-token")]
     [AllowAnonymous]
-    public Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
-        => throw new NotImplementedException();
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _refreshTokenService.RefreshTokenAsync(request, cancellationToken);
+        return Ok(ApiResponse<AuthResponse>.Ok(result, "Làm mới phiên đăng nhập thành công"));
+    }
 }

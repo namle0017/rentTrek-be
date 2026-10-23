@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Services.Interfaces.Authentication;
 
@@ -16,9 +17,12 @@ public class RegisterController : ControllerBase
         _registerService = registerService;
     }
 
-    // TODO: implement
     [HttpPost("register")]
     [AllowAnonymous]
-    public Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
-        => throw new NotImplementedException();
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _registerService.RegisterAsync(request, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponse<AuthResponse>.Ok(result, "Đăng ký tài khoản thành công", StatusCodes.Status201Created));
+    }
 }

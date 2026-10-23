@@ -7,6 +7,7 @@ public class LogoutRequestValidator : AbstractValidator<LogoutRequest>
 {
     public LogoutRequestValidator()
     {
-        // TODO: them rule
+        RuleFor(x => x.RefreshToken)
+            .NotEmpty().WithMessage("Refresh token không được để trống");
     }
 }
