@@ -1,11 +1,11 @@
 using FluentValidation;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Implementations.Authentication;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.Services.Interfaces.Authentication;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace RenTrek.BLL;
 
@@ -15,13 +15,13 @@ public static class DependencyInjection
     {
         var assembly = typeof(DependencyInjection).Assembly;
 
-        // AutoMapper 15+ cần license key (miễn phí cho mục đích học tập / phi thương mại)
+        // AutoMapper
         services.AddAutoMapper(cfg => cfg.LicenseKey = configuration["AutoMapper:LicenseKey"], assembly);
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
-        // Auth
+        // Auth Services
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IRegisterService, RegisterService>();
@@ -29,8 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ILogoutService, LogoutService>();
 
-        // Service khác đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserService, UserService>();
+        // Tour Services
+        services.AddScoped<ITourService, TourService>();
 
         return services;
     }

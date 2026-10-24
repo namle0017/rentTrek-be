@@ -74,7 +74,8 @@
 | 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ⬜ TODO |
 | 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ⬜ TODO |
 | 2.3 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
-| 3.1 | TODO | `GET` | `/TODO` | TODO | TODO | ⬜ TODO |
+| 3.1 | Tours | `GET` | `/tours` | Public | Lấy danh sách tour kèm bộ lọc & phân trang | ✅ Done |
+| 3.2 | Tours | `GET` | `/tours/{id}` | Public | Lấy thông tin chi tiết một tour | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
