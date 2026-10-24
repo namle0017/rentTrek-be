@@ -1,4 +1,7 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using RenTrek.DAL.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.API.Common;
@@ -33,7 +36,23 @@ public static class AuthenticationExtensions
                 // Trả 401 / 403 theo format ApiResponse thay vì body rỗng
                 options.Events = new JwtBearerEvents
                 {
-                    // TODO (logout): OnTokenValidated -> kiểm tra jti trong bảng AccessTokens, đã revoke thì context.Fail(...)
+                    OnTokenValidated = async context =>
+                    {
+                        var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                                  ?? context.Principal?.FindFirst("jti")?.Value;
+
+                        if (!string.IsNullOrEmpty(jti))
+                        {
+                            var dbContext = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                            var isRevoked = await dbContext.AccessTokens
+                                .AnyAsync(at => at.Jti == jti && at.RevokedAt != null);
+
+                            if (isRevoked)
+                            {
+                                context.Fail("Phiên đăng nhập đã bị thu hồi hoặc đã đăng xuất.");
+                            }
+                        }
+                    },
                     OnChallenge = async context =>
                     {
                         context.HandleResponse();
