@@ -8,7 +8,8 @@
 .env.*
 !.env.example
 
-# Secrets / local config (appsettings.json is kept as a template with empty secrets)
+# Secrets / local config
+appsettings.json
 appsettings.Development.json
 appsettings.Local.json
 appsettings.*.json
