@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể role trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class Role
 {
     public Guid RoleId { get; set; } = Guid.NewGuid();

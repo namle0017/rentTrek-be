@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể trip trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class Trip
 {
     public Guid TripId { get; set; }

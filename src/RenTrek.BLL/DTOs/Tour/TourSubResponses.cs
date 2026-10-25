@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Tour;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ tour image.
+/// </summary>
 public class TourImageResponse
 {
     public Guid Id { get; set; }
@@ -8,6 +11,9 @@ public class TourImageResponse
     public bool IsPrimary { get; set; }
 }
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ tour activity.
+/// </summary>
 public class TourActivityResponse
 {
     public Guid Id { get; set; }
@@ -21,6 +27,9 @@ public class TourActivityResponse
     public string? Description { get; set; }
 }
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ tour item.
+/// </summary>
 public class TourItemResponse
 {
     public Guid Id { get; set; }
@@ -30,6 +39,9 @@ public class TourItemResponse
     public int? Quantity { get; set; }
 }
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ trip summary.
+/// </summary>
 public class TripSummaryResponse
 {
     public Guid Id { get; set; }

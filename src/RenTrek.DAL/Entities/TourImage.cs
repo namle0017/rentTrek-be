@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể tour image trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class TourImage : BaseEntity
 {
     public Guid TourId { get; set; }

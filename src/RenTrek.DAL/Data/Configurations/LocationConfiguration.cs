@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể location.
+/// </summary>
 public class LocationConfiguration : IEntityTypeConfiguration<Location>
 {
     public void Configure(EntityTypeBuilder<Location> builder)

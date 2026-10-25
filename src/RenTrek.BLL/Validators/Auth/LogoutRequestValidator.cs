@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Auth;
 
 namespace RenTrek.BLL.Validators.Auth;
 
+/// <summary>
+/// Kiểm tra dữ liệu và quy tắc hợp lệ cho logout request.
+/// </summary>
 public class LogoutRequestValidator : AbstractValidator<LogoutRequest>
 {
     public LogoutRequestValidator()

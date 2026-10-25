@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể order.
+/// </summary>
 public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)

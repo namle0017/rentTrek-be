@@ -6,6 +6,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
+/// <summary>
+/// Cung cấp các endpoint HTTP cho auth.
+/// </summary>
 [ApiController]
 [Route("api/v1/auth")]
 public class AuthController : ControllerBase

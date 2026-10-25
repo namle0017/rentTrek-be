@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể payment.
+/// </summary>
 public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 {
     public void Configure(EntityTypeBuilder<Payment> builder)

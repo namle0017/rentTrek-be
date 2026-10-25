@@ -8,6 +8,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.BLL;
 
+/// <summary>
+/// Đăng ký các dịch vụ business của BLL vào dependency injection container.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddBusinessLayer(this IServiceCollection services, IConfiguration configuration)

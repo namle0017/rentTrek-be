@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể order trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class Order
 {
     public Guid OrderId { get; set; }

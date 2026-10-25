@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Users;
 
 namespace RenTrek.BLL.Validators.Users;
 
+/// <summary>
+/// Kiểm tra dữ liệu và quy tắc hợp lệ cho update profile request.
+/// </summary>
 public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequest>
 {
     public UpdateProfileRequestValidator()

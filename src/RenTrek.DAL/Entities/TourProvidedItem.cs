@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể tour provided item trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class TourProvidedItem : BaseEntity
 {
     public Guid TourId { get; set; }

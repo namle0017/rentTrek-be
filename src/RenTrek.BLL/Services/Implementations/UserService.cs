@@ -7,6 +7,9 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
 
+/// <summary>
+/// Thực hiện nghiệp vụ user.
+/// </summary>
 public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;

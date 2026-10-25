@@ -9,6 +9,9 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
 
+/// <summary>
+/// Thực hiện nghiệp vụ auth.
+/// </summary>
 public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;

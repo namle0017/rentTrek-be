@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể booking participant trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class BookingParticipant
 {
     public Guid ParticipantId { get; set; }

@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho role qua EF Core.
+/// </summary>
 public class RoleRepository : GenericRepository<Role>, IRoleRepository
 {
     public RoleRepository(AppDbContext context) : base(context)

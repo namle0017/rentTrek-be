@@ -12,6 +12,9 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
 
+/// <summary>
+/// Thực hiện nghiệp vụ product.
+/// </summary>
 public class ProductService : IProductService
 {
     private readonly IUnitOfWork _unitOfWork;

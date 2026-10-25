@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể rental price tier trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class RentalPriceTier
 {
     public Guid Id { get; set; } = Guid.NewGuid();

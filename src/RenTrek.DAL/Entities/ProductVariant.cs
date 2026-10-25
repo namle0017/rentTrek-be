@@ -2,6 +2,9 @@ using RenTrek.DAL.Entities.Enums;
 
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể product variant trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class ProductVariant
 {
     public Guid Id { get; set; } = Guid.NewGuid();

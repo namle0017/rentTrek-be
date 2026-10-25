@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể product variant image trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class ProductVariantImage
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể trip booking order.
+/// </summary>
 public sealed class TripBookingOrderConfiguration : IEntityTypeConfiguration<TripBookingOrder>
 {
     public void Configure(EntityTypeBuilder<TripBookingOrder> builder)

@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.Options;
 
+/// <summary>
+/// Chứa các thiết lập dùng để phát hành và xác thực JWT.
+/// </summary>
 public class JwtSettings
 {
     public const string SectionName = "Jwt";

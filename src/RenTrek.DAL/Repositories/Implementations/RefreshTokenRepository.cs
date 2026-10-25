@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho refresh token qua EF Core.
+/// </summary>
 public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshTokenRepository
 {
     public RefreshTokenRepository(AppDbContext context) : base(context)

@@ -7,6 +7,9 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.API.Extensions;
 
+/// <summary>
+/// Đăng ký và cấu hình JWT authentication cho API.
+/// </summary>
 public static class AuthenticationExtensions
 {
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)

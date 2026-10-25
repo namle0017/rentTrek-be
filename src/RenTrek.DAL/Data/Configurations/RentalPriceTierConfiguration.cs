@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể rental price tier.
+/// </summary>
 public class RentalPriceTierConfiguration : IEntityTypeConfiguration<RentalPriceTier>
 {
     public void Configure(EntityTypeBuilder<RentalPriceTier> builder)

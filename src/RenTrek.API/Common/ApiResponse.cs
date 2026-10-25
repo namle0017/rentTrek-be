@@ -1,5 +1,8 @@
 namespace RenTrek.API.Common;
 
+/// <summary>
+/// Chuẩn hóa cấu trúc phản hồi thành công và lỗi của API.
+/// </summary>
 public class ApiResponse<T>
 {
     public bool Success { get; set; }
