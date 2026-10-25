@@ -1,11 +1,10 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
-using RenTrek.BLL.Services.Implementations.Authentication;
 using RenTrek.BLL.Services.Interfaces;
-using RenTrek.BLL.Services.Interfaces.Authentication;
 
 namespace RenTrek.BLL;
 
@@ -21,25 +20,18 @@ public static class DependencyInjection
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
-        // Auth Services
+        // Helpers
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
-        services.AddScoped<IRegisterService, RegisterService>();
-        services.AddScoped<ILoginService, LoginService>();
-        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
-        services.AddScoped<ILogoutService, LogoutService>();
-        services.AddScoped<IProductService, ProductService>();
+        services.AddSingleton<IParticipantInviteTokenService, ParticipantInviteTokenService>();
 
-        // User & Profile
+        // Services
+        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
-
-        // Trip booking
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<RenTrek.BLL.Abstractions.IParticipantInviteTokenService, RenTrek.BLL.Security.ParticipantInviteTokenService>();
-        services.AddScoped<ITripBookingService, TripBookingService>();
-
-        // Tour Services
         services.AddScoped<ITourService, TourService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ITripBookingService, TripBookingService>();
 
         return services;
     }
