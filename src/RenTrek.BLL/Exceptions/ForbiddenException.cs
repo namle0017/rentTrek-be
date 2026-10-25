@@ -1,3 +1,8 @@
 namespace RenTrek.BLL.Exceptions;
 
-public sealed class ForbiddenException(string message) : AppException(message, 403);
+public class ForbiddenException : AppException
+{
+    public ForbiddenException(string message = "Bạn không có quyền thực hiện thao tác này") : base(message, 403)
+    {
+    }
+}

@@ -5,6 +5,7 @@ using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWork;
 using System.ComponentModel.DataAnnotations;
+using ICurrentUserService = RenTrek.BLL.Abstractions.ICurrentUserService;
 
 namespace RenTrek.BLL.Services.Implementations;
 

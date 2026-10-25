@@ -1,3 +1,8 @@
 namespace RenTrek.BLL.Exceptions;
 
-public sealed class ConflictException(string message) : AppException(message, 409);
+public class ConflictException : AppException
+{
+    public ConflictException(string message = "Dữ liệu đã tồn tại") : base(message, 409)
+    {
+    }
+}
