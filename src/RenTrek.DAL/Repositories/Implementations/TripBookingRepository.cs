@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -25,14 +26,18 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
         => context.Trips.FromSqlInterpolated($"SELECT * FROM trips WHERE trip_id = {tripId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
+    // Booking đang chiếm chỗ: đã xác nhận, hoặc đang giữ chỗ chưa hết hạn
+    internal static Expression<Func<TripBookingOrder, bool>> HoldsSeats(DateTimeOffset utcNow)
+        => x => x.Order.Status == "Confirmed" ||
+                (x.Order.Status == "PendingPayment" && x.Order.HoldExpiresAt > utcNow);
+
     public async Task<int> GetReservedParticipantCountAsync(
         Guid tripId,
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
         => await context.TripBookingOrders
-            .Where(x => x.TripId == tripId &&
-                (x.Order.Status == "Confirmed" ||
-                 (x.Order.Status == "PendingPayment" && x.Order.HoldExpiresAt > utcNow)))
+            .Where(x => x.TripId == tripId)
+            .Where(HoldsSeats(utcNow))
             .SumAsync(x => (int?)x.ParticipantCount, cancellationToken) ?? 0;
 
     public Task<Order?> GetByIdempotencyKeyAsync(

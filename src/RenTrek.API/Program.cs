@@ -67,8 +67,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // DB dùng chung trên Supabase: chỉ seed khi bật Seed:Tours=true
-    if (app.Configuration.GetValue<bool>("Seed:Tours"))
+    // Seed dữ liệu tour mẫu khi bảng tours còn trống; tắt bằng Seed:Tours=false
+    if (app.Configuration.GetValue("Seed:Tours", true))
     {
         using var scope = app.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();

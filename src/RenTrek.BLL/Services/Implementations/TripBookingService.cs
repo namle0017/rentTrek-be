@@ -3,7 +3,7 @@ using RenTrek.BLL.DTOs.TripBooking;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
-using RenTrek.DAL.UnitOfWork;
+using RenTrek.DAL.UnitOfWorks;
 using System.ComponentModel.DataAnnotations;
 using ICurrentUserService = RenTrek.BLL.Abstractions.ICurrentUserService;
 

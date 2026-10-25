@@ -15,6 +15,12 @@ public static class TourSeedData
 
         context.ChangeTracker.Clear();
 
+        // DB dùng chung: seed lỗi giữa chừng thì không để lại dữ liệu dở
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        var systemUserId = await EnsureSystemAccountAsync(context);
+        var refundPolicyId = await EnsureRefundPolicyAsync(context, systemUserId);
+        var providedVariants = await SeedProvidedEquipmentAsync(context, systemUserId);
+
         // 1. Danh mục
         var catCampingTrekking = new Category
         {
@@ -221,7 +227,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 10, 24, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 10, 25, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 12,
-                    BookedSlots = 8, // Còn 4 chỗ
                     MinParticipants = 8,
                     PricePerPerson = 2450000m,
                     Status = "Open"
@@ -249,7 +254,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 9, 28, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 9, 29, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 15,
-                    BookedSlots = 11, // Còn 4 chỗ
                     PricePerPerson = 2200000m,
                     Status = "Open"
                 }
@@ -275,7 +279,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 10, 5, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 10, 6, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 12,
-                    BookedSlots = 10, // Còn 2 chỗ
                     PricePerPerson = 1950000m,
                     Status = "Open"
                 }
@@ -301,7 +304,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 10, 12, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 10, 13, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 15,
-                    BookedSlots = 8, // Còn 7 chỗ
                     PricePerPerson = 2600000m,
                     Status = "Open"
                 }
@@ -327,7 +329,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 10, 19, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 10, 20, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 20,
-                    BookedSlots = 10, // Còn 10 chỗ
                     PricePerPerson = 1800000m,
                     Status = "Open"
                 }
@@ -353,7 +354,6 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 9, 14, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 9, 15, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 15,
-                    BookedSlots = 15,
                     PricePerPerson = 2350000m,
                     Status = "Closed"
                 }
@@ -379,14 +379,123 @@ public static class TourSeedData
                     StartAt = new DateTime(2026, 9, 7, 6, 0, 0, DateTimeKind.Utc),
                     EndAt = new DateTime(2026, 9, 8, 18, 0, 0, DateTimeKind.Utc),
                     TotalSlots = 12,
-                    BookedSlots = 12,
                     PricePerPerson = 2900000m,
                     Status = "Closed"
                 }
             ]
         };
 
-        await context.Tours.AddRangeAsync(tourFansipan, tourTaNang, tourLaoThan, tourBidoup, tourPuLuong, tourNuiChua, tourBachMoc);
+        Tour[] tours = [tourFansipan, tourTaNang, tourLaoThan, tourBidoup, tourPuLuong, tourNuiChua, tourBachMoc];
+        var now = DateTimeOffset.UtcNow;
+        foreach (var tour in tours)
+        {
+            tour.CreatedByUserId = systemUserId;
+            foreach (var item in tour.ProvidedItems)
+                item.ProductVariantId = providedVariants[item.ItemName];
+            foreach (var trip in tour.Trips)
+            {
+                trip.RefundPolicyId = refundPolicyId;
+                trip.ManagedByUserId = systemUserId;
+                trip.CreatedAt = now;
+                trip.UpdatedAt = now;
+            }
+        }
+
+        await context.Tours.AddRangeAsync(tours);
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
+    private const string SystemEmail = "system@rentrek.local";
+
+    // Tài khoản kỹ thuật làm người tạo dữ liệu mẫu; Inactive và không có mật khẩu nên không đăng nhập được
+    private static async Task<Guid> EnsureSystemAccountAsync(AppDbContext context)
+    {
+        var existing = await context.Accounts.IgnoreQueryFilters()
+            .Where(a => a.Email == SystemEmail).Select(a => (Guid?)a.UserId).FirstOrDefaultAsync();
+        if (existing is not null)
+            return existing.Value;
+
+        var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Admin");
+        if (adminRole is null)
+        {
+            adminRole = new Role { RoleName = "Admin", Description = "Quản trị viên toàn quyền hệ thống" };
+            context.Roles.Add(adminRole);
+        }
+
+        var account = new Account
+        {
+            RoleId = adminRole.RoleId,
+            Email = SystemEmail,
+            FullName = "RenTrek System",
+            Status = "Inactive"
+        };
+        context.Accounts.Add(account);
+        await context.SaveChangesAsync();
+        return account.UserId;
+    }
+
+    // Chính sách mẫu theo ví dụ PRD §8.8, chưa phải chính sách đã duyệt
+    private static async Task<Guid> EnsureRefundPolicyAsync(AppDbContext context, Guid systemUserId)
+    {
+        var policyId = Guid.NewGuid();
+        await context.Database.ExecuteSqlInterpolatedAsync($@"
+            INSERT INTO refund_policies (refund_policy_id, created_by_user_id, policy_type, name, description, status,
+                policy_family_id, version, effective_from, created_at, updated_at, is_deleted)
+            VALUES ({policyId}, {systemUserId}, 'TOUR', 'Chính sách hoàn tiền mẫu',
+                'Dữ liệu mẫu cho môi trường phát triển', 'Active', {Guid.NewGuid()}, 1, now(), now(), now(), false)");
+        foreach (var (hours, percentage) in new[] { (72, 100m), (24, 50m), (0, 0m) })
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync($@"
+                INSERT INTO refund_policy_rules (refund_policy_rule_id, refund_policy_id, min_hours_before,
+                    refund_percentage, created_at, updated_at, is_deleted)
+                VALUES ({Guid.NewGuid()}, {policyId}, {hours}, {percentage}, now(), now(), false)");
+        }
+
+        return policyId;
+    }
+
+    // Đồ được cấp phải trỏ tới variant thật trong kho; tạo kèm giá thuê để hiện ở product catalog
+    private static async Task<Dictionary<string, Guid>> SeedProvidedEquipmentAsync(AppDbContext context, Guid systemUserId)
+    {
+        var category = new Category
+        {
+            Name = "Thiết bị trekking",
+            CategoryType = "PRODUCT",
+            Description = "Thiết bị cho thuê và cấp theo tour",
+            Status = "Active"
+        };
+        var equipment = new (string Name, string Sku, decimal DailyPrice)[]
+        {
+            ("Lều Eureka 2 lớp", "TENT-EUREKA-2L", 120000m),
+            ("Túi ngủ -5°C", "SLEEPBAG-M5", 50000m),
+            ("Gậy trekking", "POLE-TREK", 20000m),
+            ("Bộ sơ cứu y tế", "FIRSTAID-KIT", 15000m)
+        };
+
+        var result = new Dictionary<string, Guid>();
+        var utcNow = DateTime.UtcNow;
+        foreach (var (name, sku, dailyPrice) in equipment)
+        {
+            var variant = new ProductVariant
+            {
+                Sku = sku,
+                Name = name,
+                UpdatedAt = utcNow,
+                RentalPriceTiers = [new RentalPriceTier { MinDays = 1, DailyPrice = dailyPrice, UpdatedAt = utcNow }]
+            };
+            context.Products.Add(new Product
+            {
+                Category = category,
+                CreatedByUserId = systemUserId,
+                Name = name,
+                UpdatedAt = utcNow,
+                Variants = [variant]
+            });
+            result[name] = variant.Id;
+        }
+
+        await context.SaveChangesAsync();
+        return result;
     }
 }
