@@ -5,6 +5,20 @@
 
 # dotenv files
 .env
+.env.*
+!.env.example
+
+# Secrets / local config (appsettings.json is kept as a template with empty secrets)
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.json
+appsettings.*.local.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
 
 # User-specific files
 *.rsuser
@@ -480,14 +494,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
-
-# ---- renTrek ----
-# Secrets / local config (xem docs/01-CONVENTIONS.md mục 5.3)
-appsettings.Development.json
-appsettings.*.local.json
-*.env
-.env.*
-secrets.json
 
 # IDE
 .idea/

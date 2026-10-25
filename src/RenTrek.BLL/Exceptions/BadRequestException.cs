@@ -1,3 +1,8 @@
 namespace RenTrek.BLL.Exceptions;
 
-public sealed class BadRequestException(string message) : AppException(message, 400);
+public class BadRequestException : AppException
+{
+    public BadRequestException(string message = "Yêu cầu không hợp lệ") : base(message, 400)
+    {
+    }
+}

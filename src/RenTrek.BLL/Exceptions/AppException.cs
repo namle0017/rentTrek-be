@@ -1,6 +1,14 @@
 namespace RenTrek.BLL.Exceptions;
 
-public abstract class AppException(string message, int statusCode) : Exception(message)
+/// <summary>
+/// Base cho mọi exception nghiệp vụ. ExceptionHandlingMiddleware dựa vào StatusCode để trả response.
+/// </summary>
+public abstract class AppException : Exception
 {
-    public int StatusCode { get; } = statusCode;
+    public int StatusCode { get; }
+
+    protected AppException(string message, int statusCode) : base(message)
+    {
+        StatusCode = statusCode;
+    }
 }

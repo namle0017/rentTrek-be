@@ -1,3 +1,8 @@
 namespace RenTrek.BLL.Exceptions;
 
-public sealed class NotFoundException(string message) : AppException(message, 404);
+public class NotFoundException : AppException
+{
+    public NotFoundException(string message = "Không tìm thấy dữ liệu") : base(message, 404)
+    {
+    }
+}
