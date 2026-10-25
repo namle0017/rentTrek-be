@@ -3,7 +3,7 @@
 > Backend **renTrek** được tổ chức theo mô hình **3 layers**:
 > **Presentation (API)** → **Business Logic (BLL)** → **Data Access (DAL)**.
 >
-> Tech stack: ASP.NET Core Web API (.NET 8), Entity Framework Core, SQL Server, JWT Authentication, Swagger.
+> Tech stack: ASP.NET Core Web API (.NET 8), Entity Framework Core (DB-first), PostgreSQL (Supabase), JWT Authentication, Swagger.
 
 ## Mục lục
 
@@ -34,7 +34,7 @@ sequenceDiagram
         participant UOW as UnitOfWork / Repository
         participant CTX as AppDbContext
     end
-    participant DB as SQL Server
+    participant DB as PostgreSQL
 
     C->>MW: HTTP Request (JSON)
     MW->>MW: Authentication, Authorization, Logging
@@ -408,7 +408,8 @@ public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEnt
 }
 ```
 
-**Repository riêng** — chỉ tạo khi cần query đặc thù:
+**Repository riêng** — mỗi entity có 1 repository kế thừa Generic; query đặc thù khai báo thêm vào đây.
+Service **chỉ** truy cập qua property của `IUnitOfWork` (repository không đăng ký DI):
 
 ```csharp
 public interface IProductRepository : IGenericRepository<Product>
@@ -452,10 +453,9 @@ public static class DependencyInjection
     public static IServiceCollection AddDataAccessLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }
@@ -500,7 +500,7 @@ sequenceDiagram
     participant S as ProductService
     participant U as UnitOfWork
     participant R as ProductRepository
-    participant DB as SQL Server
+    participant DB as PostgreSQL
 
     C->>Ctl: GET /api/v1/products/{id}
     Ctl->>S: GetByIdAsync(id)
@@ -542,12 +542,11 @@ sequenceDiagram
 
 Ví dụ thêm module **Booking**:
 
-1. **DAL**
-   - [ ] Tạo `Entities/Booking.cs` kế thừa `BaseEntity`.
-   - [ ] Thêm `DbSet<Booking>` vào `AppDbContext` + `Data/Configurations/BookingConfiguration.cs`.
-   - [ ] (Nếu cần query riêng) `IBookingRepository` / `BookingRepository`.
-   - [ ] Thêm `Bookings` vào `IUnitOfWork` / `UnitOfWork`, đăng ký DI.
-   - [ ] `dotnet ef migrations add AddBookingTable -p src/RenTrek.DAL -s src/RenTrek.API`
+1. **DAL** (DB-first — xem [`01-CONVENTIONS.md` §6.6](01-CONVENTIONS.md#66-bước-4-dal--scaffold-database))
+   - [ ] Tạo / sửa bảng `bookings` trên database (Supabase).
+   - [ ] Chạy `./scripts/scaffold-db.ps1` → sinh `Entities/Booking.cs`, `Data/Configurations/BookingConfiguration.cs`, `DbSet` trong `AppDbContext`.
+   - [ ] Tạo `IBookingRepository` / `BookingRepository` (kế thừa Generic), query riêng viết vào đây.
+   - [ ] Thêm property `Bookings` vào `IUnitOfWork` / `UnitOfWork` (không đăng ký DI — UnitOfWork tự tạo).
 2. **BLL**
    - [ ] Tạo DTO trong `DTOs/Booking/`: `CreateBookingRequest`, `BookingResponse`, ...
    - [ ] Validator trong `Validators/Booking/`.
