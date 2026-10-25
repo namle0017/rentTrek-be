@@ -3,6 +3,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Seeds;
 
+/// <summary>
+/// Khởi tạo dữ liệu tour mẫu dùng cho môi trường phát triển.
+/// </summary>
 public static class TourSeedData
 {
     public static readonly Guid FansipanTourId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -14,6 +17,8 @@ public static class TourSeedData
             return;
 
         context.ChangeTracker.Clear();
+        var activeTripBaseDate = DateTime.UtcNow.Date.AddDays(14);
+        var expiredTripBaseDate = DateTime.UtcNow.Date.AddDays(-21);
 
         // DB dùng chung: seed lỗi giữa chừng thì không để lại dữ liệu dở
         await using var transaction = await context.Database.BeginTransactionAsync();
@@ -224,8 +229,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 10, 24, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 10, 25, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = activeTripBaseDate.AddHours(6),
+                    EndAt = activeTripBaseDate.AddDays(1).AddHours(18),
                     TotalSlots = 12,
                     MinParticipants = 8,
                     PricePerPerson = 2450000m,
@@ -251,8 +256,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 9, 28, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 9, 29, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = activeTripBaseDate.AddDays(7).AddHours(6),
+                    EndAt = activeTripBaseDate.AddDays(8).AddHours(18),
                     TotalSlots = 15,
                     PricePerPerson = 2200000m,
                     Status = "Open"
@@ -276,8 +281,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 10, 5, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 10, 6, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = activeTripBaseDate.AddDays(14).AddHours(6),
+                    EndAt = activeTripBaseDate.AddDays(15).AddHours(18),
                     TotalSlots = 12,
                     PricePerPerson = 1950000m,
                     Status = "Open"
@@ -301,8 +306,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 10, 12, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 10, 13, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = activeTripBaseDate.AddDays(21).AddHours(6),
+                    EndAt = activeTripBaseDate.AddDays(22).AddHours(18),
                     TotalSlots = 15,
                     PricePerPerson = 2600000m,
                     Status = "Open"
@@ -326,8 +331,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 10, 19, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 10, 20, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = activeTripBaseDate.AddDays(28).AddHours(6),
+                    EndAt = activeTripBaseDate.AddDays(29).AddHours(18),
                     TotalSlots = 20,
                     PricePerPerson = 1800000m,
                     Status = "Open"
@@ -351,8 +356,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 9, 14, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 9, 15, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = expiredTripBaseDate.AddDays(7).AddHours(6),
+                    EndAt = expiredTripBaseDate.AddDays(8).AddHours(18),
                     TotalSlots = 15,
                     PricePerPerson = 2350000m,
                     Status = "Closed"
@@ -376,8 +381,8 @@ public static class TourSeedData
             [
                 new Trip
                 {
-                    StartAt = new DateTime(2026, 9, 7, 6, 0, 0, DateTimeKind.Utc),
-                    EndAt = new DateTime(2026, 9, 8, 18, 0, 0, DateTimeKind.Utc),
+                    StartAt = expiredTripBaseDate.AddHours(6),
+                    EndAt = expiredTripBaseDate.AddDays(1).AddHours(18),
                     TotalSlots = 12,
                     PricePerPerson = 2900000m,
                     Status = "Closed"
@@ -411,10 +416,16 @@ public static class TourSeedData
     // Tài khoản kỹ thuật làm người tạo dữ liệu mẫu; Inactive và không có mật khẩu nên không đăng nhập được
     private static async Task<Guid> EnsureSystemAccountAsync(AppDbContext context)
     {
+        if (!await context.Roles.AnyAsync(r => r.RoleName == "Customer"))
+            context.Roles.Add(new Role { RoleName = "Customer", Description = "Khách hàng sử dụng hệ thống" });
+
         var existing = await context.Accounts.IgnoreQueryFilters()
             .Where(a => a.Email == SystemEmail).Select(a => (Guid?)a.UserId).FirstOrDefaultAsync();
         if (existing is not null)
+        {
+            await context.SaveChangesAsync();
             return existing.Value;
+        }
 
         var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Admin");
         if (adminRole is null)
