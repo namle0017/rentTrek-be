@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.Services.Interfaces.Authentication;
@@ -14,15 +15,18 @@ public class RefreshTokenService : IRefreshTokenService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly JwtSettings _jwt;
 
     public RefreshTokenService(
         IUnitOfWork unitOfWork,
         ITokenService tokenService,
+        ICurrentUserService currentUserService,
         IOptions<JwtSettings> jwtOptions)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
+        _currentUserService = currentUserService;
         _jwt = jwtOptions.Value;
     }
 
@@ -79,13 +83,20 @@ public class RefreshTokenService : IRefreshTokenService
         var refreshExpiresDays = _jwt.RefreshTokenExpirationDays > 0 ? _jwt.RefreshTokenExpirationDays : 7;
         var refreshExpiresAt = DateTime.UtcNow.AddDays(refreshExpiresDays);
 
+        var deviceInfo = !string.IsNullOrWhiteSpace(_currentUserService.UserAgent)
+            ? DeviceDetector.Detect(_currentUserService.UserAgent)
+            : existingToken.DeviceInfo ?? "Trình duyệt web";
+        var ipAddress = _currentUserService.IpAddress ?? existingToken.IpAddress;
+
         var newRefreshToken = new RefreshToken
         {
             UserId = existingToken.UserId,
             FamilyId = existingToken.FamilyId,
             TokenHash = newTokenHash,
             ExpiresAt = refreshExpiresAt,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            DeviceInfo = deviceInfo,
+            IpAddress = ipAddress
         };
 
         await _unitOfWork.Repository<RefreshToken>().AddAsync(newRefreshToken, cancellationToken);

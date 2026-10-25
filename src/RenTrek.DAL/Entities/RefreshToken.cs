@@ -11,6 +11,8 @@ public class RefreshToken
     public DateTime? RevokedAt { get; set; }
     public string? RevokedReason { get; set; }
     public long? ReplacedByRefreshTokenId { get; set; }
+    public string? DeviceInfo { get; set; }
+    public string? IpAddress { get; set; }
 
     public User User { get; set; } = null!;
     public RefreshToken? ReplacedByRefreshToken { get; set; }

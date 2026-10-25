@@ -31,6 +31,14 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.Property(rt => rt.RevokedReason)
             .HasMaxLength(255);
 
+        builder.Property(rt => rt.DeviceInfo)
+            .HasMaxLength(255)
+            .IsRequired(false);
+
+        builder.Property(rt => rt.IpAddress)
+            .HasMaxLength(50)
+            .IsRequired(false);
+
         builder.HasOne(rt => rt.User)
             .WithMany(u => u.RefreshTokens)
             .HasForeignKey(rt => rt.UserId)
