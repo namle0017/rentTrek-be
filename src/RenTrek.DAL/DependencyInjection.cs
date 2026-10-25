@@ -30,6 +30,8 @@ public static class DependencyInjection
         services.AddScoped<ITripBookingRepository, TripBookingRepository>();
         services.AddScoped<RenTrek.DAL.UnitOfWork.IUnitOfWork, RenTrek.DAL.UnitOfWork.UnitOfWork>();
 
+        services.AddScoped<ITourRepository, TourRepository>();
+
         return services;
     }
 }

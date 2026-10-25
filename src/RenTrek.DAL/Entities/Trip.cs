@@ -17,4 +17,9 @@ public sealed class Trip
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
+
+    // Không có cột trong DB, chỉ phục vụ tour catalog
+    public int BookedSlots { get; set; }
+
+    public Tour Tour { get; set; } = null!;
 }

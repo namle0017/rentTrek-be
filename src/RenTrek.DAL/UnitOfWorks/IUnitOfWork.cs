@@ -8,6 +8,7 @@ public interface IUnitOfWork : IDisposable
     IRoleRepository Roles { get; }
     IRefreshTokenRepository RefreshTokens { get; }
     IAccessTokenRepository AccessTokens { get; }
+    ITourRepository Tours { get; }
 
     /// <summary>Lấy generic repository cho entity chưa có repository riêng.</summary>
     IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class;

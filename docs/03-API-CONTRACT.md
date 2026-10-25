@@ -78,6 +78,8 @@
 | 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | ✅ Done |
 | 3.3 | Trip Bookings | `POST` | `/trip-bookings/{orderId}/participant-invitations` | User | Tạo lại lời mời sau thanh toán | ✅ Done |
 | 3.4 | Trip Bookings | `POST` | `/trip-bookings/participant-invitations/claim` | User | Nhận vị trí participant bằng token | ✅ Done |
+| 4.1 | Tours | `GET` | `/tours` | Public | Lấy danh sách tour kèm bộ lọc & phân trang | ✅ Done |
+| 4.2 | Tours | `GET` | `/tours/{id}` | Public | Lấy thông tin chi tiết một tour | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
