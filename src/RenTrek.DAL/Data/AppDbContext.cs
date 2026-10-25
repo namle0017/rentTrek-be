@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Entities;
 
@@ -11,7 +12,7 @@ public class AppDbContext : DbContext
     }
 
     // Auth DbSets
-    public DbSet<User> Users => Set<User>();
+    public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
@@ -22,7 +23,6 @@ public class AppDbContext : DbContext
     public DbSet<ProductVariantImage> ProductVariantImages => Set<ProductVariantImage>();
     public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
 
-    public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<TripBookingOrder> TripBookingOrders => Set<TripBookingOrder>();
@@ -46,6 +46,14 @@ public class AppDbContext : DbContext
         // Tự động nạp mọi IEntityTypeConfiguration<T> trong Data/Configurations
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
+        // Supabase dùng snake_case: chuyển tên bảng/cột chưa đặt theo quy ước
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            entityType.SetTableName(ToSnakeCase(entityType.GetTableName()!));
+            foreach (var property in entityType.GetProperties())
+                property.SetColumnName(ToSnakeCase(property.GetColumnName()));
+        }
+
         // Global query filter tự động cho Soft Delete (kế thừa BaseEntity)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -60,6 +68,9 @@ public class AppDbContext : DbContext
             }
         }
     }
+
+    private static string ToSnakeCase(string name)
+        => Regex.Replace(name, "(?<=[a-z0-9])([A-Z])", "_$1").ToLowerInvariant();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

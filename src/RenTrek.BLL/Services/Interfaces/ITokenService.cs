@@ -4,7 +4,7 @@ namespace RenTrek.BLL.Services.Interfaces;
 
 public interface ITokenService
 {
-    (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(User user);
+    (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(Account account);
     string GenerateRefreshToken();
     string HashToken(string token);
 }

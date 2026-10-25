@@ -16,7 +16,10 @@ public class TourProfile : Profile
 
         CreateMap<TourProvidedItem, TourItemResponse>();
 
-        CreateMap<Trip, TripSummaryResponse>();
+        CreateMap<Trip, TripSummaryResponse>()
+            .ForMember(d => d.Id, opt => opt.MapFrom(s => s.TripId))
+            .ForMember(d => d.StartAt, opt => opt.MapFrom(s => s.StartAt.UtcDateTime))
+            .ForMember(d => d.EndAt, opt => opt.MapFrom(s => s.EndAt.UtcDateTime));
 
         CreateMap<Tour, TourResponse>()
             .ForMember(d => d.CategoryName, opt => opt.MapFrom(s => s.Category.Name))

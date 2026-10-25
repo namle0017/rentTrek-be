@@ -8,8 +8,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("Products");
+        builder.ToTable("products");
         builder.HasKey(product => product.Id);
+        builder.Property(product => product.Id).HasColumnName("product_id");
         builder.Property(product => product.Name).HasMaxLength(200).IsRequired();
         builder.Property(product => product.Status).HasConversion<string>().HasMaxLength(30);
         builder.Property(product => product.CreatedAt).HasConversion(

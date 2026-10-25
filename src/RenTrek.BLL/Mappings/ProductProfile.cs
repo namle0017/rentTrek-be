@@ -15,12 +15,9 @@ public class ProductProfile : Profile
                 .Where(variant => variant.Status == CatalogStatus.Active)
                 .SelectMany(variant => variant.RentalPriceTiers)
                 .Select(tier => (decimal?)tier.DailyPrice).Min()))
-            .ForMember(response => response.SalePrice, options => options.MapFrom(product => product.Variants
-                .Where(variant => variant.Status == CatalogStatus.Active)
-                .Min(variant => variant.SalePrice)))
             .ForMember(response => response.ThumbnailUrl, options => options.MapFrom(product => product.Variants
                 .Where(variant => variant.Status == CatalogStatus.Active
-                    && (variant.SalePrice != null || variant.RentalPriceTiers.Any()))
+                    && variant.RentalPriceTiers.Any())
                 .SelectMany(variant => variant.Images)
                 .OrderByDescending(image => image.IsPrimary).ThenBy(image => image.DisplayOrder).ThenBy(image => image.Id)
                 .Select(image => image.ImageUrl).FirstOrDefault()));
@@ -29,7 +26,7 @@ public class ProductProfile : Profile
             .IncludeBase<Product, ProductResponse>()
             .ForMember(response => response.Variants, options => options.MapFrom(product => product.Variants
                 .Where(variant => variant.Status == CatalogStatus.Active
-                    && (variant.SalePrice != null || variant.RentalPriceTiers.Any()))
+                    && variant.RentalPriceTiers.Any())
                 .OrderBy(variant => variant.Id)));
 
         CreateMap<ProductVariant, ProductVariantResponse>()

@@ -26,7 +26,7 @@ public class ProductService : IProductService
     private IQueryable<Product> PublicProducts => _unitOfWork.Repository<Product>().Query()
         .Where(product => product.Status == CatalogStatus.Active && product.Category.Status == "Active"
             && product.Variants.Any(variant => variant.Status == CatalogStatus.Active
-                && (variant.SalePrice != null || variant.RentalPriceTiers.Any())));
+                && variant.RentalPriceTiers.Any()));
 
     public async Task<PagedResult<ProductResponse>> GetAllAsync(ProductQueryRequest request, CancellationToken cancellationToken = default)
     {
@@ -42,11 +42,6 @@ public class ProductService : IProductService
             query = query.Where(product => product.CategoryId == request.CategoryId.Value);
 
         var products = query.ProjectTo<ProductResponse>(_mapper.ConfigurationProvider);
-        // Filter on the same projected prices that the customer sees.
-        if (request.OfferingType is ProductOfferingType.Rental or ProductOfferingType.Both)
-            products = products.Where(product => product.PricePerDay != null);
-        if (request.OfferingType is ProductOfferingType.Sale or ProductOfferingType.Both)
-            products = products.Where(product => product.SalePrice != null);
 
         var sortedProducts = request.SortBy.ToLowerInvariant() switch
         {
@@ -54,16 +49,13 @@ public class ProductService : IProductService
             "priceperday" => request.IsDescending
                 ? products.OrderBy(product => product.PricePerDay == null).ThenByDescending(product => product.PricePerDay)
                 : products.OrderBy(product => product.PricePerDay == null).ThenBy(product => product.PricePerDay),
-            "saleprice" => request.IsDescending
-                ? products.OrderBy(product => product.SalePrice == null).ThenByDescending(product => product.SalePrice)
-                : products.OrderBy(product => product.SalePrice == null).ThenBy(product => product.SalePrice),
             _ => request.IsDescending ? products.OrderByDescending(product => product.CreatedAt) : products.OrderBy(product => product.CreatedAt)
         };
 
         return await sortedProducts.ThenBy(product => product.Id).ToPagedResultAsync(request, cancellationToken);
     }
 
-    public async Task<ProductDetailResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<ProductDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => await PublicProducts.Where(product => product.Id == id)
             .ProjectTo<ProductDetailResponse>(_mapper.ConfigurationProvider)
             .AsSplitQuery().SingleOrDefaultAsync(cancellationToken)

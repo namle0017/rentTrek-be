@@ -8,9 +8,10 @@ public class TourImageConfiguration : IEntityTypeConfiguration<TourImage>
 {
     public void Configure(EntityTypeBuilder<TourImage> builder)
     {
-        builder.ToTable("TourImages");
+        builder.ToTable("tour_images");
 
         builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).HasColumnName("tour_image_id");
 
         builder.Property(i => i.ImageUrl)
             .IsRequired()

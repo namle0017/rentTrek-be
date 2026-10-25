@@ -36,7 +36,7 @@ public class LoginService : ILoginService
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
-        var user = await _unitOfWork.Users.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
+        var user = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
@@ -51,12 +51,9 @@ public class LoginService : ILoginService
         var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(user);
         var rawRefreshToken = _tokenService.GenerateRefreshToken();
         var tokenHash = _tokenService.HashToken(rawRefreshToken);
-        var familyId = Guid.NewGuid().ToString("N");
+        var familyId = Guid.NewGuid();
         var refreshExpiresDays = _jwt.RefreshTokenExpirationDays > 0 ? _jwt.RefreshTokenExpirationDays : 7;
         var refreshExpiresAt = DateTime.UtcNow.AddDays(refreshExpiresDays);
-
-        var deviceInfo = DeviceDetector.Detect(_currentUserService.UserAgent);
-        var ipAddress = _currentUserService.IpAddress;
 
         var refreshToken = new RefreshToken
         {
@@ -64,9 +61,7 @@ public class LoginService : ILoginService
             FamilyId = familyId,
             TokenHash = tokenHash,
             ExpiresAt = refreshExpiresAt,
-            CreatedAt = DateTime.UtcNow,
-            DeviceInfo = deviceInfo,
-            IpAddress = ipAddress
+            CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.RefreshTokens.AddAsync(refreshToken, cancellationToken);

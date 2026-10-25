@@ -36,39 +36,37 @@ public class RegisterService : IRegisterService
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
-        var emailExists = await _unitOfWork.Users.ExistsByEmailAsync(normalizedEmail, cancellationToken);
+        var emailExists = await _unitOfWork.Accounts.ExistsByEmailAsync(normalizedEmail, cancellationToken);
 
         if (emailExists)
         {
             throw new ConflictException($"Email '{request.Email}' đã được đăng ký tài khoản trong hệ thống");
         }
 
-        var customerRole = await _unitOfWork.Roles.GetByNameAsync("Customer", tracking: true, cancellationToken);
+        var customerRole = await _unitOfWork.Roles.GetByNameAsync("Customer", tracking: true, cancellationToken)
+            ?? throw new InvalidOperationException("Chưa có role Customer trong bảng roles");
 
-        var user = new User
+        var user = new Account
         {
             Email = normalizedEmail,
             PasswordHash = _passwordHasher.Hash(request.Password),
             FullName = request.FullName.Trim(),
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
-            RoleId = customerRole?.RoleId ?? 3,
-            Role = customerRole!,
+            RoleId = customerRole.RoleId,
+            Role = customerRole,
             Status = "Active",
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Users.AddAsync(user, cancellationToken);
+        await _unitOfWork.Accounts.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(user);
         var rawRefreshToken = _tokenService.GenerateRefreshToken();
         var tokenHash = _tokenService.HashToken(rawRefreshToken);
-        var familyId = Guid.NewGuid().ToString("N");
+        var familyId = Guid.NewGuid();
         var refreshExpiresDays = _jwt.RefreshTokenExpirationDays > 0 ? _jwt.RefreshTokenExpirationDays : 7;
         var refreshExpiresAt = DateTime.UtcNow.AddDays(refreshExpiresDays);
-
-        var deviceInfo = DeviceDetector.Detect(_currentUserService.UserAgent);
-        var ipAddress = _currentUserService.IpAddress;
 
         var refreshToken = new RefreshToken
         {
@@ -76,9 +74,7 @@ public class RegisterService : IRegisterService
             FamilyId = familyId,
             TokenHash = tokenHash,
             ExpiresAt = refreshExpiresAt,
-            CreatedAt = DateTime.UtcNow,
-            DeviceInfo = deviceInfo,
-            IpAddress = ipAddress
+            CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.RefreshTokens.AddAsync(refreshToken, cancellationToken);

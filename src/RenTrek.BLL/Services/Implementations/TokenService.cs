@@ -19,19 +19,19 @@ public class TokenService : ITokenService
         _jwt = jwtOptions.Value;
     }
 
-    public (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(User user)
+    public (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(Account account)
     {
         var jti = Guid.NewGuid().ToString("N");
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwt.AccessTokenExpirationMinutes);
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
-            new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-            new(ClaimTypes.Email, user.Email),
-            new(JwtRegisteredClaimNames.Email, user.Email),
-            new(ClaimTypes.Name, user.FullName),
-            new(ClaimTypes.Role, user.Role?.RoleName ?? "Customer"),
+            new(JwtRegisteredClaimNames.Sub, account.UserId.ToString()),
+            new(ClaimTypes.NameIdentifier, account.UserId.ToString()),
+            new(ClaimTypes.Email, account.Email),
+            new(JwtRegisteredClaimNames.Email, account.Email),
+            new(ClaimTypes.Name, account.FullName),
+            new(ClaimTypes.Role, account.Role?.RoleName ?? "Customer"),
             new(JwtRegisteredClaimNames.Jti, jti)
         };
 
