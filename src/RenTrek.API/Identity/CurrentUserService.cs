@@ -3,7 +3,7 @@ using System.Security.Claims;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 
-namespace RenTrek.API.Services;
+namespace RenTrek.API.Identity;
 
 public class CurrentUserService : ICurrentUserService, RenTrek.BLL.Abstractions.ICurrentUserService
 {
