@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Product;
 
 namespace RenTrek.BLL.Validators.Product;
 
+/// <summary>
+/// Kiểm tra dữ liệu và quy tắc hợp lệ cho product query request.
+/// </summary>
 public class ProductQueryRequestValidator : AbstractValidator<ProductQueryRequest>
 {
     public ProductQueryRequestValidator()

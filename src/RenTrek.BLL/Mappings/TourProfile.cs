@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Mappings;
 
+/// <summary>
+/// Khai báo ánh xạ AutoMapper cho tour.
+/// </summary>
 public class TourProfile : Profile
 {
     public TourProfile()

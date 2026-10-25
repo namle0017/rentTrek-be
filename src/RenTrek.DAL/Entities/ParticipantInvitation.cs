@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể participant invitation trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class ParticipantInvitation
 {
     public Guid ParticipantInvitationId { get; set; }

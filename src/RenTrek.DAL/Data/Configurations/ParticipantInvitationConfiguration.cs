@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể participant invitation.
+/// </summary>
 public sealed class ParticipantInvitationConfiguration : IEntityTypeConfiguration<ParticipantInvitation>
 {
     public void Configure(EntityTypeBuilder<ParticipantInvitation> builder)

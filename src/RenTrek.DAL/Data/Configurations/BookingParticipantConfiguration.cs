@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể booking participant.
+/// </summary>
 public sealed class BookingParticipantConfiguration : IEntityTypeConfiguration<BookingParticipant>
 {
     public void Configure(EntityTypeBuilder<BookingParticipant> builder)

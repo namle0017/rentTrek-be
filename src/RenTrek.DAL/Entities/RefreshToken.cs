@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể refresh token trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class RefreshToken
 {
     public Guid RefreshTokenId { get; set; } = Guid.NewGuid();

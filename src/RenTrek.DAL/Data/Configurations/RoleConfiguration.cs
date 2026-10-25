@@ -5,6 +5,9 @@ using RenTrek.DAL.Entities;
 namespace RenTrek.DAL.Data.Configurations;
 
 // Tên cột snake_case do AppDbContext tự chuyển; chỉ khai báo chỗ khác quy ước.
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể role.
+/// </summary>
 public class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> builder)

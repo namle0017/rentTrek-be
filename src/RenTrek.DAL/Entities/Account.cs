@@ -1,6 +1,9 @@
 namespace RenTrek.DAL.Entities;
 
 // Bảng accounts
+/// <summary>
+/// Biểu diễn thực thể account trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class Account
 {
     public Guid UserId { get; set; } = Guid.NewGuid();

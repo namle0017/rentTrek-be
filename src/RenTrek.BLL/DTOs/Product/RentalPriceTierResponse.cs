@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Product;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ rental price tier.
+/// </summary>
 public class RentalPriceTierResponse
 {
     public Guid Id { get; set; }

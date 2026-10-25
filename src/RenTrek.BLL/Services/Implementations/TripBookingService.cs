@@ -8,6 +8,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RenTrek.BLL.Services.Implementations;
 
+/// <summary>
+/// Thực hiện nghiệp vụ trip booking.
+/// </summary>
 public sealed class TripBookingService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,

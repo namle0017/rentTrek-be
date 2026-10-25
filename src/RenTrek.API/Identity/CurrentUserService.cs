@@ -5,6 +5,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Identity;
 
+/// <summary>
+/// Đọc định danh tài khoản hiện tại từ các claim đã xác thực.
+/// </summary>
 public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;

@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Auth;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ auth.
+/// </summary>
 public class AuthResponse
 {
     public string AccessToken { get; set; } = string.Empty;

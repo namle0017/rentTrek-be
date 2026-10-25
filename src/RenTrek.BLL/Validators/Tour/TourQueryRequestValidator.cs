@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Tour;
 
 namespace RenTrek.BLL.Validators.Tour;
 
+/// <summary>
+/// Kiểm tra dữ liệu và quy tắc hợp lệ cho tour query request.
+/// </summary>
 public class TourQueryRequestValidator : AbstractValidator<TourQueryRequest>
 {
     public TourQueryRequestValidator()

@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Product;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ product image.
+/// </summary>
 public class ProductImageResponse
 {
     public Guid Id { get; set; }

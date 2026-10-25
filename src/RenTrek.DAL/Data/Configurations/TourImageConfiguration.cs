@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể tour image.
+/// </summary>
 public class TourImageConfiguration : IEntityTypeConfiguration<TourImage>
 {
     public void Configure(EntityTypeBuilder<TourImage> builder)

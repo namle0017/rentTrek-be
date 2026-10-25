@@ -8,6 +8,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho trip booking qua EF Core.
+/// </summary>
 public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRepository
 {
     public Task AcquireIdempotencyLockAsync(

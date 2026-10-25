@@ -7,6 +7,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
+/// <summary>
+/// Cung cấp các endpoint HTTP cho products.
+/// </summary>
 [ApiController]
 [AllowAnonymous]
 [Route("api/v1/products")]
