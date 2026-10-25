@@ -5,10 +5,9 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.BLL.Options;
-using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 
-namespace RenTrek.BLL.Services.Implementations;
+namespace RenTrek.BLL.Helpers;
 
 public class TokenService : ITokenService
 {

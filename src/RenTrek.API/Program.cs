@@ -45,9 +45,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<CurrentUserService>();
-builder.Services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
-builder.Services.AddScoped<RenTrek.BLL.Abstractions.ICurrentUserService>(sp => sp.GetRequiredService<CurrentUserService>());
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddSwaggerWithJwt();
 

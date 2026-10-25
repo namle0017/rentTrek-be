@@ -32,7 +32,7 @@ public sealed class CurrentUserServiceTests
         };
         var service = new CurrentUserService(new HttpContextAccessor { HttpContext = context });
 
-        var exception = Assert.Throws<UnauthorizedException>(() => service.UserId);
+        var exception = Assert.Throws<UnauthorizedException>(() => service.RequiredUserId);
 
         Assert.Equal("Token không chứa định danh tài khoản hợp lệ", exception.Message);
     }

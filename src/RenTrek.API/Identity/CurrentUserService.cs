@@ -5,7 +5,7 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Identity;
 
-public class CurrentUserService : ICurrentUserService, RenTrek.BLL.Abstractions.ICurrentUserService
+public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -24,12 +24,10 @@ public class CurrentUserService : ICurrentUserService, RenTrek.BLL.Abstractions.
         }
     }
 
-    // Trip booking: định danh tài khoản dạng Guid, bắt buộc phải có
-    public Guid UserId => Guid.TryParse(Subject, out var userId)
-        ? userId
-        : throw new UnauthorizedException("Token không chứa định danh tài khoản hợp lệ");
+    public Guid? UserId => Guid.TryParse(Subject, out var id) ? id : null;
 
-    Guid? ICurrentUserService.UserId => Guid.TryParse(Subject, out var id) ? id : null;
+    public Guid RequiredUserId => UserId
+        ?? throw new UnauthorizedException("Token không chứa định danh tài khoản hợp lệ");
 
     public string? Jti
     {

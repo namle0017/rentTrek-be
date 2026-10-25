@@ -1,7 +1,6 @@
 using BCrypt.Net;
-using RenTrek.BLL.Services.Interfaces;
 
-namespace RenTrek.BLL.Services.Implementations;
+namespace RenTrek.BLL.Helpers;
 
 public class PasswordHasher : IPasswordHasher
 {

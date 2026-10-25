@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth;
-using RenTrek.BLL.Services.Interfaces.Authentication;
+using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
@@ -10,28 +10,18 @@ namespace RenTrek.API.Controllers;
 [Route("api/v1/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IRegisterService _registerService;
-    private readonly ILoginService _loginService;
-    private readonly IRefreshTokenService _refreshTokenService;
-    private readonly ILogoutService _logoutService;
+    private readonly IAuthService _authService;
 
-    public AuthController(
-        IRegisterService registerService,
-        ILoginService loginService,
-        IRefreshTokenService refreshTokenService,
-        ILogoutService logoutService)
+    public AuthController(IAuthService authService)
     {
-        _registerService = registerService;
-        _loginService = loginService;
-        _refreshTokenService = refreshTokenService;
-        _logoutService = logoutService;
+        _authService = authService;
     }
 
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
-        var result = await _registerService.RegisterAsync(request, cancellationToken);
+        var result = await _authService.RegisterAsync(request, cancellationToken);
         return StatusCode(StatusCodes.Status201Created,
             ApiResponse<AuthResponse>.Ok(result, "Đăng ký tài khoản thành công", StatusCodes.Status201Created));
     }
@@ -40,7 +30,7 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        var result = await _loginService.LoginAsync(request, cancellationToken);
+        var result = await _authService.LoginAsync(request, cancellationToken);
         return Ok(ApiResponse<AuthResponse>.Ok(result, "Đăng nhập thành công"));
     }
 
@@ -48,7 +38,7 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
-        var result = await _refreshTokenService.RefreshTokenAsync(request, cancellationToken);
+        var result = await _authService.RefreshTokenAsync(request, cancellationToken);
         return Ok(ApiResponse<AuthResponse>.Ok(result, "Làm mới phiên đăng nhập thành công"));
     }
 
@@ -56,7 +46,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
-        await _logoutService.LogoutAsync(request, cancellationToken);
+        await _authService.LogoutAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đăng xuất thành công"));
     }
 }
