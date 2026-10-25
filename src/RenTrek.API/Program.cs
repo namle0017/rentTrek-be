@@ -9,6 +9,8 @@ using RenTrek.API.Services;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
+using RenTrek.DAL.Data;
+using RenTrek.DAL.Data.Seeds;
 
 const string CorsPolicyName = "DefaultCors";
 
@@ -64,6 +66,20 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Tự động seed dữ liệu mẫu trong môi trường Development (nếu kết nối được DB)
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        await context.Database.EnsureCreatedAsync();
+        await TourSeedData.InitializeAsync(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Chưa thể kết nối SQL Server để tự động seed data. Vui lòng kiểm tra lại ConnectionStrings trong appsettings.json.");
+    }
 }
 
 app.UseHttpsRedirection();
