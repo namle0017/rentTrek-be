@@ -16,6 +16,12 @@ public class AppDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
 
+    // Product DbSets
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<ProductVariantImage> ProductVariantImages => Set<ProductVariantImage>();
+    public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
+
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Order> Orders => Set<Order>();

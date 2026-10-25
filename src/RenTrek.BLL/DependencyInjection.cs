@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<ILoginService, LoginService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ILogoutService, LogoutService>();
+        services.AddScoped<IProductService, ProductService>();
 
         // User & Profile
         services.AddScoped<IUserService, UserService>();
