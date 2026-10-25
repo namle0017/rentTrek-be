@@ -1,4 +1,4 @@
-namespace RenTrek.BLL.Abstractions;
+namespace RenTrek.BLL.Helpers;
 
 public interface IParticipantInviteTokenService
 {

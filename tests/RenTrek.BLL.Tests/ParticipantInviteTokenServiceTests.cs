@@ -1,4 +1,4 @@
-using RenTrek.BLL.Security;
+using RenTrek.BLL.Helpers;
 
 namespace RenTrek.BLL.Tests;
 

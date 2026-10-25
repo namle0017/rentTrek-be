@@ -1,11 +1,10 @@
-using RenTrek.BLL.Abstractions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.DTOs.TripBooking;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
 using System.ComponentModel.DataAnnotations;
-using ICurrentUserService = RenTrek.BLL.Abstractions.ICurrentUserService;
 
 namespace RenTrek.BLL.Services.Implementations;
 
@@ -21,11 +20,11 @@ public sealed class TripBookingService(
     {
         var order = await unitOfWork.TripBookings.GetForAccessAsync(
             orderId,
-            currentUser.UserId,
+            currentUser.RequiredUserId,
             cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy booking");
 
-        return MapResponse(order, currentUser.UserId);
+        return MapResponse(order, currentUser.RequiredUserId);
     }
 
     public async Task<TripBookingResponse> CreateAsync(
@@ -40,16 +39,16 @@ public sealed class TripBookingService(
 
         var normalizedKey = idempotencyKey.Trim();
         var existing = await unitOfWork.TripBookings.GetByIdempotencyKeyAsync(
-            currentUser.UserId,
+            currentUser.RequiredUserId,
             normalizedKey,
             cancellationToken);
         if (existing is not null)
         {
-            EnsureIdempotentRequestMatches(existing, request, currentUser.UserId);
-            return MapResponse(existing, currentUser.UserId);
+            EnsureIdempotentRequestMatches(existing, request, currentUser.RequiredUserId);
+            return MapResponse(existing, currentUser.RequiredUserId);
         }
 
-        var account = await unitOfWork.TripBookings.GetAccountAsync(currentUser.UserId, cancellationToken)
+        var account = await unitOfWork.TripBookings.GetAccountAsync(currentUser.RequiredUserId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy tài khoản người đặt");
         if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("Tài khoản không ở trạng thái hoạt động");
@@ -65,18 +64,18 @@ public sealed class TripBookingService(
         try
         {
             await unitOfWork.TripBookings.AcquireIdempotencyLockAsync(
-                currentUser.UserId,
+                currentUser.RequiredUserId,
                 normalizedKey,
                 cancellationToken);
             existing = await unitOfWork.TripBookings.GetByIdempotencyKeyAsync(
-                currentUser.UserId,
+                currentUser.RequiredUserId,
                 normalizedKey,
                 cancellationToken);
             if (existing is not null)
             {
-                EnsureIdempotentRequestMatches(existing, request, currentUser.UserId);
+                EnsureIdempotentRequestMatches(existing, request, currentUser.RequiredUserId);
                 await unitOfWork.CommitAsync(cancellationToken);
-                return MapResponse(existing, currentUser.UserId);
+                return MapResponse(existing, currentUser.RequiredUserId);
             }
 
             var trip = await unitOfWork.TripBookings.GetTripForUpdateAsync(request.TripId, cancellationToken)
@@ -183,7 +182,7 @@ public sealed class TripBookingService(
             await unitOfWork.TripBookings.AcquireBookingLockAsync(orderId, cancellationToken);
             var order = await unitOfWork.TripBookings.GetOwnedBookingAsync(
                 orderId,
-                currentUser.UserId,
+                currentUser.RequiredUserId,
                 cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy booking");
 
@@ -221,7 +220,7 @@ public sealed class TripBookingService(
                     ParticipantInvitationId = Guid.NewGuid(),
                     ParticipantId = participant.ParticipantId,
                     BookingOrderId = orderId,
-                    CreatedByUserId = currentUser.UserId,
+                    CreatedByUserId = currentUser.RequiredUserId,
                     TokenHash = inviteTokenService.HashToken(token),
                     ExpiresAt = expiresAt,
                     CreatedAt = utcNow,
@@ -287,7 +286,7 @@ public sealed class TripBookingService(
             if (participant.LinkedUserId is not null)
                 throw new ConflictException("Participant đã được liên kết tài khoản");
 
-            var account = await unitOfWork.TripBookings.GetAccountAsync(currentUser.UserId, cancellationToken)
+            var account = await unitOfWork.TripBookings.GetAccountAsync(currentUser.RequiredUserId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy tài khoản");
             if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
                 throw new ForbiddenException("Tài khoản không ở trạng thái hoạt động");

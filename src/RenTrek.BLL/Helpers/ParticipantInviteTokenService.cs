@@ -1,8 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using RenTrek.BLL.Abstractions;
 
-namespace RenTrek.BLL.Security;
+namespace RenTrek.BLL.Helpers;
 
 public sealed class ParticipantInviteTokenService : IParticipantInviteTokenService
 {

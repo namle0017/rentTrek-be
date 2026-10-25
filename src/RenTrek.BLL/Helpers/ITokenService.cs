@@ -1,6 +1,6 @@
 using RenTrek.DAL.Entities;
 
-namespace RenTrek.BLL.Services.Interfaces;
+namespace RenTrek.BLL.Helpers;
 
 public interface ITokenService
 {

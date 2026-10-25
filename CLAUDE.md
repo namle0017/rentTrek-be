@@ -36,9 +36,9 @@ No lint step or CI workflow exists yet (`.github/workflows/` is empty).
 Strict 3 layers, one direction only: `RenTrek.API` → `RenTrek.BLL` → `RenTrek.DAL`. The code came from merging 4 feature branches (auth, tour, product, trip booking), so some pieces still exist twice:
 
 - **API**: thin controllers; always return `ApiResponse<T>` (`Common/ApiResponse.cs`). `ValidationFilter` runs FluentValidation; `Middlewares/ExceptionHandlingMiddleware` maps `AppException` subclasses (`BLL/Exceptions/`) to their HTTP status. JWT setup lives in `Extensions/AuthenticationExtensions.cs` (`OnTokenValidated` rejects revoked `jti`). Web-only: no multi-device session management; refresh-token families exist only for rotation and reuse detection.
-- **Current user**: one `API/Identity/CurrentUserService` implements two BLL interfaces — `BLL.Services.Interfaces.ICurrentUserService` (auth/users: `Guid? UserId`, `Jti`, `Role`) and `BLL.Abstractions.ICurrentUserService` (trip booking: `Guid UserId` that throws 401). BLL never touches `HttpContext`.
+- **Current user**: `BLL.Services.Interfaces.ICurrentUserService` (`Guid? UserId`, `RequiredUserId` that throws 401, `Jti`, `Role`) is implemented by `API/Identity/CurrentUserService`. BLL never touches `HttpContext`.
 - **Unit of work**: single `DAL/UnitOfWorks/IUnitOfWork` exposing repositories (`Accounts`, `Tours`, `TripBookings`, …), generic `Repository<T>()` and `BeginTransactionAsync/CommitAsync/RollbackAsync`. `CommitAsync` saves changes and requires an open transaction.
-- **BLL**: services hold business rules, map with AutoMapper profiles (`Mappings/`), and own transactions. `TimeProvider` is injected in trip booking for testable time.
+- **BLL**: one service per feature in `Services/Interfaces` + `Services/Implementations` (`AuthService`, `UserService`, `TourService`, `ProductService`, `TripBookingService`) holding business rules and transactions; AutoMapper profiles in `Mappings/`. Technical helpers with their interfaces (`PasswordHasher`, `TokenService`, `ParticipantInviteTokenService`) live in `Helpers/`. `TimeProvider` is injected for testable time.
 
 ### Database mapping — differs from the docs
 

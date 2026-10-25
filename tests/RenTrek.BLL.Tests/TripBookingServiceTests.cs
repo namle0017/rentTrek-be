@@ -1,4 +1,5 @@
-using RenTrek.BLL.Abstractions;
+using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.DTOs.TripBooking;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Implementations;
@@ -214,7 +215,7 @@ public sealed class TripBookingServiceTests
             FullName = guest.FullName,
             Status = "Active"
         };
-        fixture.CurrentUser.UserId = guestUserId;
+        fixture.CurrentUser.RequiredUserId = guestUserId;
         fixture.Repository.Invitation = new ParticipantInvitation
         {
             ParticipantInvitationId = Guid.NewGuid(),
@@ -252,7 +253,7 @@ public sealed class TripBookingServiceTests
             FullName = "Sai người",
             Status = "Active"
         };
-        fixture.CurrentUser.UserId = guestUserId;
+        fixture.CurrentUser.RequiredUserId = guestUserId;
         fixture.Repository.Invitation = new ParticipantInvitation
         {
             ParticipantInvitationId = Guid.NewGuid(),
@@ -328,7 +329,7 @@ public sealed class TripBookingServiceTests
         var guest = order.TripBookingOrder.Participants.Single(x => x.LinkedUserId is null);
         var guestUserId = Guid.NewGuid();
         guest.LinkedUserId = guestUserId;
-        fixture.CurrentUser.UserId = guestUserId;
+        fixture.CurrentUser.RequiredUserId = guestUserId;
         fixture.Repository.AccessOrder = order;
 
         var result = await fixture.Service.GetByIdAsync(order.OrderId);
@@ -447,7 +448,11 @@ public sealed class TripBookingServiceTests
 
     private sealed class FakeCurrentUserService(Guid userId) : ICurrentUserService
     {
-        public Guid UserId { get; set; } = userId;
+        public Guid RequiredUserId { get; set; } = userId;
+        public Guid? UserId => RequiredUserId;
+        public string? Jti => null;
+        public string? Role => null;
+        public bool IsAuthenticated => true;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
