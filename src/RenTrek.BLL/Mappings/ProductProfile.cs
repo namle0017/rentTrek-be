@@ -8,7 +8,7 @@ namespace RenTrek.BLL.Mappings;
 /// <summary>
 /// Khai báo ánh xạ AutoMapper cho product.
 /// </summary>
-public class ProductProfile : Profile
+public class ProductProfile : AutoMapper.Profile
 {
     public ProductProfile()
     {

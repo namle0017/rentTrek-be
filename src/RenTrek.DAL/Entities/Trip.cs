@@ -25,4 +25,11 @@ public sealed class Trip
     public int BookedSlots { get; set; }
 
     public Tour Tour { get; set; } = null!;
+    public ICollection<BookingParticipant> BookingParticipants { get; set; } = [];
+    public Account ManagedByUser { get; set; } = null!;
+    public TourRecurrenceRule? RecurrenceRule { get; set; }
+    public RefundPolicy RefundPolicy { get; set; } = null!;
+    public ICollection<TripBookingOrder> TripBookingOrders { get; set; } = [];
+    public ICollection<TripGroup> TripGroups { get; set; } = [];
+    public ICollection<TripProvidedItem> TripProvidedItems { get; set; } = [];
 }

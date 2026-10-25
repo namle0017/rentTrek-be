@@ -13,4 +13,6 @@ public class TourProvidedItem : BaseEntity
     public string QuantityBasis { get; set; } = "PerPerson";
     public int Quantity { get; set; } = 1;
     public string? Note { get; set; }
+    public ProductVariant? ProductVariant { get; set; }
+    public ICollection<TripProvidedItem> TripProvidedItems { get; set; } = [];
 }

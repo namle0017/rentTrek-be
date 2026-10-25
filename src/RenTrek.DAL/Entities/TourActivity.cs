@@ -15,4 +15,5 @@ public class TourActivity : BaseEntity
     public int DisplayOrder { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public ICollection<ActivityAttendance> ActivityAttendances { get; set; } = [];
 }

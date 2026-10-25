@@ -88,15 +88,16 @@
 
 | Thành phần | Quy tắc | Ví dụ |
 |---|---|---|
-| Table | `PascalCase`, **số nhiều** | `Products`, `RentalOrders` |
-| Column | `PascalCase` | `CreatedAt`, `UnitPrice` |
-| Primary key | `Id` | `Id` |
-| Foreign key | `{Entity}Id` | `UserId`, `ProductId` |
-| Index | `IX_{Table}_{Column}` | `IX_Products_Name` |
-| Unique | `UQ_{Table}_{Column}` | `UQ_Users_Email` |
-| Migration | `PascalCase`, mô tả thay đổi | `AddBookingTable`, `AddPhoneToUser` |
+| Table | `snake_case`, **số nhiều** | `products`, `rental_orders` |
+| Column | `snake_case` | `created_at`, `unit_price` |
+| Primary key | `{entity}_id`, kiểu `uuid` | `user_id`, `product_id` |
+| Foreign key | `{entity}_id` | `user_id`, `created_by_user_id` |
+| Index | `ix_{table}_{column}` | `ix_products_category_id` |
+| Unique | `uq_{table}_{column}` | `uq_tour_posts` |
 
-Mọi entity nghiệp vụ có các cột audit: `CreatedAt`, `UpdatedAt`, `IsDeleted` (soft delete).
+Phía C# (Entity sinh từ scaffold) vẫn dùng `PascalCase`, số ít: bảng `rental_orders` → `RentalOrder`, cột `user_id` → `UserId` (`Guid`).
+
+Mọi entity nghiệp vụ có các cột audit: `created_at`, `updated_at`, `is_deleted` (soft delete).
 
 ---
 
@@ -484,16 +485,16 @@ git push -u origin feature/RT-12-product-crud
 > Phần này hướng dẫn từng bước: từ lúc nhận task → tạo file / folder → code → test → tạo PR.
 > Ví dụ xuyên suốt: module **Category** (CRUD danh mục).
 >
-> ⚠️ Ví dụ dùng khoá `long Id` và tên cột PascalCase. Khi team chốt câu hỏi **A1** (`bigint` / `Guid`) và **A2** (snake_case) trong [`database/ERD_REVIEW.md`](database/ERD_REVIEW.md), làm theo quyết định đó.
+> ⚠️ Ví dụ dùng khoá `long Id` và tên cột PascalCase. Database thật dùng `uuid` (→ `Guid`) và tên bảng / cột snake_case (`users.user_id`); Entity sinh ra từ scaffold vẫn đặt tên C# PascalCase (`User.UserId`) và map cột bằng `HasColumnName`.
 
 ### 6.1. Chuẩn bị môi trường (chỉ làm lần đầu)
 
 | Công cụ | Phiên bản |
 |---|---|
 | .NET SDK | 8.0 trở lên (project target `net8.0`) |
-| SQL Server | 2019+ / LocalDB / Docker |
+| Database | PostgreSQL trên Supabase (connection string lấy từ Supabase → Project Settings → Database) |
 | IDE | Visual Studio 2022 / Rider / VS Code + C# Dev Kit |
-| EF Core CLI | `dotnet tool install --global dotnet-ef` |
+| EF Core CLI | Local tool khai báo trong `dotnet-tools.json` → `dotnet tool restore` |
 
 ```bash
 # 1. Clone và chuyển sang develop
@@ -501,20 +502,27 @@ git clone <repo-url>
 cd BE
 git checkout develop
 
-# 2. Restore package
+# 2. Restore package + dotnet-ef (đúng version EF Core của project)
 dotnet restore
+dotnet tool restore
 
-# 3. (Tuỳ chọn) Connection string riêng của máy mình — lưu bằng user-secrets, KHÔNG sửa appsettings.json
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=.;Database=RenTrekDb;Trusted_Connection=True;TrustServerCertificate=True" --project src/RenTrek.API
+# 3. Connection string của máy mình — điền vào src/RenTrek.API/appsettings.Development.json
+#    (file bị .gitignore, KHÔNG sửa appsettings.json):
+#      "ConnectionStrings": { "DefaultConnection": "Host=<host>;Port=5432;Database=postgres;Username=<user>;Password=<password>;SSL Mode=Require" }
+#    hoặc lưu bằng user-secrets:
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<host>;Port=5432;Database=postgres;Username=<user>;Password=<password>;SSL Mode=Require" --project src/RenTrek.API
 
-# 4. Tạo / cập nhật database theo migration hiện có
-dotnet ef database update -p src/RenTrek.DAL -s src/RenTrek.API
+#    JWT secret — chỉ cần khi chạy API (scaffold không cần):
+dotnet user-secrets set "Jwt:SecretKey" "<chuỗi-bí-mật-tối-thiểu-32-ký-tự>" --project src/RenTrek.API
+
+# 4. (Khi DB có thay đổi) Scaffold lại Entity / Configuration — xem §6.6
+./scripts/scaffold-db.ps1
 
 # 5. Chạy API → mở https://localhost:7000/swagger
 dotnet run --project src/RenTrek.API --launch-profile https
 ```
 
-> `-p` (project) là nơi chứa `AppDbContext` và migration (**DAL**), `-s` (startup) là project chạy được và có `appsettings` (**API**).
+> `-p` (project) là nơi chứa `AppDbContext` và Entity (**DAL**), `-s` (startup) là project chạy được và có `appsettings` (**API**).
 
 ### 6.2. Tổng quan các bước
 
@@ -523,8 +531,8 @@ Code theo thứ tự **từ dưới lên: DAL → BLL → API**. Layer trên ph�
 ```mermaid
 flowchart TD
     A["1. Nhận task, đọc API contract + ERD"] --> B["2. Tạo nhánh từ develop"]
-    B --> C["3. DAL: Entity, Configuration, DbSet"]
-    C --> D["4. DAL: Tạo migration, update database"]
+    B --> C["3. DB: Tạo / sửa bảng trên Supabase"]
+    C --> D["4. DAL: Chạy scripts/scaffold-db.ps1"]
     D --> E["5. BLL: DTOs, Validator, Mapping"]
     E --> F["6. BLL: Service interface + implementation, đăng ký DI"]
     F --> G["7. API: Controller"]
@@ -539,11 +547,10 @@ Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵ
 
 | # | Layer | File | |
 |---|---|---|---|
-| 1 | DAL | `src/RenTrek.DAL/Entities/Category.cs` | 🆕 |
+| 1 | DAL | `src/RenTrek.DAL/Entities/Category.cs` — do scaffold sinh | 🆕 |
 | 2 | DAL | `src/RenTrek.DAL/Entities/Enums/CategoryStatus.cs` | 🆕 |
-| 3 | DAL | `src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs` | 🆕 |
-| 4 | DAL | `src/RenTrek.DAL/Data/AppDbContext.cs` — thêm `DbSet` | ✏️ |
-| 5 | DAL | `src/RenTrek.DAL/Data/Migrations/*_AddCategoryTable.cs` — do EF sinh | 🆕 |
+| 3 | DAL | `src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs` — do scaffold sinh | 🆕 |
+| 4 | DAL | `src/RenTrek.DAL/Data/AppDbContext.cs` — scaffold tự thêm `DbSet` | ✏️ |
 | 6 | BLL | `src/RenTrek.BLL/DTOs/Category/CreateCategoryRequest.cs` | 🆕 |
 | 7 | BLL | `src/RenTrek.BLL/DTOs/Category/UpdateCategoryRequest.cs` | 🆕 |
 | 8 | BLL | `src/RenTrek.BLL/DTOs/Category/CategoryQueryRequest.cs` | 🆕 |
@@ -578,6 +585,9 @@ git checkout -b feature/RT-15-category-crud
 ```
 
 ### 6.5. Bước 3: DAL — Entity và Configuration
+
+> Project dùng **DB-first**: Entity, Configuration và `DbSet` được **sinh tự động** bằng scaffold (§6.6) theo đúng mẫu dưới đây.
+> Phần này mô tả code sinh ra trông thế nào — **không viết tay** các file này.
 
 **Entity** — chỉ chứa property và navigation, **không** chứa logic, **không** dùng DataAnnotations (cấu hình bằng Fluent API).
 
@@ -640,25 +650,45 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 public DbSet<Category> Categories => Set<Category>();
 ```
 
-> **Khi nào cần Repository riêng?** Chỉ khi có query đặc thù được dùng lại nhiều nơi hoặc phức tạp (join nhiều bảng, raw SQL...).
-> CRUD thông thường dùng `_unitOfWork.Repository<Category>()` là đủ. Nếu tạo repository riêng: thêm `ICategoryRepository : IGenericRepository<Category>` + `CategoryRepository`, khai báo property trong `IUnitOfWork` / `UnitOfWork`, đăng ký trong `RenTrek.DAL/DependencyInjection.cs`.
+> **Repository** — mỗi entity có sẵn `I{Entity}Repository : IGenericRepository<{Entity}>` + `{Entity}Repository` trong `Repositories/`
+> và property tương ứng trong `IUnitOfWork` (`_unitOfWork.Categories`). Service **chỉ** truy cập DB qua `IUnitOfWork`, không inject repository hay `AppDbContext`.
+> Query đặc thù (join nhiều bảng, raw SQL...) viết thêm vào `ICategoryRepository` / `CategoryRepository`.
+> Thêm bảng mới sau khi scaffold: tạo `I{Entity}Repository` + `{Entity}Repository` và khai báo property trong `IUnitOfWork` / `UnitOfWork` (repository **không** đăng ký DI — UnitOfWork tự tạo).
 
-### 6.6. Bước 4: DAL — Migration
+### 6.6. Bước 4: DAL — Scaffold database
 
-```bash
-# Tạo migration (tên PascalCase, mô tả thay đổi)
-dotnet ef migrations add AddCategoryTable -p src/RenTrek.DAL -s src/RenTrek.API -o Data/Migrations
+Database (Supabase) là nguồn sự thật. Sau khi tạo / sửa bảng trên DB, chạy từ thư mục `BE/`:
 
-# Áp dụng vào database local
-dotnet ef database update -p src/RenTrek.DAL -s src/RenTrek.API
+```powershell
+# Toàn bộ bảng trong schema public
+./scripts/scaffold-db.ps1
+
+# Chỉ một số bảng
+./scripts/scaffold-db.ps1 -Tables categories,products
 ```
 
-- **Mở file migration vừa sinh và đọc lại** — chắc chắn chỉ có thay đổi của mình.
-- Sai thì **chưa push** → xoá bằng `dotnet ef migrations remove -p src/RenTrek.DAL -s src/RenTrek.API`, sửa entity rồi tạo lại.
-- Migration **đã merge vào `develop`** thì **không sửa / xoá** — tạo migration mới để sửa.
-- Luôn `git pull` / rebase `develop` **trước khi** tạo migration để tránh conflict `AppDbContextModelSnapshot.cs`.
+Chỉ cần đã đặt `ConnectionStrings:DefaultConnection` (§6.1) — không cần `Jwt:SecretKey`.
+Script gọi `dotnet ef dbcontext scaffold` với `Name=ConnectionStrings:DefaultConnection`,
+dùng template trong `src/RenTrek.DAL/CodeTemplates/EFCore/` để sinh:
 
-Commit gợi ý: `feat(category): add category entity and migration`
+| File | Nội dung |
+|---|---|
+| `Entities/{Entity}.cs` | Property + navigation, không DataAnnotations |
+| `Data/Configurations/{Entity}Configuration.cs` | `ToTable`, `HasKey`, `HasColumnName`, độ dài cột, index, quan hệ (Fluent API) |
+| `Data/AppDbContext.cs` | `DbSet` + `ApplyConfigurationsFromAssembly` |
+
+Tương đương lệnh gốc (script làm thêm: xoá file sinh lần trước, chuyển Configuration vào `Data/Configurations`, khôi phục nếu lỗi):
+
+```bash
+dotnet ef dbcontext scaffold Name=ConnectionStrings:DefaultConnection Npgsql.EntityFrameworkCore.PostgreSQL -p src/RenTrek.DAL -s src/RenTrek.API --context AppDbContext --context-dir Data --context-namespace RenTrek.DAL.Data --output-dir Entities --namespace RenTrek.DAL.Entities --schema public --no-onconfiguring --force
+```
+
+- **Không sửa tay** file sinh ra — lần scaffold sau sẽ ghi đè. Cần đổi → sửa DB rồi scaffold lại; cần đổi format code → sửa file `.t4`.
+- Enum (`Entities/Enums/`), Seed, Repository riêng **không** bị script đụng tới.
+- Chạy `git diff` sau khi scaffold — chắc chắn chỉ có thay đổi của bảng mình sửa.
+- Không dùng `dotnet ef migrations` (schema do DB quản lý).
+
+Commit gợi ý: `chore(db): scaffold category table`
 
 ### 6.7. Bước 5: BLL — DTOs, Validator, Mapping
 
@@ -812,7 +842,7 @@ public class CategoryService : ICategoryService
         _mapper = mapper;
     }
 
-    private IGenericRepository<Category> Categories => _unitOfWork.Repository<Category>();
+    private ICategoryRepository Categories => _unitOfWork.Categories;
 
     public async Task<PagedResult<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default)
     {
@@ -1003,8 +1033,9 @@ Mở `https://localhost:7000/swagger` và test **đủ các case**:
 | Validator không chạy | Validator đặt ngoài `RenTrek.BLL` hoặc sai generic type | Đặt trong `RenTrek.BLL/Validators/...`, kế thừa `AbstractValidator<TênRequest>` |
 | `AutoMapperMappingException: Missing type map` | Chưa `CreateMap` cho cặp type đó | Thêm vào `{Module}Profile` |
 | Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ `Query()` (AsNoTracking) | Lấy bằng `GetByIdAsync` hoặc `QueryTracking()` khi cần sửa |
-| Migration rỗng / thiếu bảng | Chưa thêm `DbSet` hoặc Configuration sai namespace / assembly | Kiểm tra `AppDbContext` và file trong `Data/Configurations/` |
-| Conflict ở `AppDbContextModelSnapshot.cs` | 2 người cùng tạo migration | `migrations remove` migration của mình → rebase `develop` → `migrations add` lại |
+| Scaffold báo `named connection string ... was not found` | Chưa đặt connection string | Điền `ConnectionStrings:DefaultConnection` trong `appsettings.Development.json` hoặc user-secrets |
+| Gõ thẳng lệnh `dotnet ef dbcontext scaffold Name=...` báo lỗi `Jwt:SecretKey` | EF chạy `Program.cs` để đọc cấu hình, thiếu JWT secret thì `Program.cs` dừng | Dùng `scripts/scaffold-db.ps1` (tự cấp key tạm), hoặc đặt `Jwt:SecretKey` bằng user-secrets |
+| Thiếu bảng sau khi scaffold | Bảng không nằm trong schema `public` | `./scripts/scaffold-db.ps1 -Schema public,<schema-khác>` |
 | `401` dù đã nhập token trên Swagger | Token hết hạn hoặc sai Issuer / Audience / SecretKey | Đăng nhập lại; kiểm tra cấu hình `Jwt` |
 | Trả về `500` thay vì lỗi nghiệp vụ | Throw `Exception` thường | Throw exception trong `RenTrek.BLL.Exceptions` (`NotFoundException`, `ConflictException`...) |
 
@@ -1020,4 +1051,4 @@ Mở `https://localhost:7000/swagger` và test **đủ các case**:
 - [ ] Không có secret / connection string thật trong code
 - [ ] Đã test endpoint qua Swagger / Postman
 - [ ] Đã cập nhật [`03-API-CONTRACT.md`](03-API-CONTRACT.md) nếu thêm / đổi API
-- [ ] Có migration (nếu đổi DB) và migration chạy được
+- [ ] Đổi DB thì đã chạy lại `scripts/scaffold-db.ps1` và commit file sinh ra

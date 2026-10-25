@@ -26,4 +26,8 @@ public sealed class Order
 
     public TripBookingOrder TripBookingOrder { get; set; } = null!;
     public ICollection<Payment> Payments { get; set; } = [];
+    public ICollection<AppliedPromotion> AppliedPromotions { get; set; } = [];
+    public Account CustomerUser { get; set; } = null!;
+    public RefundPolicy RefundPolicy { get; set; } = null!;
+    public RentalOrder? RentalOrder { get; set; }
 }

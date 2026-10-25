@@ -7,7 +7,7 @@ namespace RenTrek.BLL.Mappings;
 /// <summary>
 /// Khai báo ánh xạ AutoMapper cho tour.
 /// </summary>
-public class TourProfile : Profile
+public class TourProfile : AutoMapper.Profile
 {
     public TourProfile()
     {
