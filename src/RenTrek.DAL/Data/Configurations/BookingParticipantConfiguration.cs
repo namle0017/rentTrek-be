@@ -29,7 +29,7 @@ public sealed class BookingParticipantConfiguration : IEntityTypeConfiguration<B
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted");
         builder.HasOne(x => x.BookingOrder).WithMany(x => x.Participants).HasForeignKey(x => x.BookingOrderId);
-        builder.HasOne(x => x.LinkedUser).WithMany().HasForeignKey(x => x.LinkedUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.LinkedUser).WithMany(x => x.BookingParticipants).HasForeignKey(x => x.LinkedUserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

@@ -23,6 +23,7 @@ public sealed class TripBookingOrderConfiguration : IEntityTypeConfiguration<Tri
         builder.Property(x => x.SplitApprovedByUserId).HasColumnName("split_approved_by_user_id");
         builder.Property(x => x.SplitAt).HasColumnName("split_at");
         builder.HasOne(x => x.Order).WithOne(x => x.TripBookingOrder).HasForeignKey<TripBookingOrder>(x => x.OrderId);
-        builder.HasOne(x => x.Trip).WithMany().HasForeignKey(x => x.TripId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Trip).WithMany(x => x.TripBookingOrders).HasForeignKey(x => x.TripId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Account>().WithMany(x => x.TripBookingOrders).HasForeignKey(x => x.SplitApprovedByUserId).OnDelete(DeleteBehavior.NoAction);
     }
 }
