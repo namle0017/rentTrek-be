@@ -15,7 +15,7 @@ public class TokenService : ITokenService
     }
 
     // TODO: claims (sub, email, role, jti) va ky HMAC-SHA256 bang _jwt.SecretKey
-    public (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(User user)
+    public (string Token, string Jti, DateTime ExpiresAt) GenerateAccessToken(Account account)
         => throw new NotImplementedException();
 
     // TODO: RandomNumberGenerator -> Base64

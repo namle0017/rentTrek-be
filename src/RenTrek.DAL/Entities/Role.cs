@@ -1,11 +1,13 @@
-namespace RenTrek.DAL.Entities;
+﻿namespace RenTrek.DAL.Entities;
 
 public class Role
 {
-    public long RoleId { get; set; }
-    public string RoleName { get; set; } = string.Empty;
+    public Guid RoleId { get; set; }
+    public string RoleName { get; set; } = null!;
     public string? Description { get; set; }
-    public string Status { get; set; } = "Active";
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; }
 
-    public ICollection<User> Users { get; set; } = new List<User>();
+    public ICollection<Account> Accounts { get; set; } = new List<Account>();
 }

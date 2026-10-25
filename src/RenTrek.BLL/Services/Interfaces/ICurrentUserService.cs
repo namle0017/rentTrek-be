@@ -3,7 +3,7 @@ namespace RenTrek.BLL.Services.Interfaces;
 // Interface o BLL, implement o API (doc tu HttpContext.User)
 public interface ICurrentUserService
 {
-    long? UserId { get; }
+    Guid? UserId { get; }
     string? Jti { get; }
     string? Role { get; }
     bool IsAuthenticated { get; }

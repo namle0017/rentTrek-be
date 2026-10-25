@@ -12,7 +12,7 @@ public class CurrentUserService : ICurrentUserService
     }
 
     // TODO: đọc claim từ _httpContextAccessor.HttpContext?.User (sub, jti, role)
-    public long? UserId => throw new NotImplementedException();
+    public Guid? UserId => throw new NotImplementedException();
     public string? Jti => throw new NotImplementedException();
     public string? Role => throw new NotImplementedException();
     public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated ?? false;
