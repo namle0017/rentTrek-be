@@ -8,4 +8,5 @@ public class Category : BaseEntity
     public string Status { get; set; } = "Active";
 
     public ICollection<Tour> Tours { get; set; } = [];
+    public ICollection<Product> Products { get; set; } = [];
 }
