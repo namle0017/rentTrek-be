@@ -497,3 +497,8 @@ secrets.json
 logs/
 *.log
 uploads/
+
+# Local AI tooling / generated analysis
+graphify-out/
+.codex/
+.agents/
