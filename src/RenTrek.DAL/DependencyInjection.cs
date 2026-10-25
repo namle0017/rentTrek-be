@@ -2,12 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Data.Seeds;
 using RenTrek.DAL.Repositories.Implementations;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.DAL;
 
+/// <summary>
+/// Đăng ký DbContext, repository và hạ tầng DAL vào dependency injection container.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddDataAccessLayer(this IServiceCollection services, IConfiguration configuration)
@@ -26,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWorks.UnitOfWork>();
 
         services.AddScoped<ITourRepository, TourRepository>();
+        services.AddHostedService<TourSeedHostedService>();
 
         return services;
     }
