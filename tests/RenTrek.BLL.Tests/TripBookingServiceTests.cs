@@ -4,7 +4,7 @@ using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Repositories.Interfaces;
-using RenTrek.DAL.UnitOfWork;
+using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Tests;
 
@@ -464,6 +464,12 @@ public sealed class TripBookingServiceTests
     private sealed class FakeUnitOfWork(ITripBookingRepository repository) : IUnitOfWork
     {
         public ITripBookingRepository TripBookings { get; } = repository;
+        public IAccountRepository Accounts => throw new NotSupportedException();
+        public IRoleRepository Roles => throw new NotSupportedException();
+        public IRefreshTokenRepository RefreshTokens => throw new NotSupportedException();
+        public IAccessTokenRepository AccessTokens => throw new NotSupportedException();
+        public ITourRepository Tours => throw new NotSupportedException();
+        public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class => throw new NotSupportedException();
         public bool Committed { get; private set; }
         public bool TransactionStarted { get; private set; }
 

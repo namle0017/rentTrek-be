@@ -11,6 +11,7 @@ public class UnitOfWork : IUnitOfWork
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
     private ITourRepository? _tourRepository;
+    private ITripBookingRepository? _tripBookings;
 
     private IAccountRepository? _accounts;
     private IRoleRepository? _roles;
@@ -28,6 +29,7 @@ public class UnitOfWork : IUnitOfWork
     public IAccessTokenRepository AccessTokens => _accessTokens ??= new AccessTokenRepository(_context);
 
     public ITourRepository Tours => _tourRepository ??= new TourRepository(_context);
+    public ITripBookingRepository TripBookings => _tripBookings ??= new TripBookingRepository(_context);
 
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
