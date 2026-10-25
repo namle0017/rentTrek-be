@@ -1,0 +1,28 @@
+# Render Blueprint: Render Dashboard → New → Blueprint → chọn repo này.
+# Biến "sync: false" nhập trên Dashboard (không lưu trong repo).
+services:
+  - type: web
+    name: rentrek-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: SePay__Api__Key
+        sync: false
+      - key: Jwt__SecretKey
+        generateValue: true
+      - key: Jwt__Issuer
+        value: RenTrek.API
+      - key: Jwt__Audience
+        value: RenTrek.Client
+      - key: Jwt__AccessTokenExpirationMinutes
+        value: "30"
+      - key: Jwt__RefreshTokenExpirationDays
+        value: "7"
+      - key: AutoMapper__LicenseKey
+        sync: false
+      - key: Cors__AllowedOrigins__0
+        sync: false

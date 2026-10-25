@@ -16,14 +16,13 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong cấu hình.");
 
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(connectionString, sql =>
-                sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+            options.UseNpgsql(connectionString, npgsql =>
+                npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        // Repository riêng KHÔNG đăng ký DI: UnitOfWork tự tạo (vd _unitOfWork.Accounts),
+        // để Service chỉ truy cập DB qua IUnitOfWork
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-        // Repository riêng đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserRepository, UserRepository>();
 
         return services;
     }
