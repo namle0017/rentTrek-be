@@ -4,8 +4,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 
 public interface IUnitOfWork : IDisposable
 {
-    // Repository riêng (có query đặc thù) khai báo thành property, ví dụ:
-    // IUserRepository Users { get; }
+    ITourRepository Tours { get; }
 
     /// <summary>Lấy generic repository cho entity chưa có repository riêng.</summary>
     IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class;

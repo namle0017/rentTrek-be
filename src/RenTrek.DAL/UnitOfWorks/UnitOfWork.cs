@@ -10,11 +10,14 @@ public class UnitOfWork : IUnitOfWork
     private readonly AppDbContext _context;
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
+    private ITourRepository? _tourRepository;
 
     public UnitOfWork(AppDbContext context)
     {
         _context = context;
     }
+
+    public ITourRepository Tours => _tourRepository ??= new TourRepository(_context);
 
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
