@@ -9,8 +9,6 @@ using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
-using RenTrek.DAL.Data;
-using RenTrek.DAL.Data.Seeds;
 
 const string CorsPolicyName = "DefaultCors";
 
@@ -64,14 +62,6 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    // Seed dữ liệu tour mẫu khi bảng tours còn trống; tắt bằng Seed:Tours=false
-    if (app.Configuration.GetValue("Seed:Tours", true))
-    {
-        using var scope = app.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await TourSeedData.InitializeAsync(context);
-    }
 }
 
 app.UseHttpsRedirection();
