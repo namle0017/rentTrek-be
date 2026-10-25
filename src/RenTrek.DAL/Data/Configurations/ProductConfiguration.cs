@@ -20,6 +20,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
         builder.HasOne(product => product.Category).WithMany(category => category.Products)
             .HasForeignKey(product => product.CategoryId).OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<Account>().WithMany(account => account.Products)
+            .HasForeignKey(product => product.CreatedByUserId).OnDelete(DeleteBehavior.NoAction);
         builder.HasIndex(product => new { product.Status, product.CreatedAt, product.Id });
         builder.HasQueryFilter(product => !product.IsDeleted && !product.Category.IsDeleted);
     }

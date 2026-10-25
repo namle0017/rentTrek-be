@@ -14,10 +14,14 @@ public class RentalPriceTierConfiguration : IEntityTypeConfiguration<RentalPrice
         builder.ToTable("rental_price_tiers");
         builder.HasKey(tier => tier.Id);
         builder.Property(tier => tier.Id).HasColumnName("price_tier_id");
+        builder.Property(tier => tier.ProductVariantId).HasColumnName("product_variant_id");
+        builder.Property(tier => tier.BundleId).HasColumnName("bundle_id");
         builder.Property(tier => tier.DailyPrice).HasPrecision(18, 0);
         builder.HasOne(tier => tier.ProductVariant).WithMany(variant => variant.RentalPriceTiers)
-            .HasForeignKey(tier => tier.ProductVariantId).OnDelete(DeleteBehavior.NoAction);
-        builder.HasQueryFilter(tier => !tier.IsDeleted && !tier.ProductVariant.IsDeleted
+            .HasForeignKey(tier => tier.ProductVariantId).OnDelete(DeleteBehavior.NoAction).IsRequired(false);
+        builder.HasOne(tier => tier.Bundle).WithMany(bundle => bundle.RentalPriceTiers)
+            .HasForeignKey(tier => tier.BundleId).OnDelete(DeleteBehavior.NoAction);
+        builder.HasQueryFilter(tier => !tier.IsDeleted && tier.ProductVariant != null && !tier.ProductVariant.IsDeleted
             && !tier.ProductVariant.Product.IsDeleted && !tier.ProductVariant.Product.Category.IsDeleted);
     }
 }
