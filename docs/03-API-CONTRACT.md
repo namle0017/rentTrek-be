@@ -392,17 +392,14 @@ Account phải đang hoạt động. Email account sau chuẩn hóa phải trùn
 
 Chỉ đọc danh mục công khai. Không thay đổi API tạo / sửa / xoá sản phẩm hoặc auth.
 Chỉ trả sản phẩm, danh mục, biến thể có `status = Active`, chưa soft delete,
-và biến thể có ít nhất một giá thuê hoặc giá bán. Sản phẩm không có biến thể đủ điều kiện không xuất hiện.
+và biến thể có ít nhất một bậc giá thuê. Sản phẩm không có biến thể đủ điều kiện không xuất hiện.
 Ảnh và bảng giá đã soft delete không xuất hiện.
 
-**Mô hình:** theo các bảng categories → products → product_variants → images / rental_price_tiers
-trong `database/rentrek_schema.sql`, chuyển sang SQL Server theo code hiện tại.
-ID dùng `long` như các entity hiện có. Bổ sung `SalePrice` nullable ở biến thể vì schema tham khảo
-chưa có giá bán. Không triển khai bundle, đơn hàng hoặc kiểm tra tồn kho theo ngày trong task này.
-Giá là số VND; `null` nghĩa là không cung cấp hình thức đó, giá `0` vẫn hợp lệ.
-`pricePerDay` là mức giá thuê thấp nhất trong các bậc giá và biến thể công khai;
-`salePrice` là giá bán thấp nhất. Đây là giá **từ**, không phải báo giá cho số ngày thuê cụ thể.
-`isRentable` / `isForSale` mô tả hình thức cung cấp, không khẳng định còn hàng.
+**Mô hình:** bảng Supabase categories → products → product_variants → product_variant_images / rental_price_tiers.
+ID là UUID. Chỉ cho thuê (PRD §2.5: bán đứt nằm ngoài phạm vi). Không triển khai bundle, đơn hàng
+hoặc kiểm tra tồn kho theo ngày trong task này. Giá là số VND.
+`pricePerDay` là mức giá thuê thấp nhất trong các bậc giá và biến thể công khai.
+Đây là giá **từ**, không phải báo giá cho số ngày thuê cụ thể; `isRentable` không khẳng định còn hàng.
 Ngày giờ trả ISO 8601 UTC. FE gọi qua Axios instance dùng chung và React Query.
 
 ### 5.1. Danh sách sản phẩm
@@ -414,13 +411,11 @@ Ngày giờ trả ISO 8601 UTC. FE gọi qua Axios instance dùng chung và Reac
 | `pageNumber` | int | 1 | Dùng PagingRequest chung: nhỏ hơn 1 về 1; offset vượt Int32 trả 400 |
 | `pageSize` | int | 10 | Dùng PagingRequest chung: tối đa 100, nhỏ hơn 1 về 10 |
 | `search` | string | null | Tối đa 200 ký tự, trim, tìm tên hoặc mô tả |
-| `categoryId` | long? | null | ID dương |
-| `offeringType` | string? | null | `Rental`, `Sale`, `Both`; Both = sản phẩm có cả thuê và bán |
-| `sortBy` | string | createdAt | `createdAt`, `name`, `pricePerDay`, `salePrice` |
+| `categoryId` | uuid? | null | UUID danh mục |
+| `sortBy` | string | createdAt | `createdAt`, `name`, `pricePerDay` |
 | `sortOrder` | string | desc | `asc`, `desc` |
 
 Sắp xếp ổn định theo ID khi bằng giá trị; giá null luôn xếp cuối.
-Lọc theo hình thức ở cấp sản phẩm; response vẫn hiển thị tất cả hình thức sản phẩm cung cấp.
 Trang vượt tổng số trang trả items rỗng. Dữ liệu rỗng trả 200, không trả 404.
 Query sai trả 400 + `errors` theo field.
 
@@ -429,15 +424,13 @@ Query sai trả 400 + `errors` theo field.
 ```json
 {
   "items": [{
-    "id": 1,
+    "id": "6f1c2a9e-0000-0000-0000-000000000001",
     "name": "Lều cắm trại 2 người",
-    "categoryId": 1,
+    "categoryId": "6f1c2a9e-0000-0000-0000-0000000000c1",
     "categoryName": "Lều cắm trại",
     "thumbnailUrl": "/images/products/tent.svg",
     "isRentable": true,
-    "isForSale": true,
     "pricePerDay": 90000,
-    "salePrice": 1800000,
     "createdAt": "2026-10-23T00:00:00Z"
   }],
   "pageNumber": 1,
@@ -453,7 +446,7 @@ Thumbnail: ảnh primary trước, sau đó displayOrder, ID; null nếu chưa c
 
 ### 5.2. Chi tiết sản phẩm
 
-`GET /products/{id}` · **Auth:** Public · `id`: long
+`GET /products/{id}` · **Auth:** Public · `id`: uuid
 
 **Response 200:** `ApiResponse<ProductDetailResponse>` gồm toàn bộ field ProductResponse và:
 
@@ -461,12 +454,11 @@ Thumbnail: ảnh primary trước, sau đó displayOrder, ID; null nếu chưa c
 {
   "description": "Lều chống nước, phù hợp cho hai người.",
   "variants": [{
-    "id": 1,
+    "id": "6f1c2a9e-0000-0000-0000-0000000000a1",
     "sku": "TENT-2-GREEN",
     "name": "2 người / xanh lá",
     "size": "2 người",
     "color": "Xanh lá",
-    "salePrice": 1800000,
     "images": [{ "id": 1, "imageUrl": "/images/products/tent.svg", "isPrimary": true, "displayOrder": 0 }],
     "rentalPriceTiers": [{ "id": 1, "minDays": 1, "maxDays": 3, "dailyPrice": 120000 }]
   }]
@@ -474,26 +466,16 @@ Thumbnail: ảnh primary trước, sau đó displayOrder, ID; null nếu chưa c
 ```
 
 Biến thể được sắp theo ID, bậc giá theo minDays rồi ID. `maxDays = null` nghĩa là không giới hạn trên.
-ID không tồn tại, không dương hoặc sản phẩm không công khai trả 404 với wrapper chuẩn.
-ID không đúng định dạng số trả 400 theo model binding chuẩn.
+ID không tồn tại hoặc sản phẩm không công khai trả 404 với wrapper chuẩn.
+ID không phải UUID không khớp route nên cũng trả 404.
 
 ### 5.3. Danh mục sản phẩm
 
 `GET /products/categories` · **Auth:** Public
 
 **Response 200:** `ApiResponse<IReadOnlyList<ProductCategoryResponse>>`;
-`data = [{ "id": 1, "name": "Lều cắm trại" }]`, sắp theo tên rồi ID.
+`data = [{ "id": "6f1c2a9e-0000-0000-0000-0000000000c1", "name": "Lều cắm trại" }]`, sắp theo tên rồi ID.
 Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ điều kiện.
-
-**Dữ liệu local:** sau `dotnet ef database update`, có thể chạy
-`docs/database/seed_product_catalog.sql` trên SQL Server `RenTrekDb`.
-Script chỉ thêm dữ liệu mẫu nếu bảng Products chưa có dữ liệu; không seed tự động khi khởi động API.
-
-**Kiểm tra local:** chạy `./tests/product-catalog.smoke.ps1 -WithDatabaseFixtures` tại thư mục BE.
-Script kiểm tra API và tạo fixture tạm trong database local, sau đó dọn fixture trong `finally`.
-Tại FE chạy `node --use-system-ca --test tests/product-catalog.render.test.mjs` để kiểm tra
-Axios + React render bằng dữ liệu thật (cần BE đang chạy, chứng chỉ dev đã trust, Node 24+).
-Đây là kiểm tra render trong Node; không thay thế kiểm tra trực quan desktop/mobile trên trình duyệt.
 
 ---
 

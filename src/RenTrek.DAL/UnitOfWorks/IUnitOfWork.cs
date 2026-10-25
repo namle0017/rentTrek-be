@@ -4,7 +4,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 
 public interface IUnitOfWork : IDisposable
 {
-    IUserRepository Users { get; }
+    IAccountRepository Accounts { get; }
     IRoleRepository Roles { get; }
     IRefreshTokenRepository RefreshTokens { get; }
     IAccessTokenRepository AccessTokens { get; }

@@ -8,12 +8,9 @@ public class RentalPriceTierConfiguration : IEntityTypeConfiguration<RentalPrice
 {
     public void Configure(EntityTypeBuilder<RentalPriceTier> builder)
     {
-        builder.ToTable("RentalPriceTiers", table =>
-        {
-            table.HasCheckConstraint("CK_RentalPriceTiers_Days", "[MinDays] >= 1 AND ([MaxDays] IS NULL OR [MaxDays] >= [MinDays])");
-            table.HasCheckConstraint("CK_RentalPriceTiers_DailyPrice", "[DailyPrice] >= 0");
-        });
+        builder.ToTable("rental_price_tiers");
         builder.HasKey(tier => tier.Id);
+        builder.Property(tier => tier.Id).HasColumnName("price_tier_id");
         builder.Property(tier => tier.DailyPrice).HasPrecision(18, 0);
         builder.HasOne(tier => tier.ProductVariant).WithMany(variant => variant.RentalPriceTiers)
             .HasForeignKey(tier => tier.ProductVariantId).OnDelete(DeleteBehavior.NoAction);

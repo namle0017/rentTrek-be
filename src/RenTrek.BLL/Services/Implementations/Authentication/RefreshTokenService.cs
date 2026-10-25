@@ -58,7 +58,7 @@ public class RefreshTokenService : IRefreshTokenService
             throw new UnauthorizedException("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại");
         }
 
-        if (!string.Equals(existingToken.User.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(existingToken.Account.Status, "Active", StringComparison.OrdinalIgnoreCase))
         {
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
         }
@@ -72,20 +72,13 @@ public class RefreshTokenService : IRefreshTokenService
         var refreshExpiresDays = _jwt.RefreshTokenExpirationDays > 0 ? _jwt.RefreshTokenExpirationDays : 7;
         var refreshExpiresAt = DateTime.UtcNow.AddDays(refreshExpiresDays);
 
-        var deviceInfo = !string.IsNullOrWhiteSpace(_currentUserService.UserAgent)
-            ? DeviceDetector.Detect(_currentUserService.UserAgent)
-            : existingToken.DeviceInfo ?? "Trình duyệt web";
-        var ipAddress = _currentUserService.IpAddress ?? existingToken.IpAddress;
-
         var newRefreshToken = new RefreshToken
         {
             UserId = existingToken.UserId,
             FamilyId = existingToken.FamilyId,
             TokenHash = newTokenHash,
             ExpiresAt = refreshExpiresAt,
-            CreatedAt = DateTime.UtcNow,
-            DeviceInfo = deviceInfo,
-            IpAddress = ipAddress
+            CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.RefreshTokens.AddAsync(newRefreshToken, cancellationToken);
@@ -93,7 +86,7 @@ public class RefreshTokenService : IRefreshTokenService
 
         existingToken.ReplacedByRefreshTokenId = newRefreshToken.RefreshTokenId;
 
-        var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(existingToken.User);
+        var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(existingToken.Account);
 
         var accessTokenEntity = new AccessToken
         {
@@ -114,10 +107,10 @@ public class RefreshTokenService : IRefreshTokenService
             AccessTokenExpiresAt = accessExpiresAt,
             User = new UserInfoResponse
             {
-                UserId = existingToken.User.UserId,
-                Email = existingToken.User.Email,
-                FullName = existingToken.User.FullName,
-                Role = existingToken.User.Role?.RoleName ?? "Customer"
+                UserId = existingToken.Account.UserId,
+                Email = existingToken.Account.Email,
+                FullName = existingToken.Account.FullName,
+                Role = existingToken.Account.Role?.RoleName ?? "Customer"
             }
         };
     }

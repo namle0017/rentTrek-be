@@ -8,8 +8,9 @@ public class ProductVariantImageConfiguration : IEntityTypeConfiguration<Product
 {
     public void Configure(EntityTypeBuilder<ProductVariantImage> builder)
     {
-        builder.ToTable("ProductVariantImages");
+        builder.ToTable("product_variant_images");
         builder.HasKey(image => image.Id);
+        builder.Property(image => image.Id).HasColumnName("image_id");
         builder.Property(image => image.ImageUrl).HasMaxLength(2048).IsRequired();
         builder.HasOne(image => image.ProductVariant).WithMany(variant => variant.Images)
             .HasForeignKey(image => image.ProductVariantId).OnDelete(DeleteBehavior.NoAction);

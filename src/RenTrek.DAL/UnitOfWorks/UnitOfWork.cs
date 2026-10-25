@@ -12,7 +12,7 @@ public class UnitOfWork : IUnitOfWork
     private IDbContextTransaction? _transaction;
     private ITourRepository? _tourRepository;
 
-    private IUserRepository? _users;
+    private IAccountRepository? _accounts;
     private IRoleRepository? _roles;
     private IRefreshTokenRepository? _refreshTokens;
     private IAccessTokenRepository? _accessTokens;
@@ -22,7 +22,7 @@ public class UnitOfWork : IUnitOfWork
         _context = context;
     }
 
-    public IUserRepository Users => _users ??= new UserRepository(_context);
+    public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context);
     public IRoleRepository Roles => _roles ??= new RoleRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
     public IAccessTokenRepository AccessTokens => _accessTokens ??= new AccessTokenRepository(_context);

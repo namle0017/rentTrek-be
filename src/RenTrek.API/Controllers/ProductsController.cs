@@ -36,11 +36,11 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<ProductCategoryResponse>>.Ok(categories, "Lấy danh mục sản phẩm thành công"));
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<ProductDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetByIdAsync(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         var product = await _productService.GetByIdAsync(id, cancellationToken);
         return Ok(ApiResponse<ProductDetailResponse>.Ok(product, "Lấy sản phẩm thành công"));
