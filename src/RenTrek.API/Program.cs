@@ -50,6 +50,9 @@ builder.Services.AddCors(options =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 
+// Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ── Pipeline (thứ tự theo docs/01-CONVENTIONS.md §2.1) ──
@@ -66,5 +69,6 @@ app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
