@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
@@ -34,11 +33,7 @@ public class RefreshTokenService : IRefreshTokenService
     {
         var tokenHash = _tokenService.HashToken(request.RefreshToken);
 
-        var existingToken = await _unitOfWork.Repository<RefreshToken>()
-            .QueryTracking()
-            .Include(rt => rt.User)
-                .ThenInclude(u => u.Role)
-            .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
+        var existingToken = await _unitOfWork.RefreshTokens.GetByTokenHashWithUserAsync(tokenHash, tracking: true, cancellationToken);
 
         if (existingToken is null)
         {
@@ -48,16 +43,10 @@ public class RefreshTokenService : IRefreshTokenService
         // Reuse detection: Nếu token đã từng bị revoke mà gửi lại -> Phát hiện tấn công đánh cắp token
         if (existingToken.RevokedAt is not null)
         {
-            var familyTokens = await _unitOfWork.Repository<RefreshToken>()
-                .QueryTracking()
-                .Where(rt => rt.FamilyId == existingToken.FamilyId && rt.RevokedAt == null)
-                .ToListAsync(cancellationToken);
-
-            foreach (var token in familyTokens)
-            {
-                token.RevokedAt = DateTime.UtcNow;
-                token.RevokedReason = "Compromised family - token reuse detected";
-            }
+            await _unitOfWork.RefreshTokens.RevokeFamilyTokensAsync(
+                existingToken.FamilyId,
+                "Compromised family - token reuse detected",
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -99,7 +88,7 @@ public class RefreshTokenService : IRefreshTokenService
             IpAddress = ipAddress
         };
 
-        await _unitOfWork.Repository<RefreshToken>().AddAsync(newRefreshToken, cancellationToken);
+        await _unitOfWork.RefreshTokens.AddAsync(newRefreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         existingToken.ReplacedByRefreshTokenId = newRefreshToken.RefreshTokenId;
@@ -115,7 +104,7 @@ public class RefreshTokenService : IRefreshTokenService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Repository<AccessToken>().AddAsync(accessTokenEntity, cancellationToken);
+        await _unitOfWork.AccessTokens.AddAsync(accessTokenEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new AuthResponse

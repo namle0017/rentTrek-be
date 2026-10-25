@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
@@ -37,10 +36,7 @@ public class LoginService : ILoginService
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
-        var user = await _unitOfWork.Repository<User>()
-            .QueryTracking()
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+        var user = await _unitOfWork.Users.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
 
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
@@ -73,7 +69,7 @@ public class LoginService : ILoginService
             IpAddress = ipAddress
         };
 
-        await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken, cancellationToken);
+        await _unitOfWork.RefreshTokens.AddAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var accessTokenEntity = new AccessToken
@@ -85,7 +81,7 @@ public class LoginService : ILoginService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Repository<AccessToken>().AddAsync(accessTokenEntity, cancellationToken);
+        await _unitOfWork.AccessTokens.AddAsync(accessTokenEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new AuthResponse
