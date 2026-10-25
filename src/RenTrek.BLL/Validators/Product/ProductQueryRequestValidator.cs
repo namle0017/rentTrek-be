@@ -11,12 +11,10 @@ public class ProductQueryRequestValidator : AbstractValidator<ProductQueryReques
             .WithMessage("Từ khoá tìm kiếm tối đa 200 ký tự");
         RuleFor(request => request.CategoryId).NotEqual(Guid.Empty)
             .WithMessage("Danh mục không hợp lệ");
-        RuleFor(request => request.OfferingType).IsInEnum()
-            .WithMessage("Hình thức phải là Rental, Sale hoặc Both");
         RuleFor(request => request.SortBy)
-            .Must(value => new[] { "createdAt", "name", "pricePerDay", "salePrice" }
+            .Must(value => new[] { "createdAt", "name", "pricePerDay" }
                 .Contains(value, StringComparer.OrdinalIgnoreCase))
-            .WithMessage("Sắp xếp theo createdAt, name, pricePerDay hoặc salePrice");
+            .WithMessage("Sắp xếp theo createdAt, name hoặc pricePerDay");
         RuleFor(request => request.SortOrder)
             .Must(value => string.Equals(value, "asc", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(value, "desc", StringComparison.OrdinalIgnoreCase))

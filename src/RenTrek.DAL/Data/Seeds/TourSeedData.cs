@@ -13,25 +13,6 @@ public static class TourSeedData
         if (await context.Tours.AnyAsync())
             return;
 
-        // Xóa sạch dữ liệu cũ triệt để (nếu có bản ghi soft-delete) và dọn sạch ChangeTracker
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(@"
-                DELETE FROM [TourActivities];
-                DELETE FROM [TourImages];
-                DELETE FROM [TourPreparationItems];
-                DELETE FROM [TourProvidedItems];
-                DELETE FROM [Trips];
-                DELETE FROM [Tours];
-                DELETE FROM [Categories];
-                DELETE FROM [Locations];
-            ");
-        }
-        catch
-        {
-            // Bỏ qua nếu bảng chưa tồn tại
-        }
-
         context.ChangeTracker.Clear();
 
         // 1. Danh mục

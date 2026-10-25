@@ -5,13 +5,13 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
-public class UserRepository : GenericRepository<User>, IUserRepository
+public class AccountRepository : GenericRepository<Account>, IAccountRepository
 {
-    public UserRepository(AppDbContext context) : base(context)
+    public AccountRepository(AppDbContext context) : base(context)
     {
     }
 
-    public async Task<User?> GetByEmailWithRoleAsync(string email, bool tracking = false, CancellationToken cancellationToken = default)
+    public async Task<Account?> GetByEmailWithRoleAsync(string email, bool tracking = false, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
@@ -20,7 +20,7 @@ public class UserRepository : GenericRepository<User>, IUserRepository
             .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
     }
 
-    public async Task<User?> GetByIdWithRoleAsync(long userId, bool tracking = false, CancellationToken cancellationToken = default)
+    public async Task<Account?> GetByIdWithRoleAsync(Guid userId, bool tracking = false, CancellationToken cancellationToken = default)
     {
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
         return await query

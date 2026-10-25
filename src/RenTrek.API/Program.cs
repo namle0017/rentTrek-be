@@ -67,18 +67,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // Tự động seed dữ liệu mẫu trong môi trường Development (nếu kết nối được DB)
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try
+    // DB dùng chung trên Supabase: chỉ seed khi bật Seed:Tours=true
+    if (app.Configuration.GetValue<bool>("Seed:Tours"))
     {
-        await context.Database.EnsureCreatedAsync();
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await TourSeedData.InitializeAsync(context);
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "Chưa thể kết nối SQL Server để tự động seed data. Vui lòng kiểm tra lại ConnectionStrings trong appsettings.json.");
     }
 }
 

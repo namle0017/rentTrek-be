@@ -15,7 +15,7 @@ public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshT
     {
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
         return await query
-            .Include(rt => rt.User)
+            .Include(rt => rt.Account)
                 .ThenInclude(u => u.Role)
             .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
     }
@@ -28,24 +28,7 @@ public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshT
             .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
     }
 
-    public async Task<List<RefreshToken>> GetActiveTokensByFamilyIdAsync(string familyId, bool tracking = true, CancellationToken cancellationToken = default)
-    {
-        var query = tracking ? _dbSet : _dbSet.AsNoTracking();
-        return await query
-            .Where(rt => rt.FamilyId == familyId && rt.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<RefreshToken>> GetActiveTokensByUserIdAsync(long userId, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet
-            .AsNoTracking()
-            .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > DateTime.UtcNow)
-            .OrderByDescending(rt => rt.CreatedAt)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<RefreshToken>> GetOtherActiveTokensAsync(long userId, string? excludeFamilyId, bool tracking = true, CancellationToken cancellationToken = default)
+    public async Task<List<RefreshToken>> GetOtherActiveTokensAsync(Guid userId, Guid? excludeFamilyId, bool tracking = true, CancellationToken cancellationToken = default)
     {
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
         return await query
@@ -54,7 +37,7 @@ public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshT
             .ToListAsync(cancellationToken);
     }
 
-    public async Task RevokeFamilyTokensAsync(string familyId, string reason, CancellationToken cancellationToken = default)
+    public async Task RevokeFamilyTokensAsync(Guid familyId, string reason, CancellationToken cancellationToken = default)
     {
         var tokens = await _dbSet
             .Include(rt => rt.AccessTokens)

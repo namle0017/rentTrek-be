@@ -2,7 +2,7 @@ namespace RenTrek.BLL.DTOs.Users;
 
 public class UserDetailResponse
 {
-    public long UserId { get; set; }
+    public Guid UserId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string? Phone { get; set; }

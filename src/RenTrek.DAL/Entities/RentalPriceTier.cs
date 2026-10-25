@@ -2,8 +2,8 @@ namespace RenTrek.DAL.Entities;
 
 public class RentalPriceTier
 {
-    public long Id { get; set; }
-    public long ProductVariantId { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProductVariantId { get; set; }
     public int MinDays { get; set; } = 1;
     public int? MaxDays { get; set; }
     public decimal DailyPrice { get; set; }

@@ -8,14 +8,13 @@ public class ProductVariantConfiguration : IEntityTypeConfiguration<ProductVaria
 {
     public void Configure(EntityTypeBuilder<ProductVariant> builder)
     {
-        builder.ToTable("ProductVariants", table =>
-            table.HasCheckConstraint("CK_ProductVariants_SalePrice", "[SalePrice] IS NULL OR [SalePrice] >= 0"));
+        builder.ToTable("product_variants");
         builder.HasKey(variant => variant.Id);
+        builder.Property(variant => variant.Id).HasColumnName("product_variant_id");
         builder.Property(variant => variant.Sku).HasMaxLength(100).IsRequired();
-        builder.Property(variant => variant.Name).HasMaxLength(200).IsRequired();
+        builder.Property(variant => variant.Name).HasColumnName("variant_name").HasMaxLength(255).IsRequired();
         builder.Property(variant => variant.Size).HasMaxLength(50);
         builder.Property(variant => variant.Color).HasMaxLength(50);
-        builder.Property(variant => variant.SalePrice).HasPrecision(18, 0);
         builder.Property(variant => variant.Status).HasConversion<string>().HasMaxLength(30);
         builder.HasIndex(variant => variant.Sku).IsUnique().HasDatabaseName("UQ_ProductVariants_Sku");
         builder.HasOne(variant => variant.Product).WithMany(product => product.Variants)

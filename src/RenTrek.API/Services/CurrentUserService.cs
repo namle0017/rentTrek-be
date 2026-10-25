@@ -29,7 +29,7 @@ public class CurrentUserService : ICurrentUserService, RenTrek.BLL.Abstractions.
         ? userId
         : throw new UnauthorizedException("Token không chứa định danh tài khoản hợp lệ");
 
-    long? ICurrentUserService.UserId => long.TryParse(Subject, out var id) ? id : null;
+    Guid? ICurrentUserService.UserId => Guid.TryParse(Subject, out var id) ? id : null;
 
     public string? Jti
     {
@@ -44,28 +44,4 @@ public class CurrentUserService : ICurrentUserService, RenTrek.BLL.Abstractions.
     public string? Role => _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.Role)?.Value;
 
     public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated ?? false;
-
-    public string? UserAgent
-    {
-        get
-        {
-            var context = _httpContextAccessor.HttpContext;
-            if (context == null) return null;
-            if (context.Request.Headers.TryGetValue("User-Agent", out var ua))
-                return ua.ToString();
-            return null;
-        }
-    }
-
-    public string? IpAddress
-    {
-        get
-        {
-            var context = _httpContextAccessor.HttpContext;
-            if (context == null) return null;
-            if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded) && !string.IsNullOrWhiteSpace(forwarded))
-                return forwarded.ToString().Split(',')[0].Trim();
-            return context.Connection.RemoteIpAddress?.ToString();
-        }
-    }
 }

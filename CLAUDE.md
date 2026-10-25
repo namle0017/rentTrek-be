@@ -25,28 +25,28 @@ No lint step or CI workflow exists yet (`.github/workflows/` is empty).
 
 ## Configuration
 
-`Program.cs` calls `DotNetEnv.Env.TraversePath().Load()`, so the repo-root `.env` (gitignored) supplies config via `__` keys:
-- `ConnectionStrings__DefaultConnection` — Npgsql connection string to the Supabase pooler (required; DAL throws without it).
-- `Jwt__Key` (≥32 bytes), `Jwt__Issuer`, `Jwt__Audience` — required outside Development/Test; in Development a random temporary key is generated with a warning.
-- `SePay__Api__Key` — payment provider key.
+`Program.cs` calls `DotNetEnv.Env.TraversePath().Load()`, so the repo-root `.env` (gitignored) supplies config via `__` keys; env vars override `appsettings.json`.
+- `ConnectionStrings__DefaultConnection` — Npgsql connection string to the Supabase pooler (required; not in `appsettings.json`).
+- `Jwt__SecretKey` (≥32 chars), plus `Jwt:Issuer/Audience/...` in `appsettings.json`. The committed `SecretKey` is a public placeholder — every real environment must override it.
+- `AutoMapper__LicenseKey`, `Cors:AllowedOrigins`, `SePay__Api__Key`.
+- `Seed:Tours=true` runs `TourSeedData` at startup in Development. Off by default because the DB is shared.
 
 ## Architecture
 
-Strict 3 layers, one direction only: `RenTrek.API` → `RenTrek.BLL` → `RenTrek.DAL`.
+Strict 3 layers, one direction only: `RenTrek.API` → `RenTrek.BLL` → `RenTrek.DAL`. The code came from merging 4 feature branches (auth, tour, product, trip booking), so some pieces still exist twice:
 
-- **API**: thin controllers; always return `ApiResponse<T>` (`Common/ApiResponse.cs`), including model-validation errors (custom `InvalidModelStateResponseFactory` in `Program.cs`). Enums serialize as strings. `CurrentUserService` reads the user id from JWT claims and implements BLL's `ICurrentUserService` — BLL never touches `HttpContext`.
-- **BLL**: services hold all business rules, map Entity ↔ DTO, and own transactions via `IUnitOfWork`. Errors are thrown as `AppException` subclasses (`Exceptions/`, each carries its HTTP status); `ExceptionHandlingMiddleware` turns them into `ApiResponse.Fail`. Non-`AppException` → generic 500. `TimeProvider` is injected for testable time. Wiring: `BLL/DependencyInjection.cs` → `AddBusinessLayer()`.
-- **DAL**: `AppDbContext` + `IEntityTypeConfiguration` classes under `Data/Configurations/` (auto-applied). Repositories + `UnitOfWork` (explicit `BeginTransactionAsync/CommitAsync/RollbackAsync`). Wiring: `DAL/DependencyInjection.cs` → `AddDataAccessLayer()`.
+- **API**: thin controllers; always return `ApiResponse<T>` (`Common/ApiResponse.cs`). `ValidationFilter` runs FluentValidation; `Middlewares/ExceptionHandlingMiddleware` maps `AppException` subclasses (`BLL/Exceptions/`) to their HTTP status. JWT setup lives in `Extensions/AuthenticationExtensions.cs` (`OnTokenValidated` rejects revoked `jti`). Web-only: no multi-device session management; refresh-token families exist only for rotation and reuse detection.
+- **Current user**: one `API/Services/CurrentUserService` implements two BLL interfaces — `BLL.Services.Interfaces.ICurrentUserService` (auth/users: `Guid? UserId`, `Jti`, `Role`) and `BLL.Abstractions.ICurrentUserService` (trip booking: `Guid UserId` that throws 401). BLL never touches `HttpContext`.
+- **Unit of work**: `DAL/UnitOfWorks/IUnitOfWork` (auth, tour, product; generic `Repository<T>()`) and `DAL/UnitOfWork/IUnitOfWork` (trip booking; `TripBookings` + transactions). Both share the scoped `AppDbContext`. Use the first for new modules.
+- **BLL**: services hold business rules, map with AutoMapper profiles (`Mappings/`), and own transactions. `TimeProvider` is injected in trip booking for testable time.
 
 ### Database mapping — differs from the docs
 
-`docs/01-CONVENTIONS.md` says PascalCase tables and an `Id` PK with `BaseEntity`; the **real Supabase schema is snake_case** with named PKs (`orders.order_id`, `trips.trip_id`). Entities use PascalCase properties named after the column (`OrderId`) and every column is mapped explicitly with `ToTable(...)` / `HasColumnName(...)` in its Configuration. Follow the existing configurations, not the doc. Other naming gaps vs the PRD: ERD `USERS` = table `accounts`, ERD `TRANSACTIONS` = table `payments`. Money is `numeric(18,0)` (VND) → `HasPrecision(18, 0)`; timestamps are `timestamptz` → `DateTimeOffset`. Soft-delete tables use `is_deleted` + `HasQueryFilter(x => !x.IsDeleted)`.
-
-Only a subset of tables is mapped so far (accounts, trips, orders, trip_booking_orders, booking_participants, payments, participant_invitations). Map others on demand.
+`docs/01-CONVENTIONS.md` says PascalCase tables; the **real Supabase schema is snake_case** with named PKs (`orders.order_id`, `tours.tour_id`). `AppDbContext.OnModelCreating` snake-cases every table and column name after the configurations run, so configurations only declare exceptions: `ToTable(...)` when the name differs, the PK column for `BaseEntity.Id` (`HasColumnName("tour_id")`), and odd columns (`ProductVariant.Name` → `variant_name`). Entity `Account` = table `accounts` (the single account entity; auth and trip booking both use it); ERD `TRANSACTIONS` = table `payments`. Money is `numeric(18,0)` (VND); all keys are `Guid`. Soft delete uses `is_deleted`; `BaseEntity` types get the query filter automatically.
 
 ### Schema changes
 
-No EF migrations are used (`Data/Migrations/` is empty). Schema changes are hand-written, idempotent SQL in `database/migrations/YYYYMMDD_description.sql`, applied manually to Supabase. As of 2026-10-26, `20261026_add_participant_invitations.sql` is **not yet applied** on Supabase (no `participant_invitations` table, no `orders.idempotency_key`), so the trip-booking invitation flow fails at runtime until it is.
+No EF migrations. Schema changes are hand-written, idempotent SQL in `database/migrations/YYYYMMDD_description.sql`, applied manually to Supabase. As of 2026-10-27 these are **not yet applied**, and the code depends on them: `20261026_add_participant_invitations.sql` (trip-booking invitations) and `20261027_merge_feature_columns.sql` (tour display columns + default roles; register fails without role `Customer`).
 
 ### Concurrency patterns
 

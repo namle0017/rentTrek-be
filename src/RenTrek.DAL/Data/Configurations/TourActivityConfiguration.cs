@@ -8,9 +8,10 @@ public class TourActivityConfiguration : IEntityTypeConfiguration<TourActivity>
 {
     public void Configure(EntityTypeBuilder<TourActivity> builder)
     {
-        builder.ToTable("TourActivities");
+        builder.ToTable("tour_activities");
 
         builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("tour_activity_id");
 
         builder.Property(a => a.Name)
             .IsRequired()
