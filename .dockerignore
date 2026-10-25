@@ -1,0 +1,30 @@
+# Build output
+**/bin
+**/obj
+
+# Secrets / cấu hình local — cấu hình trên Render lấy từ biến môi trường
+.env
+.env.*
+!.env.example
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/secrets.json
+
+# IDE / tooling
+.git
+.gitignore
+.vs
+.vscode
+.idea
+.claude
+**/*.user
+
+# Không cần khi chạy
+docs
+scripts
+tests
+dotnet-tools.json
+src/RenTrek.DAL/CodeTemplates
+Dockerfile
+docker-compose.yml
+render.yaml

@@ -12,4 +12,5 @@ public class Category : BaseEntity
 
     public ICollection<Tour> Tours { get; set; } = [];
     public ICollection<Product> Products { get; set; } = [];
+    public ICollection<ProductBundle> ProductBundles { get; set; } = [];
 }

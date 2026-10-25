@@ -34,4 +34,7 @@ public class Tour : BaseEntity
     public ICollection<TourPreparationItem> PreparationItems { get; set; } = [];
     public ICollection<TourProvidedItem> ProvidedItems { get; set; } = [];
     public ICollection<Trip> Trips { get; set; } = [];
+    public Account? CreatedByUser { get; set; }
+    public ICollection<TourPost> TourPosts { get; set; } = [];
+    public ICollection<TourRecurrenceRule> TourRecurrenceRules { get; set; } = [];
 }

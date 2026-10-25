@@ -19,12 +19,43 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AccessToken> AccessTokens => Set<AccessToken>();
+    public DbSet<ActivityAttendance> ActivityAttendances => Set<ActivityAttendance>();
+    public DbSet<AppliedPromotion> AppliedPromotions => Set<AppliedPromotion>();
+    public DbSet<AssetAssignment> AssetAssignments => Set<AssetAssignment>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     // Product DbSets
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<ProductVariantImage> ProductVariantImages => Set<ProductVariantImage>();
     public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
+    public DbSet<EquipmentAsset> EquipmentAssets => Set<EquipmentAsset>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ParticipantPostRead> ParticipantPostReads => Set<ParticipantPostRead>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostSoftSkill> PostSoftSkills => Set<PostSoftSkill>();
+    public DbSet<PostTag> PostTags => Set<PostTag>();
+    public DbSet<ProductBundle> ProductBundles => Set<ProductBundle>();
+    public DbSet<ProductBundleItem> ProductBundleItems => Set<ProductBundleItem>();
+    public DbSet<Profile> Profiles => Set<Profile>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<PromotionTier> PromotionTiers => Set<PromotionTier>();
+    public DbSet<RefundPolicy> RefundPolicies => Set<RefundPolicy>();
+    public DbSet<RefundPolicyRule> RefundPolicyRules => Set<RefundPolicyRule>();
+    public DbSet<RentalBundleItemSnapshot> RentalBundleItemSnapshots => Set<RentalBundleItemSnapshot>();
+    public DbSet<RentalCharge> RentalCharges => Set<RentalCharge>();
+    public DbSet<RentalOrder> RentalOrders => Set<RentalOrder>();
+    public DbSet<RentalOrderItem> RentalOrderItems => Set<RentalOrderItem>();
+    public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<SoftSkill> SoftSkills => Set<SoftSkill>();
+    public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<TourPost> TourPosts => Set<TourPost>();
+    public DbSet<TourRecurrenceRule> TourRecurrenceRules => Set<TourRecurrenceRule>();
+    public DbSet<TripGroup> TripGroups => Set<TripGroup>();
+    public DbSet<TripProvidedItem> TripProvidedItems => Set<TripProvidedItem>();
+    public DbSet<UserExternalLogin> UserExternalLogins => Set<UserExternalLogin>();
 
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Order> Orders => Set<Order>();

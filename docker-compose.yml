@@ -1,0 +1,10 @@
+# Chạy thử image local trước khi deploy Render: copy .env.example thành .env, điền giá trị, rồi
+#   docker compose up --build
+# → http://localhost:8080/health
+services:
+  api:
+    build: .
+    image: rentrek-api
+    env_file: .env
+    ports:
+      - "8080:8080"

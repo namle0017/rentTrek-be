@@ -24,4 +24,9 @@ public sealed class BookingParticipant
     public TripBookingOrder BookingOrder { get; set; } = null!;
     public Account? LinkedUser { get; set; }
     public ICollection<ParticipantInvitation> Invitations { get; set; } = [];
+    public ICollection<ActivityAttendance> ActivityAttendances { get; set; } = [];
+    public ICollection<ParticipantPostRead> ParticipantPostReads { get; set; } = [];
+    public Review? Review { get; set; }
+    public Trip Trip { get; set; } = null!;
+    public TripGroup? TripGroup { get; set; }
 }
