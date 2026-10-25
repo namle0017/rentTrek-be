@@ -5,7 +5,7 @@ using RenTrek.API.Common;
 using RenTrek.API.Extensions;
 using RenTrek.API.Filters;
 using RenTrek.API.Middlewares;
-using RenTrek.API.Services;
+using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;

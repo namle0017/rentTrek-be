@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using RenTrek.API.Services;
+using RenTrek.API.Identity;
 using RenTrek.BLL.Exceptions;
 
 namespace RenTrek.API.Tests;
