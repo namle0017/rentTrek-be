@@ -1,10 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
-using RenTrek.DAL.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.API.Common;
+using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.API.Extensions;
 
@@ -43,9 +42,8 @@ public static class AuthenticationExtensions
 
                         if (!string.IsNullOrEmpty(jti))
                         {
-                            var dbContext = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
-                            var isRevoked = await dbContext.AccessTokens
-                                .AnyAsync(at => at.Jti == jti && at.RevokedAt != null);
+                            var unitOfWork = context.HttpContext.RequestServices.GetRequiredService<IUnitOfWork>();
+                            var isRevoked = await unitOfWork.AccessTokens.IsJtiRevokedAsync(jti);
 
                             if (isRevoked)
                             {

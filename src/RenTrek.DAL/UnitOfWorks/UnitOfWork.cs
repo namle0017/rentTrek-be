@@ -11,10 +11,20 @@ public class UnitOfWork : IUnitOfWork
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
 
+    private IUserRepository? _users;
+    private IRoleRepository? _roles;
+    private IRefreshTokenRepository? _refreshTokens;
+    private IAccessTokenRepository? _accessTokens;
+
     public UnitOfWork(AppDbContext context)
     {
         _context = context;
     }
+
+    public IUserRepository Users => _users ??= new UserRepository(_context);
+    public IRoleRepository Roles => _roles ??= new RoleRepository(_context);
+    public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
+    public IAccessTokenRepository AccessTokens => _accessTokens ??= new AccessTokenRepository(_context);
 
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
@@ -65,7 +75,6 @@ public class UnitOfWork : IUnitOfWork
         await DisposeTransactionAsync();
     }
 
-    // AppDbContext do DI container quản lý vòng đời, UnitOfWork chỉ dọn transaction của mình
     public void Dispose()
     {
         _transaction?.Dispose();

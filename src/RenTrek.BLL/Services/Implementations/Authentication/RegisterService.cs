@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
@@ -37,17 +36,14 @@ public class RegisterService : IRegisterService
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
-        var emailExists = await _unitOfWork.Repository<User>()
-            .AnyAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+        var emailExists = await _unitOfWork.Users.ExistsByEmailAsync(normalizedEmail, cancellationToken);
 
         if (emailExists)
         {
             throw new ConflictException($"Email '{request.Email}' đã được đăng ký tài khoản trong hệ thống");
         }
 
-        var customerRole = await _unitOfWork.Repository<Role>()
-            .QueryTracking()
-            .FirstOrDefaultAsync(r => r.RoleName == "Customer", cancellationToken);
+        var customerRole = await _unitOfWork.Roles.GetByNameAsync("Customer", tracking: true, cancellationToken);
 
         var user = new User
         {
@@ -61,7 +57,7 @@ public class RegisterService : IRegisterService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Repository<User>().AddAsync(user, cancellationToken);
+        await _unitOfWork.Users.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(user);
@@ -85,7 +81,7 @@ public class RegisterService : IRegisterService
             IpAddress = ipAddress
         };
 
-        await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken, cancellationToken);
+        await _unitOfWork.RefreshTokens.AddAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var accessTokenEntity = new AccessToken
@@ -97,7 +93,7 @@ public class RegisterService : IRegisterService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _unitOfWork.Repository<AccessToken>().AddAsync(accessTokenEntity, cancellationToken);
+        await _unitOfWork.AccessTokens.AddAsync(accessTokenEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new AuthResponse

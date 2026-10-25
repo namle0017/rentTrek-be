@@ -20,10 +20,11 @@ public static class DependencyInjection
                 sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IAccessTokenRepository, AccessTokenRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-        // Repository riêng đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserRepository, UserRepository>();
 
         return services;
     }
