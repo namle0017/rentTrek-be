@@ -2,6 +2,9 @@ using RenTrek.BLL.DTOs.Common;
 
 namespace RenTrek.BLL.DTOs.Tour;
 
+/// <summary>
+/// Mô tả dữ liệu đầu vào của nghiệp vụ tour query.
+/// </summary>
 public class TourQueryRequest : PagingRequest
 {
     public Guid? CategoryId { get; set; }

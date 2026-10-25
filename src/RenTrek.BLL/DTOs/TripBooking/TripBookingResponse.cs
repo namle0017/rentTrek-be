@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.TripBooking;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ trip booking.
+/// </summary>
 public sealed class TripBookingResponse
 {
     public Guid OrderId { get; set; }

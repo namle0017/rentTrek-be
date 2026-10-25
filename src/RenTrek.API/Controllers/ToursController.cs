@@ -6,6 +6,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
+/// <summary>
+/// Cung cấp các endpoint HTTP cho tours.
+/// </summary>
 [ApiController]
 [Route("api/v1/tours")]
 [Produces("application/json")]

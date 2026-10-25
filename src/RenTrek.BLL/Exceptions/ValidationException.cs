@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.Exceptions;
 
+/// <summary>
+/// Biểu diễn lỗi validation trong tầng business.
+/// </summary>
 public class ValidationException : AppException
 {
     /// <summary>Lỗi theo từng field: key là tên field (camelCase), value là danh sách message.</summary>

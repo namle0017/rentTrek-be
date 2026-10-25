@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.TripBooking;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ participant invitation.
+/// </summary>
 public sealed class ParticipantInvitationResponse
 {
     public Guid ParticipantId { get; set; }

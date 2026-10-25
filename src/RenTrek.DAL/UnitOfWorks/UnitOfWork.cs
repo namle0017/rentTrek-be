@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.UnitOfWorks;
 
+/// <summary>
+/// Điều phối repository, lưu thay đổi và transaction trong một phạm vi nghiệp vụ.
+/// </summary>
 public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;

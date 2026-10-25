@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể trip booking order trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class TripBookingOrder
 {
     public Guid OrderId { get; set; }

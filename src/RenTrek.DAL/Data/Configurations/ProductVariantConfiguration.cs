@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể product variant.
+/// </summary>
 public class ProductVariantConfiguration : IEntityTypeConfiguration<ProductVariant>
 {
     public void Configure(EntityTypeBuilder<ProductVariant> builder)

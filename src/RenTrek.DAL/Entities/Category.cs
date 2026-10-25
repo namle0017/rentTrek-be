@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể category trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class Category : BaseEntity
 {
     public string Name { get; set; } = string.Empty;

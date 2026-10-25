@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho account qua EF Core.
+/// </summary>
 public class AccountRepository : GenericRepository<Account>, IAccountRepository
 {
     public AccountRepository(AppDbContext context) : base(context)

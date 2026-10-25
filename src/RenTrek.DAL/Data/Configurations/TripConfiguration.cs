@@ -4,6 +4,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể trip.
+/// </summary>
 public sealed class TripConfiguration : IEntityTypeConfiguration<Trip>
 {
     public void Configure(EntityTypeBuilder<Trip> builder)

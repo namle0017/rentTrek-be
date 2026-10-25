@@ -2,6 +2,9 @@ using BCrypt.Net;
 
 namespace RenTrek.BLL.Helpers;
 
+/// <summary>
+/// Băm và kiểm tra mật khẩu bằng thuật toán an toàn.
+/// </summary>
 public class PasswordHasher : IPasswordHasher
 {
     private const int WorkFactor = 11;

@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể payment trong mô hình dữ liệu RenTrek.
+/// </summary>
 public sealed class Payment
 {
     public Guid PaymentId { get; set; }

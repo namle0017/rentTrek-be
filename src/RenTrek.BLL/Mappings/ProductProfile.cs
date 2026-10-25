@@ -5,6 +5,9 @@ using RenTrek.DAL.Entities.Enums;
 
 namespace RenTrek.BLL.Mappings;
 
+/// <summary>
+/// Khai báo ánh xạ AutoMapper cho product.
+/// </summary>
 public class ProductProfile : Profile
 {
     public ProductProfile()

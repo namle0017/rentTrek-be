@@ -5,6 +5,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data;
 
+/// <summary>
+/// Quản lý phiên làm việc EF Core và các tập thực thể của RenTrek.
+/// </summary>
 public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)

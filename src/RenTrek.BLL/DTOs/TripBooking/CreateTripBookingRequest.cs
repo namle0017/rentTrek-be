@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RenTrek.BLL.DTOs.TripBooking;
 
+/// <summary>
+/// Mô tả dữ liệu đầu vào của nghiệp vụ create trip booking.
+/// </summary>
 public sealed class CreateTripBookingRequest
 {
     [Required]

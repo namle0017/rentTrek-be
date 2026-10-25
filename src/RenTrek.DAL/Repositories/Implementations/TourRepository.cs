@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho tour qua EF Core.
+/// </summary>
 public class TourRepository : GenericRepository<Tour>, ITourRepository
 {
     public TourRepository(AppDbContext context) : base(context)

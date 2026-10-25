@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho access token qua EF Core.
+/// </summary>
 public class AccessTokenRepository : GenericRepository<AccessToken>, IAccessTokenRepository
 {
     public AccessTokenRepository(AppDbContext context) : base(context)

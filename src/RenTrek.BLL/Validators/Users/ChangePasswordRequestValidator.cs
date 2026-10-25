@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Users;
 
 namespace RenTrek.BLL.Validators.Users;
 
+/// <summary>
+/// Kiểm tra dữ liệu và quy tắc hợp lệ cho change password request.
+/// </summary>
 public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
 {
     public ChangePasswordRequestValidator()

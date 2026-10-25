@@ -6,6 +6,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
+/// <summary>
+/// Cung cấp các endpoint HTTP cho trip bookings.
+/// </summary>
 [ApiController]
 [Authorize]
 [Route("api/v1/trip-bookings")]

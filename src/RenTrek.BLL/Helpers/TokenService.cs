@@ -9,6 +9,9 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Helpers;
 
+/// <summary>
+/// Tạo access token JWT và refresh token cho phiên đăng nhập.
+/// </summary>
 public class TokenService : ITokenService
 {
     private readonly JwtSettings _jwt;

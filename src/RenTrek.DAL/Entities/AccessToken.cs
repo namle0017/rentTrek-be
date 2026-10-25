@@ -1,5 +1,8 @@
 namespace RenTrek.DAL.Entities;
 
+/// <summary>
+/// Biểu diễn thực thể access token trong mô hình dữ liệu RenTrek.
+/// </summary>
 public class AccessToken
 {
     public Guid AccessTokenId { get; set; } = Guid.NewGuid();

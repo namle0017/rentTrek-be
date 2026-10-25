@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Tour;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ tour.
+/// </summary>
 public class TourResponse
 {
     public Guid Id { get; set; }

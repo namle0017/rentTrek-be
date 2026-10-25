@@ -8,6 +8,9 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
 
+/// <summary>
+/// Thực hiện nghiệp vụ tour.
+/// </summary>
 public class TourService : ITourService
 {
     private readonly IUnitOfWork _unitOfWork;

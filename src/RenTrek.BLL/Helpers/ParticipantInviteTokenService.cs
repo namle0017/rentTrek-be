@@ -3,6 +3,9 @@ using System.Text;
 
 namespace RenTrek.BLL.Helpers;
 
+/// <summary>
+/// Tạo token mời participant và băm token trước khi lưu trữ.
+/// </summary>
 public sealed class ParticipantInviteTokenService : IParticipantInviteTokenService
 {
     public string CreateToken()

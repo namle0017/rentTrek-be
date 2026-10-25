@@ -7,6 +7,9 @@ using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
 
+/// <summary>
+/// Cung cấp các endpoint HTTP cho users.
+/// </summary>
 [ApiController]
 [Route("api/v1/users")]
 public class UsersController : ControllerBase

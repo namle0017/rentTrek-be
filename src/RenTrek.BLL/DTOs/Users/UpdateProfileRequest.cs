@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Users;
 
+/// <summary>
+/// Mô tả dữ liệu đầu vào của nghiệp vụ update profile.
+/// </summary>
 public class UpdateProfileRequest
 {
     public string FullName { get; set; } = string.Empty;
