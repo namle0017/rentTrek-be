@@ -6,6 +6,7 @@ public class Product
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid CategoryId { get; set; }
+    public Guid CreatedByUserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public CatalogStatus Status { get; set; } = CatalogStatus.Active;

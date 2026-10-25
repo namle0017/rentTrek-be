@@ -29,7 +29,7 @@ No lint step or CI workflow exists yet (`.github/workflows/` is empty).
 - `ConnectionStrings__DefaultConnection` — Npgsql connection string to the Supabase pooler (required; not in `appsettings.json`).
 - `Jwt__SecretKey` (≥32 chars), plus `Jwt:Issuer/Audience/...` in `appsettings.json`. The committed `SecretKey` is a public placeholder — every real environment must override it.
 - `AutoMapper__LicenseKey`, `Cors:AllowedOrigins`, `SePay__Api__Key`.
-- `Seed:Tours=true` runs `TourSeedData` at startup in Development. Off by default because the DB is shared.
+- `Seed:Tours` (default `true`): in Development, `TourSeedData` seeds sample tours, equipment, a refund policy and an inactive `system@rentrek.local` account — only when `tours` is empty, in one transaction. Set `false` to skip.
 
 ## Architecture
 
@@ -37,7 +37,7 @@ Strict 3 layers, one direction only: `RenTrek.API` → `RenTrek.BLL` → `RenTre
 
 - **API**: thin controllers; always return `ApiResponse<T>` (`Common/ApiResponse.cs`). `ValidationFilter` runs FluentValidation; `Middlewares/ExceptionHandlingMiddleware` maps `AppException` subclasses (`BLL/Exceptions/`) to their HTTP status. JWT setup lives in `Extensions/AuthenticationExtensions.cs` (`OnTokenValidated` rejects revoked `jti`). Web-only: no multi-device session management; refresh-token families exist only for rotation and reuse detection.
 - **Current user**: one `API/Services/CurrentUserService` implements two BLL interfaces — `BLL.Services.Interfaces.ICurrentUserService` (auth/users: `Guid? UserId`, `Jti`, `Role`) and `BLL.Abstractions.ICurrentUserService` (trip booking: `Guid UserId` that throws 401). BLL never touches `HttpContext`.
-- **Unit of work**: `DAL/UnitOfWorks/IUnitOfWork` (auth, tour, product; generic `Repository<T>()`) and `DAL/UnitOfWork/IUnitOfWork` (trip booking; `TripBookings` + transactions). Both share the scoped `AppDbContext`. Use the first for new modules.
+- **Unit of work**: single `DAL/UnitOfWorks/IUnitOfWork` exposing repositories (`Accounts`, `Tours`, `TripBookings`, …), generic `Repository<T>()` and `BeginTransactionAsync/CommitAsync/RollbackAsync`. `CommitAsync` saves changes and requires an open transaction.
 - **BLL**: services hold business rules, map with AutoMapper profiles (`Mappings/`), and own transactions. `TimeProvider` is injected in trip booking for testable time.
 
 ### Database mapping — differs from the docs
@@ -50,7 +50,7 @@ No EF migrations. Schema changes are hand-written, idempotent SQL in `database/m
 
 ### Concurrency patterns
 
-Capacity/idempotency are enforced in `TripBookingRepository` with Postgres primitives: transaction-scoped advisory locks keyed by string (`AcquireIdempotencyLockAsync`, `AcquireBookingLockAsync`) and `SELECT ... FOR UPDATE` via `FromSqlInterpolated`. Call them inside a UnitOfWork transaction. Reuse this approach for other oversell/double-assign rules (PRD BR-07, BR-19).
+Capacity/idempotency are enforced in `TripBookingRepository` with Postgres primitives: transaction-scoped advisory locks keyed by string (`AcquireIdempotencyLockAsync`, `AcquireBookingLockAsync`) and `SELECT ... FOR UPDATE` via `FromSqlInterpolated`. Call them inside a UnitOfWork transaction. Reuse this approach for other oversell/double-assign rules (PRD BR-07, BR-19). `TripBookingRepository.HoldsSeats` is the single definition of a seat-holding booking; tour catalog `Trip.BookedSlots` (not a DB column) is computed from it.
 
 ## Inspecting the Supabase DB
 

@@ -18,7 +18,7 @@ public sealed class Trip
     public DateTimeOffset UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 
-    // Không có cột trong DB, chỉ phục vụ tour catalog
+    // Không có cột trong DB; TourRepository tính từ booking đang chiếm chỗ
     public int BookedSlots { get; set; }
 
     public Tour Tour { get; set; } = null!;
