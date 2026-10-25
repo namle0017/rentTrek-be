@@ -10,6 +10,7 @@ public class UnitOfWork : IUnitOfWork
     private readonly AppDbContext _context;
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
+    private ITourRepository? _tourRepository;
 
     private IUserRepository? _users;
     private IRoleRepository? _roles;
@@ -25,6 +26,8 @@ public class UnitOfWork : IUnitOfWork
     public IRoleRepository Roles => _roles ??= new RoleRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
     public IAccessTokenRepository AccessTokens => _accessTokens ??= new AccessTokenRepository(_context);
+
+    public ITourRepository Tours => _tourRepository ??= new TourRepository(_context);
 
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
