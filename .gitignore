@@ -498,9 +498,22 @@ $RECYCLE.BIN/
 
 # IDE
 .idea/
-.claude/settings.local.json
+
+# AI assistants / local agent workspaces
+CLAUDE.md
+AGENTS.md
+.claude/
+.codex/
+.agents/
+.cursor/
+.windsurf/
+.aider*
+.github/copilot-instructions.md
+docs/superpowers/
+graphify-out/
 
 # Uploads / logs
 logs/
 *.log
 uploads/
+

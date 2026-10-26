@@ -2,12 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Data.Seeds;
 using RenTrek.DAL.Repositories.Implementations;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.DAL;
 
+/// <summary>
+/// Đăng ký DbContext, repository và hạ tầng DAL vào dependency injection container.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddDataAccessLayer(this IServiceCollection services, IConfiguration configuration)
@@ -16,14 +20,17 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong cấu hình.");
 
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(connectionString, sql =>
-                sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+            options.UseNpgsql(connectionString));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IAccessTokenRepository, AccessTokenRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWorks.UnitOfWork>();
 
-        // Repository riêng đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<ITourRepository, TourRepository>();
+        services.AddHostedService<TourSeedHostedService>();
 
         return services;
     }

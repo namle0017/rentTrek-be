@@ -1,19 +1,19 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
-public class TourActivity
+/// <summary>
+/// Biểu diễn thực thể tour activity trong mô hình dữ liệu RenTrek.
+/// </summary>
+public class TourActivity : BaseEntity
 {
-    public Guid TourActivityId { get; set; }
     public Guid TourId { get; set; }
-    public string Name { get; set; } = null!;
-    public string? Description { get; set; }
+    public Tour Tour { get; set; } = null!;
+
     public int DayNumber { get; set; }
-    public TimeOnly StartTime { get; set; }
+    public string? DayTitle { get; set; } // Ví dụ: Trạm Tôn → Trại 2.800m
+    public TimeSpan StartTime { get; set; }
     public int DurationMinutes { get; set; }
     public int DisplayOrder { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
-
-    public ICollection<ActivityAttendance> ActivityAttendances { get; set; } = new List<ActivityAttendance>();
-    public Tour Tour { get; set; } = null!;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public ICollection<ActivityAttendance> ActivityAttendances { get; set; } = [];
 }

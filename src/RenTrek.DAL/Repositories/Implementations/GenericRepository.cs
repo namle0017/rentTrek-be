@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
 
+/// <summary>
+/// Triển khai truy cập dữ liệu cho generic qua EF Core.
+/// </summary>
 public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEntity : class
 {
     protected readonly AppDbContext _context;

@@ -3,7 +3,7 @@
 > Backend **renTrek** được tổ chức theo mô hình **3 layers**:
 > **Presentation (API)** → **Business Logic (BLL)** → **Data Access (DAL)**.
 >
-> Tech stack: ASP.NET Core Web API (.NET 8), Entity Framework Core, SQL Server, JWT Authentication, Swagger.
+> Tech stack: ASP.NET Core Web API (.NET 8), Entity Framework Core, PostgreSQL trên Supabase, JWT Authentication, Swagger.
 
 ## Mục lục
 
@@ -34,7 +34,7 @@ sequenceDiagram
         participant UOW as UnitOfWork / Repository
         participant CTX as AppDbContext
     end
-    participant DB as SQL Server
+    participant DB as PostgreSQL (Supabase)
 
     C->>MW: HTTP Request (JSON)
     MW->>MW: Authentication, Authorization, Logging
@@ -452,7 +452,7 @@ public static class DependencyInjection
     public static IServiceCollection AddDataAccessLayer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IProductRepository, ProductRepository>();
@@ -500,7 +500,7 @@ sequenceDiagram
     participant S as ProductService
     participant U as UnitOfWork
     participant R as ProductRepository
-    participant DB as SQL Server
+    participant DB as PostgreSQL (Supabase)
 
     C->>Ctl: GET /api/v1/products/{id}
     Ctl->>S: GetByIdAsync(id)

@@ -1,15 +1,18 @@
 using System.Text.Json.Serialization;
+using DotNetEnv;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.API.Extensions;
 using RenTrek.API.Filters;
 using RenTrek.API.Middlewares;
-using RenTrek.API.Services;
+using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 
 const string CorsPolicyName = "DefaultCors";
+
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +53,9 @@ builder.Services.AddCors(options =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 
+// Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ── Pipeline (thứ tự theo docs/01-CONVENTIONS.md §2.1) ──
@@ -66,5 +72,6 @@ app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
