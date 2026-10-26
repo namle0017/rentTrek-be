@@ -5,6 +5,9 @@ using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.UnitOfWorks;
 
+/// <summary>
+/// Điều phối repository, lưu thay đổi và transaction trong một phạm vi nghiệp vụ.
+/// </summary>
 public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
@@ -59,6 +62,7 @@ public class UnitOfWork : IUnitOfWork
     private ITourRecurrenceRuleRepository? _tourRecurrenceRules;
     private ITripRepository? _trips;
     private ITripBookingOrderRepository? _tripBookingOrders;
+    private ITripBookingRepository? _tripBookings;
     private ITripGroupRepository? _tripGroups;
     private ITripProvidedItemRepository? _tripProvidedItems;
     private IUserExternalLoginRepository? _userExternalLogins;
@@ -117,6 +121,7 @@ public class UnitOfWork : IUnitOfWork
     public ITourRecurrenceRuleRepository TourRecurrenceRules => _tourRecurrenceRules ??= new TourRecurrenceRuleRepository(_context);
     public ITripRepository Trips => _trips ??= new TripRepository(_context);
     public ITripBookingOrderRepository TripBookingOrders => _tripBookingOrders ??= new TripBookingOrderRepository(_context);
+    public ITripBookingRepository TripBookings => _tripBookings ??= new TripBookingRepository(_context);
     public ITripGroupRepository TripGroups => _tripGroups ??= new TripGroupRepository(_context);
     public ITripProvidedItemRepository TripProvidedItems => _tripProvidedItems ??= new TripProvidedItemRepository(_context);
     public IUserExternalLoginRepository UserExternalLogins => _userExternalLogins ??= new UserExternalLoginRepository(_context);
