@@ -4,5 +4,5 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IRoleRepository : IGenericRepository<Role>
 {
-    // Query đặc thù của Role khai báo tại đây
+    Task<Role?> GetByNameAsync(string roleName, bool tracking = false, CancellationToken cancellationToken = default);
 }

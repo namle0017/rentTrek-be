@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Common;
 
+/// <summary>
+/// Đóng gói dữ liệu một trang cùng thông tin phân trang.
+/// </summary>
 public class PagedResult<T>
 {
     public IReadOnlyList<T> Items { get; set; } = [];

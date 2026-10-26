@@ -1,71 +1,39 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
-public class OrderConfiguration : IEntityTypeConfiguration<Order>
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể order.
+/// </summary>
+public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)
     {
-        builder.HasKey(e => e.OrderId).HasName("orders_pkey");
-
         builder.ToTable("orders");
-
-        builder.HasIndex(e => e.CustomerUserId, "ix_orders_customer_user_id");
-        builder.HasIndex(e => e.RefundPolicyId, "ix_orders_refund_policy_id");
-        builder.HasIndex(e => e.OrderCode, "orders_order_code_key").IsUnique();
-
-        builder.Property(e => e.OrderId)
-            .HasDefaultValueSql("gen_random_uuid()")
-            .HasColumnName("order_id");
-        builder.Property(e => e.CancelReason)
-            .HasMaxLength(500)
-            .HasColumnName("cancel_reason");
-        builder.Property(e => e.CancelledAt).HasColumnName("cancelled_at");
-        builder.Property(e => e.CreatedAt)
-            .HasDefaultValueSql("now()")
-            .HasColumnName("created_at");
-        builder.Property(e => e.CustomerUserId).HasColumnName("customer_user_id");
-        builder.Property(e => e.DiscountAmount)
-            .HasPrecision(18)
-            .HasColumnName("discount_amount");
-        builder.Property(e => e.HoldExpiresAt).HasColumnName("hold_expires_at");
-        builder.Property(e => e.IsDeleted)
-            .HasDefaultValue(false)
-            .HasColumnName("is_deleted");
-        builder.Property(e => e.Note).HasColumnName("note");
-        builder.Property(e => e.OrderCode)
-            .HasMaxLength(50)
-            .HasColumnName("order_code");
-        builder.Property(e => e.OrderType)
-            .HasMaxLength(50)
-            .HasColumnName("order_type");
-        builder.Property(e => e.PaymentStatus)
-            .HasMaxLength(50)
-            .HasColumnName("payment_status");
-        builder.Property(e => e.RefundPolicyId).HasColumnName("refund_policy_id");
-        builder.Property(e => e.Status)
-            .HasMaxLength(50)
-            .HasColumnName("status");
-        builder.Property(e => e.SubtotalAmount)
-            .HasPrecision(18)
-            .HasColumnName("subtotal_amount");
-        builder.Property(e => e.TotalAmount)
-            .HasPrecision(18)
-            .HasColumnName("total_amount");
-        builder.Property(e => e.UpdatedAt)
-            .HasDefaultValueSql("now()")
-            .HasColumnName("updated_at");
-
-        builder.HasOne(d => d.CustomerUser).WithMany(p => p.Orders)
-            .HasForeignKey(d => d.CustomerUserId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
-            .HasConstraintName("orders_customer_user_id_fkey");
-
-        builder.HasOne(d => d.RefundPolicy).WithMany(p => p.Orders)
-            .HasForeignKey(d => d.RefundPolicyId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
-            .HasConstraintName("orders_refund_policy_id_fkey");
+        builder.HasKey(x => x.OrderId);
+        builder.Property(x => x.OrderId).HasColumnName("order_id");
+        builder.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        builder.Property(x => x.OrderType).HasColumnName("order_type").HasMaxLength(50);
+        builder.Property(x => x.TotalAmount).HasColumnName("total_amount").HasPrecision(18, 0);
+        builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(50);
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at");
+        builder.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(x => x.OrderCode).HasColumnName("order_code").HasMaxLength(50);
+        builder.Property(x => x.Note).HasColumnName("note");
+        builder.Property(x => x.SubtotalAmount).HasColumnName("subtotal_amount").HasPrecision(18, 0);
+        builder.Property(x => x.DiscountAmount).HasColumnName("discount_amount").HasPrecision(18, 0);
+        builder.Property(x => x.PaymentStatus).HasColumnName("payment_status").HasMaxLength(50);
+        builder.Property(x => x.HoldExpiresAt).HasColumnName("hold_expires_at");
+        builder.Property(x => x.CancelledAt).HasColumnName("cancelled_at");
+        builder.Property(x => x.CancelReason).HasColumnName("cancel_reason").HasMaxLength(500);
+        builder.Property(x => x.RefundPolicyId).HasColumnName("refund_policy_id");
+        builder.Property(x => x.IsDeleted).HasColumnName("is_deleted");
+        builder.Property(x => x.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(100);
+        builder.HasIndex(x => new { x.CustomerUserId, x.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("idempotency_key IS NOT NULL");
+        builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

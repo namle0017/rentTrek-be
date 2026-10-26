@@ -3,6 +3,9 @@ using RenTrek.BLL.DTOs.Common;
 
 namespace RenTrek.BLL.Helpers;
 
+/// <summary>
+/// Cung cấp các phép mở rộng dùng chung cho truy vấn phân trang.
+/// </summary>
 public static class QueryableExtensions
 {
     /// <summary>

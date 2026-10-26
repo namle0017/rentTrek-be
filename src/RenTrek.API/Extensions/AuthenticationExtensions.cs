@@ -1,10 +1,15 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.API.Common;
+using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.API.Extensions;
 
+/// <summary>
+/// Đăng ký và cấu hình JWT authentication cho API.
+/// </summary>
 public static class AuthenticationExtensions
 {
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
@@ -33,7 +38,22 @@ public static class AuthenticationExtensions
                 // Trả 401 / 403 theo format ApiResponse thay vì body rỗng
                 options.Events = new JwtBearerEvents
                 {
-                    // TODO (logout): OnTokenValidated -> kiểm tra jti trong bảng AccessTokens, đã revoke thì context.Fail(...)
+                    OnTokenValidated = async context =>
+                    {
+                        var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                                  ?? context.Principal?.FindFirst("jti")?.Value;
+
+                        if (!string.IsNullOrEmpty(jti))
+                        {
+                            var unitOfWork = context.HttpContext.RequestServices.GetRequiredService<IUnitOfWork>();
+                            var isRevoked = await unitOfWork.AccessTokens.IsJtiRevokedAsync(jti);
+
+                            if (isRevoked)
+                            {
+                                context.Fail("Phiên đăng nhập đã bị thu hồi hoặc đã đăng xuất.");
+                            }
+                        }
+                    },
                     OnChallenge = async context =>
                     {
                         context.HandleResponse();

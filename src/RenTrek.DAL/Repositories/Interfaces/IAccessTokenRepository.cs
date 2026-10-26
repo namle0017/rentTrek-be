@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IAccessTokenRepository : IGenericRepository<AccessToken>
 {
-    // Query đặc thù của AccessToken khai báo tại đây
+    Task<AccessToken?> GetByJtiWithRefreshTokenAsync(string jti, CancellationToken cancellationToken = default);
+    Task<bool> IsJtiRevokedAsync(string jti, CancellationToken cancellationToken = default);
 }

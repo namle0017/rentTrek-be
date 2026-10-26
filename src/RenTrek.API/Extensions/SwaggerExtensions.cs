@@ -2,6 +2,9 @@ using Microsoft.OpenApi.Models;
 
 namespace RenTrek.API.Extensions;
 
+/// <summary>
+/// Đăng ký Swagger/OpenAPI kèm hỗ trợ JWT Bearer.
+/// </summary>
 public static class SwaggerExtensions
 {
     public static IServiceCollection AddSwaggerWithJwt(this IServiceCollection services)

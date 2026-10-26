@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Auth;
 
+/// <summary>
+/// Mô tả dữ liệu trả về của nghiệp vụ user info.
+/// </summary>
 public class UserInfoResponse
 {
     public Guid UserId { get; set; }

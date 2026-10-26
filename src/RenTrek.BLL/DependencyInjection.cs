@@ -1,36 +1,40 @@
 using FluentValidation;
-using RenTrek.BLL.Options;
-using RenTrek.BLL.Services.Implementations;
-using RenTrek.BLL.Services.Implementations.Authentication;
-using RenTrek.BLL.Services.Interfaces;
-using RenTrek.BLL.Services.Interfaces.Authentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Options;
+using RenTrek.BLL.Services.Implementations;
+using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.BLL;
 
+/// <summary>
+/// Đăng ký các dịch vụ business của BLL vào dependency injection container.
+/// </summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddBusinessLayer(this IServiceCollection services, IConfiguration configuration)
     {
         var assembly = typeof(DependencyInjection).Assembly;
 
-        // AutoMapper 15+ cần license key (miễn phí cho mục đích học tập / phi thương mại)
+        // AutoMapper
         services.AddAutoMapper(cfg => cfg.LicenseKey = configuration["AutoMapper:LicenseKey"], assembly);
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
-        // Auth
+        // Helpers
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
-        services.AddScoped<IRegisterService, RegisterService>();
-        services.AddScoped<ILoginService, LoginService>();
-        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
-        services.AddScoped<ILogoutService, LogoutService>();
+        services.AddSingleton<IParticipantInviteTokenService, ParticipantInviteTokenService>();
 
-        // Service khác đăng ký tại đây, ví dụ:
-        // services.AddScoped<IUserService, UserService>();
+        // Services
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<ITourService, TourService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ITripBookingService, TripBookingService>();
 
         return services;
     }

@@ -53,6 +53,7 @@ public interface IUnitOfWork : IDisposable
     ITourRecurrenceRuleRepository TourRecurrenceRules { get; }
     ITripRepository Trips { get; }
     ITripBookingOrderRepository TripBookingOrders { get; }
+    ITripBookingRepository TripBookings { get; }
     ITripGroupRepository TripGroups { get; }
     ITripProvidedItemRepository TripProvidedItems { get; }
     IUserExternalLoginRepository UserExternalLogins { get; }

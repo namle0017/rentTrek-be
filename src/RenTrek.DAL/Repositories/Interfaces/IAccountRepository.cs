@@ -4,5 +4,7 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IAccountRepository : IGenericRepository<Account>
 {
-    // Query đặc thù của Account khai báo tại đây
+    Task<Account?> GetByEmailWithRoleAsync(string email, bool tracking = false, CancellationToken cancellationToken = default);
+    Task<Account?> GetByIdWithRoleAsync(Guid userId, bool tracking = false, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default);
 }

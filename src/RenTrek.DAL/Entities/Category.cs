@@ -1,17 +1,16 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
-public class Category
+/// <summary>
+/// Biểu diễn thực thể category trong mô hình dữ liệu RenTrek.
+/// </summary>
+public class Category : BaseEntity
 {
-    public Guid CategoryId { get; set; }
-    public string Name { get; set; } = null!;
+    public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public string Status { get; set; } = null!;
-    public string CategoryType { get; set; } = null!;
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
+    public string CategoryType { get; set; } = "TOUR";
+    public string Status { get; set; } = "Active";
 
-    public ICollection<ProductBundle> ProductBundles { get; set; } = new List<ProductBundle>();
-    public ICollection<Product> Products { get; set; } = new List<Product>();
-    public ICollection<Tour> Tours { get; set; } = new List<Tour>();
+    public ICollection<Tour> Tours { get; set; } = [];
+    public ICollection<Product> Products { get; set; } = [];
+    public ICollection<ProductBundle> ProductBundles { get; set; } = [];
 }

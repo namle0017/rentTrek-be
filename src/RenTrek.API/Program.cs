@@ -1,15 +1,18 @@
 using System.Text.Json.Serialization;
+using DotNetEnv;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.API.Extensions;
 using RenTrek.API.Filters;
 using RenTrek.API.Middlewares;
-using RenTrek.API.Services;
+using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 
 const string CorsPolicyName = "DefaultCors";
+
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 

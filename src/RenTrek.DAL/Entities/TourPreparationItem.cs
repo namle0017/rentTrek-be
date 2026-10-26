@@ -1,14 +1,13 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
-public class TourPreparationItem
+/// <summary>
+/// Biểu diễn thực thể tour preparation item trong mô hình dữ liệu RenTrek.
+/// </summary>
+public class TourPreparationItem : BaseEntity
 {
-    public Guid PreparationItemId { get; set; }
     public Guid TourId { get; set; }
-    public string ItemName { get; set; } = null!;
-    public string? Note { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
-
     public Tour Tour { get; set; } = null!;
+
+    public string ItemName { get; set; } = string.Empty;
+    public string? Note { get; set; }
 }

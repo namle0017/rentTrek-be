@@ -1,61 +1,30 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
 namespace RenTrek.DAL.Data.Configurations;
 
-public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
+/// <summary>
+/// Cấu hình ánh xạ EF Core cho thực thể payment.
+/// </summary>
+public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 {
     public void Configure(EntityTypeBuilder<Payment> builder)
     {
-        builder.HasKey(e => e.PaymentId).HasName("payments_pkey");
-
         builder.ToTable("payments");
-
-        builder.HasIndex(e => e.OrderId, "ix_payments_order_id");
-        builder.HasIndex(e => e.OriginalPaymentId, "ix_payments_original_payment_id");
-        builder.HasIndex(e => e.RefundPolicyRuleId, "ix_payments_refund_policy_rule_id");
-
-        builder.Property(e => e.PaymentId)
-            .HasDefaultValueSql("gen_random_uuid()")
-            .HasColumnName("payment_id");
-        builder.Property(e => e.Amount)
-            .HasPrecision(18)
-            .HasColumnName("amount");
-        builder.Property(e => e.CreatedAt)
-            .HasDefaultValueSql("now()")
-            .HasColumnName("created_at");
-        builder.Property(e => e.OrderId).HasColumnName("order_id");
-        builder.Property(e => e.OriginalPaymentId).HasColumnName("original_payment_id");
-        builder.Property(e => e.PaymentMethod)
-            .HasMaxLength(50)
-            .HasColumnName("payment_method");
-        builder.Property(e => e.PaymentType)
-            .HasMaxLength(50)
-            .HasColumnName("payment_type");
-        builder.Property(e => e.ProcessedAt).HasColumnName("processed_at");
-        builder.Property(e => e.ProviderTransactionId)
-            .HasMaxLength(255)
-            .HasColumnName("provider_transaction_id");
-        builder.Property(e => e.Purpose)
-            .HasMaxLength(50)
-            .HasColumnName("purpose");
-        builder.Property(e => e.RefundPolicyRuleId).HasColumnName("refund_policy_rule_id");
-        builder.Property(e => e.Status)
-            .HasMaxLength(50)
-            .HasColumnName("status");
-
-        builder.HasOne(d => d.Order).WithMany(p => p.Payments)
-            .HasForeignKey(d => d.OrderId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
-            .HasConstraintName("payments_order_id_fkey");
-
-        builder.HasOne(d => d.OriginalPayment).WithMany(p => p.InverseOriginalPayment)
-            .HasForeignKey(d => d.OriginalPaymentId)
-            .HasConstraintName("payments_original_payment_id_fkey");
-
-        builder.HasOne(d => d.RefundPolicyRule).WithMany(p => p.Payments)
-            .HasForeignKey(d => d.RefundPolicyRuleId)
-            .HasConstraintName("payments_refund_policy_rule_id_fkey");
+        builder.HasKey(x => x.PaymentId);
+        builder.Property(x => x.PaymentId).HasColumnName("payment_id");
+        builder.Property(x => x.OrderId).HasColumnName("order_id");
+        builder.Property(x => x.OriginalPaymentId).HasColumnName("original_payment_id");
+        builder.Property(x => x.PaymentType).HasColumnName("payment_type").HasMaxLength(50);
+        builder.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 0);
+        builder.Property(x => x.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50);
+        builder.Property(x => x.ProviderTransactionId).HasColumnName("provider_transaction_id").HasMaxLength(255);
+        builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(50);
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at");
+        builder.Property(x => x.ProcessedAt).HasColumnName("processed_at");
+        builder.Property(x => x.RefundPolicyRuleId).HasColumnName("refund_policy_rule_id");
+        builder.Property(x => x.Purpose).HasColumnName("purpose").HasMaxLength(50);
+        builder.HasOne(x => x.Order).WithMany(x => x.Payments).HasForeignKey(x => x.OrderId);
     }
 }

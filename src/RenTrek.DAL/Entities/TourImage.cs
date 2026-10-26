@@ -1,15 +1,14 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
-public class TourImage
+/// <summary>
+/// Biểu diễn thực thể tour image trong mô hình dữ liệu RenTrek.
+/// </summary>
+public class TourImage : BaseEntity
 {
-    public Guid TourImageId { get; set; }
     public Guid TourId { get; set; }
-    public string ImageUrl { get; set; } = null!;
+    public Tour Tour { get; set; } = null!;
+
+    public string ImageUrl { get; set; } = string.Empty;
     public int DisplayOrder { get; set; }
     public bool IsPrimary { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
-
-    public Tour Tour { get; set; } = null!;
 }

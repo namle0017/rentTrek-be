@@ -1,5 +1,8 @@
 namespace RenTrek.BLL.DTOs.Auth;
 
+/// <summary>
+/// Mô tả dữ liệu đầu vào của nghiệp vụ login.
+/// </summary>
 public class LoginRequest
 {
     public string Email { get; set; } = string.Empty;
