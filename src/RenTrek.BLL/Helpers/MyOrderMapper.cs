@@ -1,5 +1,7 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Order;
+using RenTrek.BLL.DTOs.Common.Requests;
+using RenTrek.BLL.DTOs.Order.Requests;
+using RenTrek.BLL.DTOs.Order.Responses;
 using RenTrek.DAL.Models;
 
 namespace RenTrek.BLL.Helpers;

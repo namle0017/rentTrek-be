@@ -1,6 +1,6 @@
 using FluentValidation;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Order;
+using RenTrek.BLL.DTOs.Order.Requests;
 
 namespace RenTrek.BLL.Validators.Order;
 

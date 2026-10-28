@@ -1,5 +1,5 @@
 using AutoMapper;
-using RenTrek.BLL.DTOs.Tour;
+using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Mappings;

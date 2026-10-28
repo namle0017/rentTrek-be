@@ -1,6 +1,5 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Promotion;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Promotion.Internal;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
@@ -22,13 +21,13 @@ public class PromotionService : IPromotionService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<EvaluatePromotionResponse> EvaluateAsync(
-        EvaluatePromotionRequest request,
+    public async Task<PromotionEvaluationResult> EvaluateAsync(
+        PromotionEvaluationInput request,
         CancellationToken cancellationToken = default)
     {
         var code = request.PromotionCode?.Trim();
         if (string.IsNullOrEmpty(code))
-            return new EvaluatePromotionResponse();
+            return new PromotionEvaluationResult();
 
         var promotion = await _unitOfWork.Promotions.GetByCodeAsync(code, cancellationToken);
         if (promotion is null)
@@ -85,7 +84,7 @@ public class PromotionService : IPromotionService
         if (discount <= 0)
             return Fail(ErrorCodes.PromotionInvalid, "Mã khuyến mãi không tạo ra mức giảm cho đơn này", promotion.PromotionId);
 
-        return new EvaluatePromotionResponse
+        return new PromotionEvaluationResult
         {
             IsApplied = true,
             PromotionId = promotion.PromotionId,
@@ -106,7 +105,7 @@ public class PromotionService : IPromotionService
         => string.Equals(appliesTo?.Trim(), orderType, StringComparison.OrdinalIgnoreCase)
            || (orderType == OrderTypes.Rental && PromotionRules.Matches(appliesTo, PromotionRules.AppliesToRental));
 
-    private static EvaluatePromotionResponse Fail(string errorCode, string message, Guid? promotionId = null)
+    private static PromotionEvaluationResult Fail(string errorCode, string message, Guid? promotionId = null)
         => new()
         {
             PromotionId = promotionId,

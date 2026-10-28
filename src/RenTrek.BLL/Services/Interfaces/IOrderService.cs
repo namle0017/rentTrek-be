@@ -1,9 +1,10 @@
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Order;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Order.Requests;
+using RenTrek.BLL.DTOs.Order.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 
 public interface IOrderService
 {
-    Task<PagedResult<MyOrderResponse>> GetMyOrdersAsync(Guid userId, MyOrderQueryRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResponse<MyOrderResponse>> GetMyOrdersAsync(Guid userId, MyOrderQueryRequest request, CancellationToken cancellationToken = default);
 }

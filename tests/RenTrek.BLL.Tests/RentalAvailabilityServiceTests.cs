@@ -1,5 +1,5 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Implementations;
 
@@ -10,7 +10,7 @@ public sealed class RentalAvailabilityServiceTests
     // Các nhánh dưới đây không chạm repository nên không cần UnitOfWork thật.
     private static RentalAvailabilityService CreateService() => new(null!, TimeProvider.System);
 
-    private static RentalPeriod Period() => new()
+    private static RentalPeriodResult Period() => new()
     {
         StartUtc = new DateTime(2026, 10, 24, 1, 0, 0, DateTimeKind.Utc),
         EndUtc = new DateTime(2026, 10, 26, 1, 0, 0, DateTimeKind.Utc),
@@ -20,7 +20,7 @@ public sealed class RentalAvailabilityServiceTests
     [Fact]
     public void BuildLineMessage_ReturnsEmpty_WhenNoShortage()
     {
-        var message = CreateService().BuildLineMessage(new RentalLineAvailability { IsAvailable = true }, Period());
+        var message = CreateService().BuildLineMessage(new RentalLineAvailabilityResult { IsAvailable = true }, Period());
 
         Assert.Equal(string.Empty, message);
     }
@@ -28,12 +28,12 @@ public sealed class RentalAvailabilityServiceTests
     [Fact]
     public void BuildLineMessage_UsesVietnamDatesAndAvailableCount()
     {
-        var line = new RentalLineAvailability
+        var line = new RentalLineAvailabilityResult
         {
             Shortages =
             [
-                new RentalAvailabilityShortage { VariantName = "Đệm hơi", Requested = 2, Available = 1 },
-                new RentalAvailabilityShortage { VariantName = "Túi ngủ", Requested = 1, Available = 0 }
+                new RentalAvailabilityShortageItem { VariantName = "Đệm hơi", Requested = 2, Available = 1 },
+                new RentalAvailabilityShortageItem { VariantName = "Túi ngủ", Requested = 1, Available = 0 }
             ]
         };
 

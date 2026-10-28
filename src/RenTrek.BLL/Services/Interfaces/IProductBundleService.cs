@@ -1,10 +1,11 @@
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.ProductBundle;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.ProductBundle.Requests;
+using RenTrek.BLL.DTOs.ProductBundle.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 
 public interface IProductBundleService
 {
-    Task<PagedResult<ProductBundleResponse>> GetAllAsync(ProductBundleQueryRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResponse<ProductBundleResponse>> GetAllAsync(ProductBundleQueryRequest request, CancellationToken cancellationToken = default);
     Task<ProductBundleDetailResponse> GetByIdAsync(Guid bundleId, RentalPeriodQueryRequest request, CancellationToken cancellationToken = default);
 }

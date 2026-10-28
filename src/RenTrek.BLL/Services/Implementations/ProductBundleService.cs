@@ -1,8 +1,9 @@
 using AutoMapper;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.ProductBundle;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.ProductBundle.Requests;
+using RenTrek.BLL.DTOs.ProductBundle.Responses;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -27,7 +28,7 @@ public class ProductBundleService : IProductBundleService
         _timeProvider = timeProvider;
     }
 
-    public async Task<PagedResult<ProductBundleResponse>> GetAllAsync(ProductBundleQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<ProductBundleResponse>> GetAllAsync(ProductBundleQueryRequest request, CancellationToken cancellationToken = default)
     {
         var period = ResolvePeriod(request.From, request.To);
         var filter = new ProductBundleFilter
@@ -65,7 +66,7 @@ public class ProductBundleService : IProductBundleService
             return response;
         }).ToList();
 
-        return new PagedResult<ProductBundleResponse>
+        return new PagedResponse<ProductBundleResponse>
         {
             Items = items,
             PageNumber = request.PageNumber,
@@ -100,7 +101,7 @@ public class ProductBundleService : IProductBundleService
     }
 
     /// <summary>Null khi không truyền from/to; chỉ truyền một trong hai thì 400; còn lại kiểm tra theo RentalPeriodCalculator.</summary>
-    private RentalPeriod? ResolvePeriod(DateTime? from, DateTime? to)
+    private RentalPeriodResult? ResolvePeriod(DateTime? from, DateTime? to)
     {
         if (!from.HasValue && !to.HasValue)
             return null;
@@ -112,7 +113,7 @@ public class ProductBundleService : IProductBundleService
     }
 
     private async Task<Dictionary<Guid, int>> GetAvailableByVariantAsync(
-        IReadOnlyCollection<Guid> variantIds, RentalPeriod period, CancellationToken cancellationToken)
+        IReadOnlyCollection<Guid> variantIds, RentalPeriodResult period, CancellationToken cancellationToken)
     {
         if (variantIds.Count == 0)
             return [];
@@ -124,7 +125,7 @@ public class ProductBundleService : IProductBundleService
 
     /// <summary>Số combo khả dụng theo từng combo, dùng một truy vấn tồn cho mọi biến thể thành phần.</summary>
     private async Task<Dictionary<Guid, int>> ComputeBundleAvailabilityAsync(
-        IReadOnlyList<ProductBundleComponentRow> components, RentalPeriod period, CancellationToken cancellationToken)
+        IReadOnlyList<ProductBundleComponentRow> components, RentalPeriodResult period, CancellationToken cancellationToken)
     {
         var availableByVariant = await GetAvailableByVariantAsync(
             components.Select(component => component.VariantId).Distinct().ToList(), period, cancellationToken);
@@ -143,7 +144,7 @@ public class ProductBundleService : IProductBundleService
             return (0, inactive.VariantId);
 
         return RentalAvailabilityCalculator.BundleAvailability(
-            components.Select(component => new RentalLineComponent
+            components.Select(component => new RentalLineComponentItem
             {
                 ProductVariantId = component.VariantId,
                 VariantName = component.VariantName,
@@ -152,7 +153,7 @@ public class ProductBundleService : IProductBundleService
             availableByVariant);
     }
 
-    private static BundleAvailabilityResponse ToAvailability(RentalPeriod period, int availableQuantity, string? limitingComponent) => new()
+    private static BundleAvailabilityResponse ToAvailability(RentalPeriodResult period, int availableQuantity, string? limitingComponent) => new()
     {
         From = period.StartUtc,
         To = period.EndUtc,

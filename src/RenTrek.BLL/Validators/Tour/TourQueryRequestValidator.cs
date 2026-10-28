@@ -1,5 +1,5 @@
 using FluentValidation;
-using RenTrek.BLL.DTOs.Tour;
+using RenTrek.BLL.DTOs.Tour.Requests;
 
 namespace RenTrek.BLL.Validators.Tour;
 

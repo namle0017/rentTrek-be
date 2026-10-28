@@ -478,7 +478,7 @@ Sắp xếp ổn định theo ID khi bằng giá trị; giá null luôn xếp cu
 Trang vượt tổng số trang trả items rỗng. Dữ liệu rỗng trả 200, không trả 404.
 Query sai trả 400 + `errors` theo field.
 
-**Response 200:** `ApiResponse<PagedResult<ProductResponse>>`, ví dụ `data`:
+**Response 200:** `ApiResponse<PagedResponse<ProductResponse>>`, ví dụ `data`:
 
 ```json
 {

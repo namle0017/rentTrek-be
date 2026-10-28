@@ -1,6 +1,6 @@
 using AutoMapper;
-using RenTrek.BLL.DTOs.Product;
-using RenTrek.BLL.DTOs.ProductBundle;
+using RenTrek.BLL.DTOs.Product.Responses;
+using RenTrek.BLL.DTOs.ProductBundle.Responses;
 using RenTrek.DAL.Models;
 
 namespace RenTrek.BLL.Mappings;

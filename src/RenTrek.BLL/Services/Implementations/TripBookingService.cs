@@ -1,5 +1,6 @@
 using RenTrek.BLL.Helpers.Interfaces;
-using RenTrek.BLL.DTOs.TripBooking;
+using RenTrek.BLL.DTOs.TripBooking.Requests;
+using RenTrek.BLL.DTOs.TripBooking.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;

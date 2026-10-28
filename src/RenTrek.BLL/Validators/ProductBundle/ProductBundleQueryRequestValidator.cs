@@ -1,5 +1,5 @@
 using FluentValidation;
-using RenTrek.BLL.DTOs.ProductBundle;
+using RenTrek.BLL.DTOs.ProductBundle.Requests;
 
 namespace RenTrek.BLL.Validators.ProductBundle;
 
