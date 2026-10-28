@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.DTOs.Common.Requests;
+using RenTrek.BLL.DTOs.Common.Responses;
 
 namespace RenTrek.BLL.Helpers;
 
@@ -11,7 +12,7 @@ public static class QueryableExtensions
     /// <summary>
     /// Đếm tổng và lấy 1 trang dữ liệu. Gọi sau khi đã filter / sort (và projection sang DTO nếu có).
     /// </summary>
-    public static async Task<PagedResult<T>> ToPagedResultAsync<T>(
+    public static async Task<PagedResponse<T>> ToPagedResponseAsync<T>(
         this IQueryable<T> query,
         PagingRequest paging,
         CancellationToken cancellationToken = default)
@@ -22,7 +23,7 @@ public static class QueryableExtensions
             .Take(paging.PageSize)
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<T>
+        return new PagedResponse<T>
         {
             Items = items,
             PageNumber = paging.PageNumber,
