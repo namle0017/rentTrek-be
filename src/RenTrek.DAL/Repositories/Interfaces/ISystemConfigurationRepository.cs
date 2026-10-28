@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface ISystemConfigurationRepository : IGenericRepository<SystemConfiguration>
 {
-    // Query đặc thù của SystemConfiguration khai báo tại đây
+    /// <summary>Giá trị cấu hình (chưa xoá) theo khoá; null nếu chưa cấu hình.</summary>
+    Task<string?> GetValueAsync(string key, CancellationToken cancellationToken = default);
 }

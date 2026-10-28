@@ -1,6 +1,7 @@
 using AutoMapper;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Tour;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Tour.Requests;
+using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -22,7 +23,7 @@ public class TourService : ITourService
         _mapper = mapper;
     }
 
-    public async Task<PagedResult<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
     {
         var filterParams = new TourFilterParams(
             Status: query.Status,
@@ -42,7 +43,7 @@ public class TourService : ITourService
 
         var mappedItems = _mapper.Map<List<TourResponse>>(items);
 
-        return new PagedResult<TourResponse>
+        return new PagedResponse<TourResponse>
         {
             Items = mappedItems,
             PageNumber = query.PageNumber,
