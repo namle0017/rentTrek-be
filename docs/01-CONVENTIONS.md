@@ -567,7 +567,7 @@ Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵ
 **Quy tắc tạo file / folder:**
 
 - DTO và Validator gom theo **thư mục module**: `DTOs/Category/`, `Validators/Category/`.
-- Service, Repository chia theo `Interfaces/` và `Implementations/`.
+- Service, Repository, Helper (có interface, đăng ký DI) chia theo `Interfaces/` và `Implementations/` — không để interface chung thư mục với class.
 - Namespace **khớp đường dẫn thư mục**: file `src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs` → `namespace RenTrek.BLL.DTOs.Category;`.
 - Dùng **file-scoped namespace** (`namespace X;`), mỗi file 1 class.
 - Thư mục chỉ có `.gitkeep`: thêm file thật vào rồi thì xoá `.gitkeep`.

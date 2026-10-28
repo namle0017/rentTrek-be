@@ -1,6 +1,6 @@
 using RenTrek.BLL.DTOs.Users;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;

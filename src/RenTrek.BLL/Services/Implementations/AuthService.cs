@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
@@ -16,18 +16,18 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
-    private readonly ITokenService _tokenService;
+    private readonly IJwtHelper _jwtHelper;
     private readonly JwtSettings _jwt;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        ITokenService tokenService,
+        IJwtHelper jwtHelper,
         IOptions<JwtSettings> jwtOptions)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
-        _tokenService = tokenService;
+        _jwtHelper = jwtHelper;
         _jwt = jwtOptions.Value;
     }
 
@@ -80,7 +80,7 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
     {
-        var tokenHash = _tokenService.HashToken(request.RefreshToken);
+        var tokenHash = _jwtHelper.HashToken(request.RefreshToken);
 
         var existingToken = await _unitOfWork.RefreshTokens.GetByTokenHashWithUserAsync(tokenHash, tracking: true, cancellationToken)
             ?? throw new UnauthorizedException("Phiên đăng nhập không hợp lệ hoặc đã hết hạn");
@@ -120,7 +120,7 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.RefreshToken))
             return;
 
-        var tokenHash = _tokenService.HashToken(request.RefreshToken);
+        var tokenHash = _jwtHelper.HashToken(request.RefreshToken);
 
         var token = await _unitOfWork.RefreshTokens.GetByTokenHashWithAccessTokensAsync(tokenHash, tracking: true, cancellationToken);
 
@@ -146,14 +146,14 @@ public class AuthService : IAuthService
         RefreshToken? replaces,
         CancellationToken cancellationToken)
     {
-        var rawRefreshToken = _tokenService.GenerateRefreshToken();
+        var rawRefreshToken = _jwtHelper.GenerateRefreshToken();
         var refreshExpiresDays = _jwt.RefreshTokenExpirationDays > 0 ? _jwt.RefreshTokenExpirationDays : 7;
 
         var refreshToken = new RefreshToken
         {
             UserId = account.UserId,
             FamilyId = familyId,
-            TokenHash = _tokenService.HashToken(rawRefreshToken),
+            TokenHash = _jwtHelper.HashToken(rawRefreshToken),
             ExpiresAt = DateTime.UtcNow.AddDays(refreshExpiresDays),
             CreatedAt = DateTime.UtcNow
         };
@@ -162,7 +162,7 @@ public class AuthService : IAuthService
         if (replaces is not null)
             replaces.ReplacedByRefreshTokenId = refreshToken.RefreshTokenId;
 
-        var (accessToken, jti, accessExpiresAt) = _tokenService.GenerateAccessToken(account);
+        var (accessToken, jti, accessExpiresAt) = _jwtHelper.GenerateAccessToken(account);
         await _unitOfWork.AccessTokens.AddAsync(new AccessToken
         {
             UserId = account.UserId,

@@ -142,7 +142,10 @@ BE/
 │   │   │   ├── ConflictException.cs
 │   │   │   ├── UnauthorizedException.cs
 │   │   │   └── ForbiddenException.cs
-│   │   ├── Helpers/                          # QueryableExtensions, JwtHelper, PasswordHasher, ...
+│   │   ├── Helpers/
+│   │   │   ├── Interfaces/                   # IJwtHelper, IPasswordHasher, IInviteTokenHelper
+│   │   │   ├── Implementations/              # JwtHelper, PasswordHasher, InviteTokenHelper
+│   │   │   └── QueryableExtensions.cs
 │   │   └── DependencyInjection.cs
 │   │
 │   └── RenTrek.DAL/                          # ── Data Access Layer

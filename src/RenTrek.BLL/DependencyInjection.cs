@@ -1,7 +1,8 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Implementations;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
@@ -26,8 +27,8 @@ public static class DependencyInjection
         // Helpers
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
-        services.AddScoped<ITokenService, TokenService>();
-        services.AddSingleton<IParticipantInviteTokenService, ParticipantInviteTokenService>();
+        services.AddScoped<IJwtHelper, JwtHelper>();
+        services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();

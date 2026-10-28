@@ -1,6 +1,7 @@
 using BCrypt.Net;
+using RenTrek.BLL.Helpers.Interfaces;
 
-namespace RenTrek.BLL.Helpers;
+namespace RenTrek.BLL.Helpers.Implementations;
 
 /// <summary>
 /// Băm và kiểm tra mật khẩu bằng thuật toán an toàn.
