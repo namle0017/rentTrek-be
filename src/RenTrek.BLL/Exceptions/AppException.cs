@@ -7,8 +7,12 @@ public abstract class AppException : Exception
 {
     public int StatusCode { get; }
 
-    protected AppException(string message, int statusCode) : base(message)
+    /// <summary>Mã lỗi nghiệp vụ (xem ErrorCodes); middleware trả trong errors.code[0]. Null nếu không có.</summary>
+    public string? ErrorCode { get; }
+
+    protected AppException(string message, int statusCode, string? errorCode = null) : base(message)
     {
         StatusCode = statusCode;
+        ErrorCode = errorCode;
     }
 }

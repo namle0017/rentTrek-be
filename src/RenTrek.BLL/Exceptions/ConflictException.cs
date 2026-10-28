@@ -5,7 +5,15 @@ namespace RenTrek.BLL.Exceptions;
 /// </summary>
 public class ConflictException : AppException
 {
-    public ConflictException(string message = "Dữ liệu đã tồn tại") : base(message, 409)
+    /// <summary>Chi tiết lỗi bổ sung (ví dụ danh sách tài nguyên không còn khả dụng); null nếu không có.</summary>
+    public IDictionary<string, string[]>? Errors { get; }
+
+    public ConflictException(
+        string message = "Dữ liệu đã tồn tại",
+        string? errorCode = null,
+        IDictionary<string, string[]>? errors = null)
+        : base(message, 409, errorCode)
     {
+        Errors = errors;
     }
 }
