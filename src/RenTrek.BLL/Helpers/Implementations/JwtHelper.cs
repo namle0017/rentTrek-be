@@ -4,19 +4,20 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.DAL.Entities;
 
-namespace RenTrek.BLL.Helpers;
+namespace RenTrek.BLL.Helpers.Implementations;
 
 /// <summary>
 /// Tạo access token JWT và refresh token cho phiên đăng nhập.
 /// </summary>
-public class TokenService : ITokenService
+public class JwtHelper : IJwtHelper
 {
     private readonly JwtSettings _jwt;
 
-    public TokenService(IOptions<JwtSettings> jwtOptions)
+    public JwtHelper(IOptions<JwtSettings> jwtOptions)
     {
         _jwt = jwtOptions.Value;
     }

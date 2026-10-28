@@ -1,4 +1,4 @@
-namespace RenTrek.BLL.Helpers;
+namespace RenTrek.BLL.Helpers.Interfaces;
 
 public interface IPasswordHasher
 {

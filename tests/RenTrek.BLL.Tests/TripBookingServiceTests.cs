@@ -1,4 +1,4 @@
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.DTOs.TripBooking;
 using RenTrek.BLL.Exceptions;
@@ -40,7 +40,7 @@ public sealed class TripBookingServiceTests
             unitOfWork,
             new FakeCurrentUserService(buyerId),
             new FixedTimeProvider(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero)),
-            new FakeParticipantInviteTokenService());
+            new FakeInviteTokenHelper());
 
         var result = await service.CreateAsync(
             new CreateTripBookingRequest
@@ -375,7 +375,7 @@ public sealed class TripBookingServiceTests
             unitOfWork,
             currentUser,
             new FixedTimeProvider(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero)),
-            new FakeParticipantInviteTokenService());
+            new FakeInviteTokenHelper());
         return new TestFixture(service, repository, unitOfWork, currentUser);
     }
 
@@ -460,7 +460,7 @@ public sealed class TripBookingServiceTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
-    private sealed class FakeParticipantInviteTokenService : IParticipantInviteTokenService
+    private sealed class FakeInviteTokenHelper : IInviteTokenHelper
     {
         public string CreateToken() => "invite-token";
         public string HashToken(string token) => "opaque-token-hash";

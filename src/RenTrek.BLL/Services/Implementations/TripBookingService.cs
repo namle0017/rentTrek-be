@@ -1,4 +1,4 @@
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.DTOs.TripBooking;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
@@ -15,7 +15,7 @@ public sealed class TripBookingService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
     TimeProvider timeProvider,
-    IParticipantInviteTokenService inviteTokenService) : ITripBookingService
+    IInviteTokenHelper inviteTokenHelper) : ITripBookingService
 {
     public async Task<TripBookingResponse> GetByIdAsync(
         Guid orderId,
@@ -217,14 +217,14 @@ public sealed class TripBookingService(
             var responses = new List<ParticipantInvitationResponse>();
             foreach (var participant in order.TripBookingOrder.Participants.Where(x => x.LinkedUserId is null))
             {
-                var token = inviteTokenService.CreateToken();
+                var token = inviteTokenHelper.CreateToken();
                 var invitation = new ParticipantInvitation
                 {
                     ParticipantInvitationId = Guid.NewGuid(),
                     ParticipantId = participant.ParticipantId,
                     BookingOrderId = orderId,
                     CreatedByUserId = currentUser.RequiredUserId,
-                    TokenHash = inviteTokenService.HashToken(token),
+                    TokenHash = inviteTokenHelper.HashToken(token),
                     ExpiresAt = expiresAt,
                     CreatedAt = utcNow,
                     Participant = participant,
@@ -260,7 +260,7 @@ public sealed class TripBookingService(
             throw new BadRequestException("Token lời mời là bắt buộc");
 
         var utcNow = timeProvider.GetUtcNow();
-        var tokenHash = inviteTokenService.HashToken(token.Trim());
+        var tokenHash = inviteTokenHelper.HashToken(token.Trim());
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
