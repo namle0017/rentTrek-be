@@ -1,7 +1,7 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Promotion;
-using RenTrek.BLL.DTOs.Rental;
-using RenTrek.BLL.DTOs.RentalOrder;
+using RenTrek.BLL.DTOs.Promotion.Internal;
+using RenTrek.BLL.DTOs.Rental.Requests;
+using RenTrek.BLL.DTOs.RentalOrder.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Validators.RentalOrder;
@@ -47,7 +47,7 @@ public sealed class RentalOrderServiceTests
     {
         var service = new PromotionService(null!);
 
-        var result = await service.EvaluateAsync(new EvaluatePromotionRequest { PromotionCode = "  " });
+        var result = await service.EvaluateAsync(new PromotionEvaluationInput { PromotionCode = "  " });
 
         Assert.False(result.IsApplied);
         Assert.Null(result.ErrorCode);

@@ -1,8 +1,11 @@
 using System.Globalization;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Promotion;
-using RenTrek.BLL.DTOs.Rental;
-using RenTrek.BLL.DTOs.RentalOrder;
+using RenTrek.BLL.DTOs.Promotion.Internal;
+using RenTrek.BLL.DTOs.Rental.Internal;
+using RenTrek.BLL.DTOs.Rental.Requests;
+using RenTrek.BLL.DTOs.RentalOrder.Internal;
+using RenTrek.BLL.DTOs.RentalOrder.Requests;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -155,10 +158,10 @@ public class RentalOrderService : IRentalOrderService
     // Tính toán dùng chung cho báo giá và tạo đơn
     // ---------------------------------------------------------------------------------------------------------
 
-    private async Task<RentalQuoteComputation> ComputeAsync(
+    private async Task<RentalQuoteComputationResult> ComputeAsync(
         Guid userId,
-        RentalPeriod period,
-        IReadOnlyList<ResolvedRentalLine> resolvedLines,
+        RentalPeriodResult period,
+        IReadOnlyList<ResolvedRentalLineResult> resolvedLines,
         string? promotionCode,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -169,7 +172,7 @@ public class RentalOrderService : IRentalOrderService
         var availability = await _availabilityService.EvaluateAsync(period, resolvedLines, cancellationToken);
 
         var promotion = await _promotionService.EvaluateAsync(
-            new EvaluatePromotionRequest
+            new PromotionEvaluationInput
             {
                 PromotionCode = promotionCode,
                 OrderType = OrderTypes.Rental,
@@ -197,7 +200,7 @@ public class RentalOrderService : IRentalOrderService
         var holdMinutes = await GetHoldMinutesAsync(cancellationToken);
 
         // Hệ thống không thu cọc: totalPayable = totalAmount
-        return new RentalQuoteComputation
+        return new RentalQuoteComputationResult
         {
             Period = period,
             ResolvedLines = resolvedLines.ToList(),
@@ -214,9 +217,9 @@ public class RentalOrderService : IRentalOrderService
         };
     }
 
-    private async Task<List<PricedRentalLine>> PriceLinesAsync(
-        RentalPeriod period,
-        IReadOnlyList<ResolvedRentalLine> lines,
+    private async Task<List<PricedRentalLineResult>> PriceLinesAsync(
+        RentalPeriodResult period,
+        IReadOnlyList<ResolvedRentalLineResult> lines,
         CancellationToken cancellationToken)
     {
         var variantIds = lines.Where(line => line.ProductVariantId.HasValue)
@@ -240,7 +243,7 @@ public class RentalOrderService : IRentalOrderService
             .GroupBy(tier => tier.BundleId!.Value)
             .ToDictionary(group => group.Key, group => group.Select(ToTierOption).ToList());
 
-        var priced = new List<PricedRentalLine>(lines.Count);
+        var priced = new List<PricedRentalLineResult>(lines.Count);
         foreach (var line in lines)
         {
             var options = line.ProductVariantId.HasValue
@@ -255,7 +258,7 @@ public class RentalOrderService : IRentalOrderService
                     ErrorCodes.PriceTierNotFound);
             }
 
-            priced.Add(new PricedRentalLine
+            priced.Add(new PricedRentalLineResult
             {
                 Index = line.Index,
                 ItemType = line.ItemType,
@@ -306,7 +309,7 @@ public class RentalOrderService : IRentalOrderService
     // Báo giá
     // ---------------------------------------------------------------------------------------------------------
 
-    private RentalQuoteResponse MapQuote(RentalQuoteComputation computation)
+    private RentalQuoteResponse MapQuote(RentalQuoteComputationResult computation)
     {
         var availabilityByIndex = computation.Availability.ToDictionary(line => line.LineIndex);
 
@@ -398,7 +401,7 @@ public class RentalOrderService : IRentalOrderService
     // Tạo đơn
     // ---------------------------------------------------------------------------------------------------------
 
-    private void EnsureAcceptable(RentalQuoteComputation computation, int acceptedRefundPolicyVersion)
+    private void EnsureAcceptable(RentalQuoteComputationResult computation, int acceptedRefundPolicyVersion)
     {
         if (!computation.IsAllAvailable)
         {
@@ -449,7 +452,7 @@ public class RentalOrderService : IRentalOrderService
         CreateRentalOrderRequest request,
         string idempotencyKey,
         string orderCode,
-        RentalQuoteComputation computation,
+        RentalQuoteComputationResult computation,
         IReadOnlyDictionary<Guid, List<Guid>> assetsByVariant,
         DateTimeOffset now)
     {
@@ -563,7 +566,7 @@ public class RentalOrderService : IRentalOrderService
     // Status = Applied: tính vào lượt dùng ngay khi tạo đơn.
     private static void AddAppliedPromotions(
         Order order,
-        RentalQuoteComputation computation,
+        RentalQuoteComputationResult computation,
         IReadOnlyDictionary<int, RentalOrderItem> itemsByLineIndex,
         DateTime utcNow)
     {

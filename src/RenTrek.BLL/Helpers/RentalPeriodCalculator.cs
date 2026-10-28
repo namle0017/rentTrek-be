@@ -1,5 +1,5 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.BLL.Exceptions;
 
 namespace RenTrek.BLL.Helpers;
@@ -19,7 +19,7 @@ public static class RentalPeriodCalculator
     /// Chuẩn hoá về UTC và kiểm tra: trả sau nhận, nhận không ở quá khứ (cho phép lệch 5 phút), tối đa 60 ngày.
     /// Vi phạm thì ném BadRequestException với ErrorCodes.InvalidRentalPeriod.
     /// </summary>
-    public static RentalPeriod Validate(DateTime start, DateTime end, DateTime now)
+    public static RentalPeriodResult Validate(DateTime start, DateTime end, DateTime now)
     {
         var startUtc = ToUtc(start);
         var endUtc = ToUtc(end);
@@ -35,7 +35,7 @@ public static class RentalPeriodCalculator
         if (billableDays > MaxRentalDays)
             throw Invalid($"Thời gian thuê tối đa {MaxRentalDays} ngày");
 
-        return new RentalPeriod
+        return new RentalPeriodResult
         {
             StartUtc = startUtc,
             EndUtc = endUtc,

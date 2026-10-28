@@ -1,7 +1,8 @@
 using System.Globalization;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
-using RenTrek.BLL.DTOs.RentalAvailability;
+using RenTrek.BLL.DTOs.Rental.Internal;
+using RenTrek.BLL.DTOs.RentalAvailability.Requests;
+using RenTrek.BLL.DTOs.RentalAvailability.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -58,7 +59,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
         };
     }
 
-    public async Task<List<ResolvedRentalLine>> ResolveLinesAsync(IReadOnlyList<RentalLineInput> lines, CancellationToken cancellationToken = default)
+    public async Task<List<ResolvedRentalLineResult>> ResolveLinesAsync(IReadOnlyList<RentalLineInput> lines, CancellationToken cancellationToken = default)
     {
         if (lines is null || lines.Count == 0)
             throw new BadRequestException("Giỏ thuê phải có ít nhất một dòng", ErrorCodes.InvalidRentalItem);
@@ -76,7 +77,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
         var bundles = (await _unitOfWork.ProductBundles.GetActiveForRentalAsync(bundleIds, cancellationToken))
             .ToDictionary(bundle => bundle.BundleId);
 
-        var resolved = new List<ResolvedRentalLine>(lines.Count);
+        var resolved = new List<ResolvedRentalLineResult>(lines.Count);
         for (var index = 0; index < lines.Count; index++)
         {
             var line = lines[index];
@@ -86,7 +87,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
                     throw new NotFoundException("Thiết bị không tồn tại hoặc đã ngừng kinh doanh", ErrorCodes.ItemNotFound);
 
                 var name = DisplayName(variant.ProductName, variant.VariantName);
-                resolved.Add(new ResolvedRentalLine
+                resolved.Add(new ResolvedRentalLineResult
                 {
                     Index = index,
                     ItemType = RentalItemTypes.Variant,
@@ -95,7 +96,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
                     Quantity = line.Quantity,
                     Components =
                     [
-                        new RentalLineComponent
+                        new RentalLineComponentItem
                         {
                             ProductVariantId = variant.VariantId,
                             VariantName = name,
@@ -115,14 +116,14 @@ public class RentalAvailabilityService : IRentalAvailabilityService
             if (bundle.Components.Any(component => !component.IsActive))
                 throw new NotFoundException("Combo có thiết bị thành phần đã ngừng kinh doanh", ErrorCodes.ItemNotFound);
 
-            resolved.Add(new ResolvedRentalLine
+            resolved.Add(new ResolvedRentalLineResult
             {
                 Index = index,
                 ItemType = RentalItemTypes.Bundle,
                 BundleId = bundle.BundleId,
                 DisplayName = bundle.Name,
                 Quantity = line.Quantity,
-                Components = bundle.Components.Select(component => new RentalLineComponent
+                Components = bundle.Components.Select(component => new RentalLineComponentItem
                 {
                     ProductVariantId = component.VariantId,
                     VariantName = DisplayName(component.ProductName, component.VariantName),
@@ -135,7 +136,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
         return resolved;
     }
 
-    public async Task<List<RentalLineAvailability>> EvaluateAsync(RentalPeriod period, IReadOnlyList<ResolvedRentalLine> lines, CancellationToken cancellationToken = default)
+    public async Task<List<RentalLineAvailabilityResult>> EvaluateAsync(RentalPeriodResult period, IReadOnlyList<ResolvedRentalLineResult> lines, CancellationToken cancellationToken = default)
     {
         var demand = RentalAvailabilityCalculator.AggregateDemand(lines);
         var filter = await RentalAvailabilityFilterFactory.CreateAsync(_unitOfWork, period, UtcNow, cancellationToken);
@@ -144,7 +145,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
         return RentalAvailabilityCalculator.BuildLineResults(lines, demand, available);
     }
 
-    public async Task<Dictionary<Guid, List<Guid>>> PickAssetsAsync(RentalPeriod period, IReadOnlyDictionary<Guid, int> demandByVariant, CancellationToken cancellationToken = default)
+    public async Task<Dictionary<Guid, List<Guid>>> PickAssetsAsync(RentalPeriodResult period, IReadOnlyDictionary<Guid, int> demandByVariant, CancellationToken cancellationToken = default)
     {
         var filter = await RentalAvailabilityFilterFactory.CreateAsync(_unitOfWork, period, UtcNow, cancellationToken);
 
@@ -168,7 +169,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
     public Task LockVariantsAsync(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default)
         => _unitOfWork.EquipmentAssets.AcquireVariantLocksAsync(variantIds, cancellationToken);
 
-    public string BuildLineMessage(RentalLineAvailability line, RentalPeriod period)
+    public string BuildLineMessage(RentalLineAvailabilityResult line, RentalPeriodResult period)
     {
         if (line.Shortages.Count == 0)
             return string.Empty;
@@ -181,7 +182,7 @@ public class RentalAvailabilityService : IRentalAvailabilityService
 
     private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
-    private static string FormatRange(RentalPeriod period)
+    private static string FormatRange(RentalPeriodResult period)
     {
         var start = (period.StartUtc + VietnamOffset).ToString("dd/MM", CultureInfo.InvariantCulture);
         var end = (period.EndUtc + VietnamOffset).ToString("dd/MM", CultureInfo.InvariantCulture);

@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.ProductBundle;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.ProductBundle.Requests;
+using RenTrek.BLL.DTOs.ProductBundle.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -23,12 +24,12 @@ public class ProductBundlesController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProductBundleResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<ProductBundleResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllAsync([FromQuery] ProductBundleQueryRequest request, CancellationToken cancellationToken)
     {
         var bundles = await _productBundleService.GetAllAsync(request, cancellationToken);
-        return Ok(ApiResponse<PagedResult<ProductBundleResponse>>.Ok(bundles, "Lấy danh sách combo thành công"));
+        return Ok(ApiResponse<PagedResponse<ProductBundleResponse>>.Ok(bundles, "Lấy danh sách combo thành công"));
     }
 
     [HttpGet("{bundleId:guid}")]

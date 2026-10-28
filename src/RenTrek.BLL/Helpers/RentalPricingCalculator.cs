@@ -1,4 +1,4 @@
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 
 namespace RenTrek.BLL.Helpers;
 

@@ -1,5 +1,5 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Promotion.Internal;
 
 namespace RenTrek.BLL.Helpers;
 
@@ -77,13 +77,13 @@ public static class PromotionDiscountCalculator
     /// min(amount, Σ dòng) phân bổ tỉ lệ theo tiền dòng, phần dư làm tròn dồn cho các dòng có phần lẻ lớn nhất nên tổng
     /// khớp tuyệt đối. Mỗi dòng không giảm quá tiền dòng. Chỉ trả các dòng có giảm lớn hơn 0.
     /// </summary>
-    public static List<PromotionLineDiscount> CalculateLineDiscounts(
+    public static List<PromotionLineDiscountItem> CalculateLineDiscounts(
         string? discountType,
         decimal discountValue,
         IReadOnlyList<PromotionLineInput> lines)
     {
         var positive = lines.Where(l => l.LineAmount > 0).ToList();
-        var result = new List<PromotionLineDiscount>();
+        var result = new List<PromotionLineDiscountItem>();
         if (positive.Count == 0 || discountValue <= 0)
             return result;
 
@@ -95,7 +95,7 @@ public static class PromotionDiscountCalculator
             {
                 var amount = Math.Floor(line.LineAmount * percent / 100m);
                 if (amount > 0)
-                    result.Add(new PromotionLineDiscount { LineIndex = line.Index, Amount = amount });
+                    result.Add(new PromotionLineDiscountItem { LineIndex = line.Index, Amount = amount });
             }
 
             return result;
@@ -129,7 +129,7 @@ public static class PromotionDiscountCalculator
         {
             var amount = Math.Min(share.LineAmount, share.Floor + (bonusIndexes.Contains(share.Index) ? 1 : 0));
             if (amount > 0)
-                result.Add(new PromotionLineDiscount { LineIndex = share.Index, Amount = amount });
+                result.Add(new PromotionLineDiscountItem { LineIndex = share.Index, Amount = amount });
         }
 
         return result;

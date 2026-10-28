@@ -1,5 +1,5 @@
 using FluentValidation;
-using RenTrek.BLL.DTOs.RentalOrder;
+using RenTrek.BLL.DTOs.RentalOrder.Requests;
 
 namespace RenTrek.BLL.Validators.RentalOrder;
 

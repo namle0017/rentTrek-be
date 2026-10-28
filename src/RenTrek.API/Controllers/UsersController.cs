@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Order;
-using RenTrek.BLL.DTOs.Users;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Order.Requests;
+using RenTrek.BLL.DTOs.Order.Responses;
+using RenTrek.BLL.DTOs.Users.Requests;
+using RenTrek.BLL.DTOs.Users.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 
@@ -64,6 +66,6 @@ public class UsersController : ControllerBase
         var userId = _currentUserService.RequiredUserId;
 
         var result = await _orderService.GetMyOrdersAsync(userId, request, cancellationToken);
-        return Ok(ApiResponse<PagedResult<MyOrderResponse>>.Ok(result, "Lấy danh sách đơn hàng thành công"));
+        return Ok(ApiResponse<PagedResponse<MyOrderResponse>>.Ok(result, "Lấy danh sách đơn hàng thành công"));
     }
 }

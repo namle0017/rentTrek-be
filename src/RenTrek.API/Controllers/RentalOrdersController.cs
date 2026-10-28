@@ -2,7 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.RentalOrder;
+using RenTrek.BLL.DTOs.RentalOrder.Requests;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;

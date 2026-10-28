@@ -1,4 +1,4 @@
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 
 namespace RenTrek.BLL.Helpers;
 
@@ -8,7 +8,7 @@ namespace RenTrek.BLL.Helpers;
 public static class RentalAvailabilityCalculator
 {
     /// <summary>Cộng dồn nhu cầu theo biến thể: dòng lẻ và (SL combo × SL thành phần) của mọi dòng.</summary>
-    public static Dictionary<Guid, int> AggregateDemand(IEnumerable<ResolvedRentalLine> lines)
+    public static Dictionary<Guid, int> AggregateDemand(IEnumerable<ResolvedRentalLineResult> lines)
     {
         var demand = new Dictionary<Guid, int>();
         foreach (var component in lines.SelectMany(l => l.Components))
@@ -25,7 +25,7 @@ public static class RentalAvailabilityCalculator
     /// (cho giá trị nhỏ nhất, hoà thì thành phần xuất hiện trước). Không có thành phần thì trả (0, null).
     /// </summary>
     public static (int Quantity, Guid? LimitingVariantId) BundleAvailability(
-        IEnumerable<RentalLineComponent> components,
+        IEnumerable<RentalLineComponentItem> components,
         IReadOnlyDictionary<Guid, int> availableByVariant)
     {
         var best = int.MaxValue;
@@ -46,18 +46,18 @@ public static class RentalAvailabilityCalculator
     }
 
     /// <summary>Kết quả từng dòng, dựa trên tổng nhu cầu cộng dồn và số khả dụng theo biến thể.</summary>
-    public static List<RentalLineAvailability> BuildLineResults(
-        IReadOnlyList<ResolvedRentalLine> lines,
+    public static List<RentalLineAvailabilityResult> BuildLineResults(
+        IReadOnlyList<ResolvedRentalLineResult> lines,
         IReadOnlyDictionary<Guid, int> demandByVariant,
         IReadOnlyDictionary<Guid, int> availableByVariant)
     {
-        var results = new List<RentalLineAvailability>(lines.Count);
+        var results = new List<RentalLineAvailabilityResult>(lines.Count);
         foreach (var line in lines)
         {
             var shortages = line.Components
                 .Where(c => demandByVariant.GetValueOrDefault(c.ProductVariantId)
                             > availableByVariant.GetValueOrDefault(c.ProductVariantId))
-                .Select(c => new RentalAvailabilityShortage
+                .Select(c => new RentalAvailabilityShortageItem
                 {
                     ProductVariantId = c.ProductVariantId,
                     VariantName = c.VariantName,
@@ -67,7 +67,7 @@ public static class RentalAvailabilityCalculator
                 .ToList();
 
             int availableQuantity;
-            RentalAvailabilityShortage? limitingComponent = null;
+            RentalAvailabilityShortageItem? limitingComponent = null;
             if (line.BundleId.HasValue)
             {
                 var (quantity, limitingVariantId) = BundleAvailability(line.Components, availableByVariant);
@@ -75,7 +75,7 @@ public static class RentalAvailabilityCalculator
                 if (limitingVariantId.HasValue)
                 {
                     var component = line.Components.First(c => c.ProductVariantId == limitingVariantId.Value);
-                    limitingComponent = new RentalAvailabilityShortage
+                    limitingComponent = new RentalAvailabilityShortageItem
                     {
                         ProductVariantId = component.ProductVariantId,
                         VariantName = component.VariantName,
@@ -91,7 +91,7 @@ public static class RentalAvailabilityCalculator
                     : availableByVariant.GetValueOrDefault(line.Components[0].ProductVariantId);
             }
 
-            results.Add(new RentalLineAvailability
+            results.Add(new RentalLineAvailabilityResult
             {
                 LineIndex = line.Index,
                 IsAvailable = shortages.Count == 0,

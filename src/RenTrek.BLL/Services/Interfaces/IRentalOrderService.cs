@@ -1,4 +1,5 @@
-using RenTrek.BLL.DTOs.RentalOrder;
+using RenTrek.BLL.DTOs.RentalOrder.Requests;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 

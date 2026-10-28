@@ -1,5 +1,5 @@
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.BLL.Helpers;
 
 namespace RenTrek.BLL.Tests.Helpers;
@@ -10,7 +10,7 @@ public sealed class RentalAvailabilityCalculatorTests
     private static readonly Guid V2 = new("00000000-0000-0000-0000-0000000000a2");
     private static readonly Guid BundleId = new("00000000-0000-0000-0000-0000000000b1");
 
-    private static RentalLineComponent Component(Guid variantId, int perUnit, int lineQuantity)
+    private static RentalLineComponentItem Component(Guid variantId, int perUnit, int lineQuantity)
         => new()
         {
             ProductVariantId = variantId,
@@ -19,7 +19,7 @@ public sealed class RentalAvailabilityCalculatorTests
             TotalQuantity = perUnit * lineQuantity
         };
 
-    private static ResolvedRentalLine VariantLine(int index, Guid variantId, int quantity)
+    private static ResolvedRentalLineResult VariantLine(int index, Guid variantId, int quantity)
         => new()
         {
             Index = index,
@@ -29,7 +29,7 @@ public sealed class RentalAvailabilityCalculatorTests
             Components = [Component(variantId, 1, quantity)]
         };
 
-    private static ResolvedRentalLine BundleLine(int index, int quantity)
+    private static ResolvedRentalLineResult BundleLine(int index, int quantity)
         => new()
         {
             Index = index,
@@ -42,7 +42,7 @@ public sealed class RentalAvailabilityCalculatorTests
     [Fact]
     public void AggregateDemand_SumsVariantAndBundleComponents()
     {
-        var lines = new List<ResolvedRentalLine> { VariantLine(0, V1, 2), BundleLine(1, 2) };
+        var lines = new List<ResolvedRentalLineResult> { VariantLine(0, V1, 2), BundleLine(1, 2) };
 
         var demand = RentalAvailabilityCalculator.AggregateDemand(lines);
 
@@ -53,7 +53,7 @@ public sealed class RentalAvailabilityCalculatorTests
     [Fact]
     public void BundleAvailability_ReturnsMinimumFitAndLimitingVariant()
     {
-        var components = new List<RentalLineComponent> { Component(V1, 1, 1), Component(V2, 2, 1) };
+        var components = new List<RentalLineComponentItem> { Component(V1, 1, 1), Component(V2, 2, 1) };
         var available = new Dictionary<Guid, int> { [V1] = 5, [V2] = 3 };
 
         var (quantity, limiting) = RentalAvailabilityCalculator.BundleAvailability(components, available);
@@ -74,7 +74,7 @@ public sealed class RentalAvailabilityCalculatorTests
     [Fact]
     public void BuildLineResults_SharedVariantAcrossLines_ReportsAggregatedShortage()
     {
-        var lines = new List<ResolvedRentalLine> { VariantLine(0, V1, 2), BundleLine(1, 2) };
+        var lines = new List<ResolvedRentalLineResult> { VariantLine(0, V1, 2), BundleLine(1, 2) };
         var demand = RentalAvailabilityCalculator.AggregateDemand(lines);
         var available = new Dictionary<Guid, int> { [V1] = 3, [V2] = 10 };
 
@@ -96,7 +96,7 @@ public sealed class RentalAvailabilityCalculatorTests
     [Fact]
     public void BuildLineResults_EnoughStock_AllAvailable()
     {
-        var lines = new List<ResolvedRentalLine> { VariantLine(0, V1, 2) };
+        var lines = new List<ResolvedRentalLineResult> { VariantLine(0, V1, 2) };
         var demand = RentalAvailabilityCalculator.AggregateDemand(lines);
         var available = new Dictionary<Guid, int> { [V1] = 5 };
 

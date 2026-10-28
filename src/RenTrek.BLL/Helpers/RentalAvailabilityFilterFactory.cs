@@ -1,6 +1,6 @@
 using System.Globalization;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -27,7 +27,7 @@ public static class RentalAvailabilityFilterFactory
     /// <summary>Tạo bộ lọc khả dụng cho khoảng thuê (UTC) tại thời điểm <paramref name="nowUtc"/>.</summary>
     public static async Task<AssetAvailabilityFilter> CreateAsync(
         IUnitOfWork unitOfWork,
-        RentalPeriod period,
+        RentalPeriodResult period,
         DateTime nowUtc,
         CancellationToken cancellationToken = default)
     {

@@ -1,4 +1,4 @@
-using RenTrek.BLL.DTOs.Rental;
+using RenTrek.BLL.DTOs.Rental.Internal;
 using RenTrek.BLL.Helpers;
 
 namespace RenTrek.BLL.Tests.Helpers;

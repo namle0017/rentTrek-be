@@ -1,5 +1,5 @@
 using FluentValidation;
-using RenTrek.BLL.DTOs.RentalAvailability;
+using RenTrek.BLL.DTOs.RentalAvailability.Requests;
 
 namespace RenTrek.BLL.Validators.RentalAvailability;
 
