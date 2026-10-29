@@ -10,6 +10,7 @@ public sealed class ParticipantInvitation
     public Guid BookingOrderId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public string TokenHash { get; set; } = string.Empty;
+    public int FailedAttempts { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? RedeemedAt { get; set; }
     public Guid? RedeemedByUserId { get; set; }
