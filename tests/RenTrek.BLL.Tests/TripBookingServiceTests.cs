@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.Helpers.Interfaces;
+using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.Exceptions;
@@ -40,7 +42,10 @@ public sealed class TripBookingServiceTests
             unitOfWork,
             new FakeCurrentUserService(buyerId),
             new FixedTimeProvider(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero)),
-            new FakeInviteTokenHelper());
+            new FakeInviteTokenHelper(),
+            new FakeEmailSender(),
+            Microsoft.Extensions.Options.Options.Create(new EmailSettings()),
+            NullLogger<TripBookingService>.Instance);
 
         var result = await service.CreateAsync(
             new CreateTripBookingRequest
@@ -183,126 +188,164 @@ public sealed class TripBookingServiceTests
     }
 
     [Fact]
-    public async Task GenerateParticipantInvitationsAsync_ReturnsPlainTokenButStoresOnlyHash()
+    public async Task GenerateParticipantInvitationsAsync_UsesOneGroupCodeAndEmailsEveryone()
     {
         var fixture = CreateFixture(totalSlots: 5);
         var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
+        AddGuest(order, "second@example.com");
         fixture.Repository.OwnedOrder = order;
         fixture.Repository.SucceededPaymentTotal = order.TotalAmount;
 
-        var invitations = await fixture.Service.GenerateParticipantInvitationsAsync(order.OrderId);
+        var result = await fixture.Service.GenerateParticipantInvitationsAsync(order.OrderId);
 
-        var invitation = Assert.Single(invitations);
-        Assert.Equal("invite-token", invitation.Token);
-        var stored = Assert.Single(fixture.Repository.AddedInvitations);
-        Assert.Equal("opaque-token-hash", stored.TokenHash);
-        Assert.DoesNotContain("invite-token", stored.TokenHash);
+        Assert.Equal("123456", result.Code);
+        Assert.Equal(2, result.Participants.Count);
+        Assert.All(result.Participants, x => Assert.True(x.EmailSent));
+        Assert.Equal(2, fixture.Repository.AddedInvitations.Count);
+        Assert.All(fixture.Repository.AddedInvitations,
+            x => Assert.Equal($"hash:{x.ParticipantInvitationId:N}:123456", x.TokenHash));
+        Assert.Equal(2, fixture.EmailSender.Sent.Count);
+        Assert.All(fixture.EmailSender.Sent, mail =>
+        {
+            Assert.Contains("123456", mail.Body);
+            Assert.Contains($"http://localhost:5173/trip-bookings/{order.OrderId}/join\"", mail.Body);
+        });
         Assert.True(fixture.UnitOfWork.Committed);
         Assert.True(fixture.Repository.BookingLockAcquired);
     }
 
     [Fact]
-    public async Task ClaimParticipantInvitationAsync_LinksMatchingAccountAndConsumesToken()
+    public async Task GenerateParticipantInvitationsAsync_StillReturnsGroupCodeWhenEmailFails()
     {
         var fixture = CreateFixture(totalSlots: 5);
         var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
-        var guest = order.TripBookingOrder.Participants.Single(x => x.LinkedUserId is null);
-        var guestUserId = Guid.NewGuid();
-        fixture.Repository.Account = new Account
-        {
-            UserId = guestUserId,
-            Email = guest.Email.ToUpperInvariant(),
-            FullName = guest.FullName,
-            Status = "Active"
-        };
-        fixture.CurrentUser.RequiredUserId = guestUserId;
-        fixture.Repository.Invitation = new ParticipantInvitation
-        {
-            ParticipantInvitationId = Guid.NewGuid(),
-            ParticipantId = guest.ParticipantId,
-            BookingOrderId = order.OrderId,
-            CreatedByUserId = order.CustomerUserId,
-            TokenHash = "opaque-token-hash",
-            ExpiresAt = new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero),
-            CreatedAt = new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero),
-            Participant = guest,
-            BookingOrder = order.TripBookingOrder
-        };
+        fixture.Repository.OwnedOrder = order;
+        fixture.Repository.SucceededPaymentTotal = order.TotalAmount;
+        fixture.EmailSender.Fail = true;
 
-        var result = await fixture.Service.ClaimParticipantInvitationAsync("invite-token");
+        var result = await fixture.Service.GenerateParticipantInvitationsAsync(order.OrderId);
+
+        Assert.Equal("123456", result.Code);
+        Assert.False(Assert.Single(result.Participants).EmailSent);
+        Assert.True(fixture.UnitOfWork.Committed);
+    }
+
+    [Fact]
+    public async Task GetInvitationPreviewAsync_ShowsTripAndPendingCountOnly()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
+        AddInvitations(order);
+        fixture.Repository.InvitationOrder = order;
+
+        var preview = await fixture.Service.GetInvitationPreviewAsync(order.OrderId);
+
+        Assert.Equal("Người mua", preview.BuyerName);
+        Assert.Equal(1, preview.PendingCount);
+        Assert.False(preview.IsLocked);
+    }
+
+    [Fact]
+    public async Task VerifyParticipantInvitationCodeAsync_ChecksGroupCodeWithoutLinking()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
+        var invitation = Assert.Single(AddInvitations(order));
+        fixture.Repository.InvitationOrder = order;
+
+        await fixture.Service.VerifyParticipantInvitationCodeAsync(order.OrderId, "123456");
+
+        Assert.Null(invitation.Participant.LinkedUserId);
+        Assert.Null(invitation.RedeemedAt);
+        Assert.Equal(0, invitation.FailedAttempts);
+
+        var wrong = await Assert.ThrowsAsync<BadRequestException>(
+            () => fixture.Service.VerifyParticipantInvitationCodeAsync(order.OrderId, "999999"));
+        Assert.Equal("Mã xác nhận không đúng. Còn 4 lần thử", wrong.Message);
+        Assert.Equal(1, invitation.FailedAttempts);
+    }
+
+    [Fact]
+    public async Task ClaimParticipantInvitationAsync_LinksParticipantWithSameEmailAsAccount()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
+        AddGuest(order, "second@example.com");
+        AddInvitations(order);
+        fixture.Repository.InvitationOrder = order;
+        var guest = order.TripBookingOrder.Participants.Single(x => x.Email == "second@example.com");
+        var guestUserId = SignInAs(fixture, "SECOND@example.com");
+
+        var result = await fixture.Service.ClaimParticipantInvitationAsync(order.OrderId, "123456");
 
         Assert.Equal(guestUserId, guest.LinkedUserId);
-        Assert.Equal(guestUserId, fixture.Repository.Invitation.RedeemedByUserId);
-        Assert.NotNull(fixture.Repository.Invitation.RedeemedAt);
+        var invitation = order.TripBookingOrder.Invitations.Single(x => x.ParticipantId == guest.ParticipantId);
+        Assert.Equal(guestUserId, invitation.RedeemedByUserId);
+        Assert.NotNull(invitation.RedeemedAt);
+        Assert.Null(order.TripBookingOrder.Participants.Single(x => x.Email == "guest@example.com").LinkedUserId);
         Assert.False(result.CanManage);
         Assert.Single(result.Participants);
         Assert.True(fixture.Repository.BookingLockAcquired);
     }
 
     [Fact]
-    public async Task ClaimParticipantInvitationAsync_RejectsAccountWithDifferentEmail()
+    public async Task ClaimParticipantInvitationAsync_RejectsAccountEmailNotInGroup()
     {
         var fixture = CreateFixture(totalSlots: 5);
         var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
-        var guest = order.TripBookingOrder.Participants.Single(x => x.LinkedUserId is null);
-        var guestUserId = Guid.NewGuid();
-        fixture.Repository.Account = new Account
-        {
-            UserId = guestUserId,
-            Email = "wrong@example.com",
-            FullName = "Sai người",
-            Status = "Active"
-        };
-        fixture.CurrentUser.RequiredUserId = guestUserId;
-        fixture.Repository.Invitation = new ParticipantInvitation
-        {
-            ParticipantInvitationId = Guid.NewGuid(),
-            ParticipantId = guest.ParticipantId,
-            BookingOrderId = order.OrderId,
-            CreatedByUserId = order.CustomerUserId,
-            TokenHash = "opaque-token-hash",
-            ExpiresAt = new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero),
-            Participant = guest,
-            BookingOrder = order.TripBookingOrder
-        };
+        var invitation = Assert.Single(AddInvitations(order));
+        fixture.Repository.InvitationOrder = order;
+        SignInAs(fixture, "wrong@example.com");
 
-        var exception = await Assert.ThrowsAsync<ForbiddenException>(
-            () => fixture.Service.ClaimParticipantInvitationAsync("invite-token"));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => fixture.Service.ClaimParticipantInvitationAsync(order.OrderId, "123456"));
 
-        Assert.Equal("Email tài khoản không khớp participant được mời", exception.Message);
-        Assert.Null(guest.LinkedUserId);
-        Assert.Null(fixture.Repository.Invitation.RedeemedAt);
+        Assert.Null(invitation.Participant.LinkedUserId);
+        Assert.Null(invitation.RedeemedAt);
+    }
+
+    [Fact]
+    public async Task ClaimParticipantInvitationAsync_LocksWholeGroupAfterFiveWrongAttempts()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
+        AddGuest(order, "second@example.com");
+        var invitations = AddInvitations(order);
+        fixture.Repository.InvitationOrder = order;
+        SignInAs(fixture, "guest@example.com");
+        foreach (var invitation in invitations)
+            invitation.FailedAttempts = 4;
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => fixture.Service.ClaimParticipantInvitationAsync(order.OrderId, "000000"));
+        Assert.All(invitations, x => Assert.Equal(5, x.FailedAttempts));
+        Assert.True(fixture.UnitOfWork.Committed);
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => fixture.Service.ClaimParticipantInvitationAsync(order.OrderId, "123456"));
+        Assert.All(order.TripBookingOrder.Participants.Where(x => x.Email != "buyer@example.com"),
+            x => Assert.Null(x.LinkedUserId));
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ClaimParticipantInvitationAsync_RejectsExpiredOrRedeemedToken(bool expired)
+    public async Task ClaimParticipantInvitationAsync_RejectsExpiredOrRedeemedInvitation(bool expired)
     {
         var fixture = CreateFixture(totalSlots: 5);
         var order = CreatePaidOrderWithGuest(fixture.Repository.Account!, fixture.Repository.Trip!);
-        var guest = order.TripBookingOrder.Participants.Single(x => x.LinkedUserId is null);
-        fixture.Repository.Invitation = new ParticipantInvitation
-        {
-            ParticipantInvitationId = Guid.NewGuid(),
-            ParticipantId = guest.ParticipantId,
-            BookingOrderId = order.OrderId,
-            CreatedByUserId = order.CustomerUserId,
-            TokenHash = "opaque-token-hash",
-            ExpiresAt = expired
-                ? new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero)
-                : new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero),
-            RedeemedAt = expired
-                ? null
-                : new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero),
-            Participant = guest,
-            BookingOrder = order.TripBookingOrder
-        };
+        var invitation = Assert.Single(AddInvitations(order));
+        if (expired)
+            invitation.ExpiresAt = new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero);
+        else
+            invitation.RedeemedAt = new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero);
+        fixture.Repository.InvitationOrder = order;
+        SignInAs(fixture, "guest@example.com");
 
-        await Assert.ThrowsAsync<ConflictException>(
-            () => fixture.Service.ClaimParticipantInvitationAsync("invite-token"));
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => fixture.Service.ClaimParticipantInvitationAsync(order.OrderId, "123456"));
 
-        Assert.Null(guest.LinkedUserId);
+        Assert.Null(invitation.Participant.LinkedUserId);
     }
 
     [Fact]
@@ -371,12 +414,21 @@ public sealed class TripBookingServiceTests
         };
         var unitOfWork = new FakeUnitOfWork(repository);
         var currentUser = new FakeCurrentUserService(buyerId);
+        var emailSender = new FakeEmailSender();
         var service = new TripBookingService(
             unitOfWork,
             currentUser,
             new FixedTimeProvider(new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero)),
-            new FakeInviteTokenHelper());
-        return new TestFixture(service, repository, unitOfWork, currentUser);
+            new FakeInviteTokenHelper(),
+            emailSender,
+            Microsoft.Extensions.Options.Options.Create(new EmailSettings
+            {
+                Username = "rentrek@gmail.com",
+                Password = "app-password",
+                FrontendBaseUrl = "http://localhost:5173/"
+            }),
+            NullLogger<TripBookingService>.Instance);
+        return new TestFixture(service, repository, unitOfWork, currentUser, emailSender);
     }
 
     private static Order CreateExistingOrder(Account account, Trip trip)
@@ -440,11 +492,63 @@ public sealed class TripBookingServiceTests
         return order;
     }
 
+    private static void AddGuest(Order order, string email)
+    {
+        order.TripBookingOrder.Participants.Add(new BookingParticipant
+        {
+            ParticipantId = Guid.NewGuid(),
+            BookingOrderId = order.OrderId,
+            FullName = "Khách " + email,
+            Email = email,
+            Status = "Pending",
+            TripId = order.TripBookingOrder.TripId
+        });
+        order.TripBookingOrder.ParticipantCount++;
+        order.TotalAmount += order.TripBookingOrder.UnitPrice;
+        order.SubtotalAmount = order.TotalAmount;
+    }
+
+    // Lời mời đang chờ cho mọi participant chưa liên kết, cùng mã nhóm "123456"
+    private static List<ParticipantInvitation> AddInvitations(Order order)
+    {
+        var invitations = order.TripBookingOrder.Participants
+            .Where(x => x.LinkedUserId is null)
+            .Select(participant =>
+            {
+                var invitationId = Guid.NewGuid();
+                return new ParticipantInvitation
+                {
+                    ParticipantInvitationId = invitationId,
+                    ParticipantId = participant.ParticipantId,
+                    BookingOrderId = order.OrderId,
+                    CreatedByUserId = order.CustomerUserId,
+                    TokenHash = $"hash:{invitationId:N}:123456",
+                    ExpiresAt = new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero),
+                    CreatedAt = new DateTimeOffset(2026, 10, 26, 0, 0, 0, TimeSpan.Zero),
+                    Participant = participant,
+                    BookingOrder = order.TripBookingOrder
+                };
+            })
+            .ToList();
+        foreach (var invitation in invitations)
+            order.TripBookingOrder.Invitations.Add(invitation);
+        return invitations;
+    }
+
+    private static Guid SignInAs(TestFixture fixture, string email)
+    {
+        var userId = Guid.NewGuid();
+        fixture.Repository.Account = new Account { UserId = userId, Email = email, FullName = email, Status = "Active" };
+        fixture.CurrentUser.RequiredUserId = userId;
+        return userId;
+    }
+
     private sealed record TestFixture(
         TripBookingService Service,
         FakeTripBookingRepository Repository,
         FakeUnitOfWork UnitOfWork,
-        FakeCurrentUserService CurrentUser);
+        FakeCurrentUserService CurrentUser,
+        FakeEmailSender EmailSender);
 
     private sealed class FakeCurrentUserService(Guid userId) : ICurrentUserService
     {
@@ -462,8 +566,27 @@ public sealed class TripBookingServiceTests
 
     private sealed class FakeInviteTokenHelper : IInviteTokenHelper
     {
-        public string CreateToken() => "invite-token";
-        public string HashToken(string token) => "opaque-token-hash";
+        public string CreateCode() => "123456";
+        public string HashToken(string token) => $"hash:{token}";
+    }
+
+    private sealed class FakeEmailSender : IEmailSender
+    {
+        public bool Fail { get; set; }
+        public List<(string To, string Body)> Sent { get; } = [];
+
+        public Task SendAsync(
+            string toAddress,
+            string toName,
+            string subject,
+            string htmlBody,
+            CancellationToken cancellationToken = default)
+        {
+            if (Fail)
+                throw new InvalidOperationException("SMTP down");
+            Sent.Add((toAddress, htmlBody));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeUnitOfWork(ITripBookingRepository repository) : IUnitOfWork
@@ -552,7 +675,7 @@ public sealed class TripBookingServiceTests
         public Order? ExistingOrder { get; set; }
         public Order? AccessOrder { get; set; }
         public Order? OwnedOrder { get; set; }
-        public ParticipantInvitation? Invitation { get; set; }
+        public Order? InvitationOrder { get; set; }
         public decimal SucceededPaymentTotal { get; set; }
         public Order? AddedOrder { get; private set; }
         public List<ParticipantInvitation> AddedInvitations { get; } = [];
@@ -594,10 +717,8 @@ public sealed class TripBookingServiceTests
             CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ParticipantInvitation>>([]);
 
-        public Task<Guid?> GetInvitationBookingOrderIdAsync(
-            string tokenHash,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<Guid?>(Invitation?.BookingOrderId);
+        public Task<Order?> GetBookingWithInvitationsAsync(Guid orderId, CancellationToken cancellationToken = default)
+            => Task.FromResult(InvitationOrder);
 
         public Task<Order?> GetByIdempotencyKeyAsync(
             Guid customerUserId,
@@ -610,11 +731,6 @@ public sealed class TripBookingServiceTests
             Guid userId,
             CancellationToken cancellationToken = default)
             => Task.FromResult(AccessOrder);
-
-        public Task<ParticipantInvitation?> GetInvitationByTokenHashAsync(
-            string tokenHash,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(Invitation);
 
         public Task<Order?> GetOwnedBookingAsync(
             Guid orderId,

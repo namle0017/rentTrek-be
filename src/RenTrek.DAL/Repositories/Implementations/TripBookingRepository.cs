@@ -74,25 +74,11 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
             .Where(x => x.BookingOrderId == orderId && x.RedeemedAt == null && x.RevokedAt == null)
             .ToListAsync(cancellationToken);
 
-    public Task<Guid?> GetInvitationBookingOrderIdAsync(
-        string tokenHash,
-        CancellationToken cancellationToken = default)
-        => context.ParticipantInvitations
-            .AsNoTracking()
-            .Where(x => x.TokenHash == tokenHash)
-            .Select(x => (Guid?)x.BookingOrderId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-    public Task<ParticipantInvitation?> GetInvitationByTokenHashAsync(
-        string tokenHash,
-        CancellationToken cancellationToken = default)
-        => context.ParticipantInvitations
-            .FromSqlInterpolated($"SELECT * FROM participant_invitations WHERE token_hash = {tokenHash} FOR UPDATE")
-            .Include(x => x.Participant)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Order)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Trip)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Participants)
-            .SingleOrDefaultAsync(cancellationToken);
+    // Có tracking: dùng cho cả trang link mời và verify/claim (gọi sau advisory lock của booking)
+    public Task<Order?> GetBookingWithInvitationsAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => BookingGraph()
+            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Invitations)
+            .SingleOrDefaultAsync(x => x.OrderId == orderId, cancellationToken);
 
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => context.Orders.AddAsync(order, cancellationToken).AsTask();
@@ -102,7 +88,7 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
 
     private IQueryable<Order> BookingGraph()
         => context.Orders
-            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Trip)
+            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Trip).ThenInclude(x => x.Tour)
             .Include(x => x.TripBookingOrder).ThenInclude(x => x.Participants);
 
     private async Task AcquireTransactionLockAsync(string lockKey, CancellationToken cancellationToken)

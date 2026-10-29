@@ -12,11 +12,21 @@ public interface ITripBookingService
 
     Task<TripBookingResponse> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ParticipantInvitationResponse>> GenerateParticipantInvitationsAsync(
+    Task<GroupInvitationResponse> GenerateParticipantInvitationsAsync(
         Guid orderId,
         CancellationToken cancellationToken = default);
 
+    Task<InvitationPreviewResponse> GetInvitationPreviewAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task VerifyParticipantInvitationCodeAsync(
+        Guid orderId,
+        string code,
+        CancellationToken cancellationToken = default);
+
     Task<TripBookingResponse> ClaimParticipantInvitationAsync(
-        string token,
+        Guid orderId,
+        string code,
         CancellationToken cancellationToken = default);
 }

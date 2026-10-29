@@ -18,6 +18,7 @@ public sealed class ParticipantInvitationConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.BookingOrderId).HasColumnName("booking_order_id");
         builder.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");
         builder.Property(x => x.TokenHash).HasColumnName("token_hash").HasMaxLength(64);
+        builder.Property(x => x.FailedAttempts).HasColumnName("failed_attempts");
         builder.Property(x => x.ExpiresAt).HasColumnName("expires_at");
         builder.Property(x => x.RedeemedAt).HasColumnName("redeemed_at");
         builder.Property(x => x.RedeemedByUserId).HasColumnName("redeemed_by_user_id");

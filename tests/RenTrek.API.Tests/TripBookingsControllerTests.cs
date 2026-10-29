@@ -48,9 +48,9 @@ public sealed class TripBookingsControllerTests
         var action = await controller.GenerateParticipantInvitations(orderId, CancellationToken.None);
 
         var result = Assert.IsType<OkObjectResult>(action);
-        var response = Assert.IsType<ApiResponse<IReadOnlyList<ParticipantInvitationResponse>>>(result.Value);
+        var response = Assert.IsType<ApiResponse<GroupInvitationResponse>>(result.Value);
         Assert.True(response.Success);
-        Assert.Single(response.Data!);
+        Assert.Equal("123456", response.Data!.Code);
         Assert.Equal(orderId, service.ReceivedOrderId);
     }
 
@@ -61,9 +61,21 @@ public sealed class TripBookingsControllerTests
         public Guid ReceivedOrderId { get; private set; }
 
         public Task<TripBookingResponse> ClaimParticipantInvitationAsync(
-            string token,
+            Guid orderId,
+            string code,
             CancellationToken cancellationToken = default)
             => Task.FromResult(CreateResult);
+
+        public Task VerifyParticipantInvitationCodeAsync(
+            Guid orderId,
+            string code,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<InvitationPreviewResponse> GetInvitationPreviewAsync(
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new InvitationPreviewResponse { OrderId = orderId });
 
         public Task<TripBookingResponse> CreateAsync(
             CreateTripBookingRequest request,
@@ -74,13 +86,12 @@ public sealed class TripBookingsControllerTests
             return Task.FromResult(CreateResult);
         }
 
-        public Task<IReadOnlyList<ParticipantInvitationResponse>> GenerateParticipantInvitationsAsync(
+        public Task<GroupInvitationResponse> GenerateParticipantInvitationsAsync(
             Guid orderId,
             CancellationToken cancellationToken = default)
         {
             ReceivedOrderId = orderId;
-            return Task.FromResult<IReadOnlyList<ParticipantInvitationResponse>>(
-                [new ParticipantInvitationResponse { ParticipantId = Guid.NewGuid(), Token = "token" }]);
+            return Task.FromResult(new GroupInvitationResponse { Code = "123456" });
         }
 
         public Task<TripBookingResponse> GetByIdAsync(
