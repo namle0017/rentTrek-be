@@ -1,0 +1,224 @@
+{
+  "scriptCompleted": true,
+  "contentDigest": "e1f1b657af2f1dd97773c4b9c91bb86e9899ed5fed68f3525b73ab5cb43232ac",
+  "files": [
+    {
+      "path": ".ua/config.json",
+      "language": "json",
+      "sizeLines": 1,
+      "fileCategory": "config"
+    },
+    {
+      "path": "RenTrek.sln",
+      "language": "sln",
+      "sizeLines": 69,
+      "fileCategory": "config"
+    },
+    {
+      "path": "docs/01-CONVENTIONS.md",
+      "language": "markdown",
+      "sizeLines": 491,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/02-ARCHITECTURE.md",
+      "language": "markdown",
+      "sizeLines": 556,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/03-API-CONTRACT.md",
+      "language": "markdown",
+      "sizeLines": 374,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/04-FE-TRIP-BOOKING-GUIDE.md",
+      "language": "markdown",
+      "sizeLines": 132,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-26-trip-booking-participant-invites.md",
+      "language": "markdown",
+      "sizeLines": 121,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-26-trip-booking-participant-invites-design.md",
+      "language": "markdown",
+      "sizeLines": 72,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "src/RenTrek.API/Common/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.API/Controllers/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.API/Extensions/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.API/Middlewares/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.API/Program.cs",
+      "language": "csharp",
+      "sizeLines": 25,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.API/Properties/launchSettings.json",
+      "language": "json",
+      "sizeLines": 41,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/RenTrek.API/RenTrek.API.csproj",
+      "language": "csproj",
+      "sizeLines": 23,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/RenTrek.API/appsettings.json",
+      "language": "json",
+      "sizeLines": 9,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/RenTrek.BLL/DTOs/Common/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/Exceptions/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/Helpers/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/Mappings/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/RenTrek.BLL.csproj",
+      "language": "csproj",
+      "sizeLines": 18,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/RenTrek.BLL/Services/Implementations/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/Services/Interfaces/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.BLL/Validators/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/Data/Configurations/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/Data/Migrations/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/Data/Seeds/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/Entities/Enums/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/RenTrek.DAL.csproj",
+      "language": "csproj",
+      "sizeLines": 13,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/RenTrek.DAL/Repositories/Implementations/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/Repositories/Interfaces/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/RenTrek.DAL/UnitOfWork/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/.gitkeep",
+      "language": "unknown",
+      "sizeLines": 0,
+      "fileCategory": "code"
+    }
+  ],
+  "totalFiles": 33,
+  "filteredByIgnore": 28,
+  "estimatedComplexity": "moderate",
+  "failures": [],
+  "stats": {
+    "filesScanned": 33,
+    "byCategory": {
+      "config": 7,
+      "docs": 6,
+      "code": 20
+    },
+    "byLanguage": {
+      "json": 3,
+      "sln": 1,
+      "markdown": 6,
+      "unknown": 19,
+      "csharp": 1,
+      "csproj": 3
+    }
+  }
+}

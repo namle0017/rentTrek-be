@@ -23,12 +23,15 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
+        services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtHelper, JwtHelper>();
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
@@ -41,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IRentalOrderService, RentalOrderService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IPaymentService, PaymentService>();
 
         return services;
     }

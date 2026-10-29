@@ -3,9 +3,15 @@ using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Options;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace RenTrek.BLL.Services.Implementations;
 
@@ -16,8 +22,13 @@ public sealed class TripBookingService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
     TimeProvider timeProvider,
-    IInviteTokenHelper inviteTokenHelper) : ITripBookingService
+    IInviteTokenHelper inviteTokenHelper,
+    IEmailSender emailSender,
+    IOptions<EmailSettings> emailOptions,
+    ILogger<TripBookingService> logger) : ITripBookingService
 {
+    private const int MaxInvitationAttempts = 5;
+
     public async Task<TripBookingResponse> GetByIdAsync(
         Guid orderId,
         CancellationToken cancellationToken = default)
@@ -175,7 +186,7 @@ public sealed class TripBookingService(
         }
     }
 
-    public async Task<IReadOnlyList<ParticipantInvitationResponse>> GenerateParticipantInvitationsAsync(
+    public async Task<GroupInvitationResponse> GenerateParticipantInvitationsAsync(
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
@@ -200,6 +211,10 @@ public sealed class TripBookingService(
                 throw new ConflictException("Chỉ tạo lời mời sau khi thanh toán thành công");
             }
 
+            var pendingParticipants = order.TripBookingOrder.Participants.Where(x => x.LinkedUserId is null).ToList();
+            if (pendingParticipants.Count == 0)
+                throw new ConflictException("Tất cả người tham gia đã vào nhóm");
+
             var activeInvitations = await unitOfWork.TripBookings.GetOutstandingInvitationsAsync(
                 orderId,
                 cancellationToken);
@@ -215,36 +230,89 @@ public sealed class TripBookingService(
             if (expiresAt <= utcNow)
                 throw new ConflictException("Chuyến đi đã bắt đầu hoặc lời mời không còn hiệu lực");
 
-            var responses = new List<ParticipantInvitationResponse>();
-            foreach (var participant in order.TripBookingOrder.Participants.Where(x => x.LinkedUserId is null))
+            // Một mã chung cho cả nhóm; mỗi participant vẫn có dòng lời mời riêng để biết ai đã vào
+            var code = inviteTokenHelper.CreateCode();
+            foreach (var participant in pendingParticipants)
             {
-                var token = inviteTokenHelper.CreateToken();
-                var invitation = new ParticipantInvitation
+                var invitationId = Guid.NewGuid();
+                await unitOfWork.TripBookings.AddInvitationAsync(new ParticipantInvitation
                 {
-                    ParticipantInvitationId = Guid.NewGuid(),
+                    ParticipantInvitationId = invitationId,
                     ParticipantId = participant.ParticipantId,
                     BookingOrderId = orderId,
                     CreatedByUserId = currentUser.RequiredUserId,
-                    TokenHash = inviteTokenHelper.HashToken(token),
+                    TokenHash = HashInvitationCode(invitationId, code),
                     ExpiresAt = expiresAt,
                     CreatedAt = utcNow,
                     Participant = participant,
                     BookingOrder = order.TripBookingOrder
-                };
-                await unitOfWork.TripBookings.AddInvitationAsync(invitation, cancellationToken);
-                responses.Add(new ParticipantInvitationResponse
-                {
-                    ParticipantId = participant.ParticipantId,
-                    FullName = participant.FullName,
-                    Email = participant.Email,
-                    Token = token,
-                    ExpiresAt = expiresAt
-                });
+                }, cancellationToken);
             }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
-            return responses;
+
+            // Gửi email sau khi commit: lỗi gửi mail không làm mất lời mời, người đặt vẫn có mã để tự chia sẻ
+            var buyerName = order.TripBookingOrder.Participants
+                .FirstOrDefault(x => x.LinkedUserId == order.CustomerUserId)?.FullName ?? "Trưởng nhóm";
+            var participants = new List<GroupInvitationParticipantResponse>();
+            foreach (var participant in pendingParticipants)
+            {
+                participants.Add(new GroupInvitationParticipantResponse
+                {
+                    ParticipantId = participant.ParticipantId,
+                    FullName = participant.FullName,
+                    Email = participant.Email,
+                    EmailSent = await TrySendInvitationEmailAsync(order, participant, code, buyerName, expiresAt, cancellationToken)
+                });
+            }
+
+            return new GroupInvitationResponse { Code = code, ExpiresAt = expiresAt, Participants = participants };
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<InvitationPreviewResponse> GetInvitationPreviewAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await unitOfWork.TripBookings.GetBookingWithInvitationsAsync(orderId, cancellationToken)
+            ?? throw new NotFoundException("Lời mời không tồn tại hoặc đã hết hiệu lực");
+        var outstanding = UsableInvitations(order);
+        if (outstanding.Count == 0)
+            throw new NotFoundException("Lời mời không tồn tại hoặc đã hết hiệu lực");
+
+        var booking = order.TripBookingOrder;
+        return new InvitationPreviewResponse
+        {
+            OrderId = order.OrderId,
+            TourName = booking.Trip.Tour?.Name ?? string.Empty,
+            TripStartAt = booking.Trip.StartAt,
+            TripEndAt = booking.Trip.EndAt,
+            BuyerName = booking.Participants.FirstOrDefault(x => x.LinkedUserId == order.CustomerUserId)?.FullName ?? string.Empty,
+            PendingCount = outstanding.Count,
+            ExpiresAt = outstanding.Min(x => x.ExpiresAt),
+            IsLocked = outstanding.Any(x => x.FailedAttempts >= MaxInvitationAttempts)
+        };
+    }
+
+    /// <summary>Nhập mã nhóm trước khi đăng nhập: chỉ kiểm tra mã (sai vẫn bị tính lượt), không liên kết tài khoản.</summary>
+    public async Task VerifyParticipantInvitationCodeAsync(
+        Guid orderId,
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        code = NormalizeInvitationCode(orderId, code);
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var (_, outstanding) = await LockUsableInvitationsAsync(orderId, cancellationToken);
+            await EnsureGroupCodeMatchesAsync(outstanding, code, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
         }
         catch
         {
@@ -254,49 +322,38 @@ public sealed class TripBookingService(
     }
 
     public async Task<TripBookingResponse> ClaimParticipantInvitationAsync(
-        string token,
+        Guid orderId,
+        string code,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(token))
-            throw new BadRequestException("Token lời mời là bắt buộc");
-
+        code = NormalizeInvitationCode(orderId, code);
         var utcNow = timeProvider.GetUtcNow();
-        var tokenHash = inviteTokenHelper.HashToken(token.Trim());
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            var bookingOrderId = await unitOfWork.TripBookings.GetInvitationBookingOrderIdAsync(
-                tokenHash,
-                cancellationToken)
-                ?? throw new NotFoundException("Lời mời không tồn tại");
-            await unitOfWork.TripBookings.AcquireBookingLockAsync(bookingOrderId, cancellationToken);
-
-            var invitation = await unitOfWork.TripBookings.GetInvitationByTokenHashAsync(
-                tokenHash,
-                cancellationToken)
-                ?? throw new NotFoundException("Lời mời không tồn tại");
-
-            if (invitation.RevokedAt is not null || invitation.RedeemedAt is not null || invitation.ExpiresAt <= utcNow)
-                throw new ConflictException("Lời mời đã hết hiệu lực hoặc đã được sử dụng");
-
-            var order = invitation.BookingOrder.Order;
-            if (!string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ConflictException("Booking chưa đủ điều kiện để nhận lời mời");
-            }
-
-            var participant = invitation.Participant;
-            if (participant.LinkedUserId is not null)
-                throw new ConflictException("Participant đã được liên kết tài khoản");
+            var (order, outstanding) = await LockUsableInvitationsAsync(orderId, cancellationToken);
 
             var account = await unitOfWork.TripBookings.GetAccountAsync(currentUser.RequiredUserId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy tài khoản");
             if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
                 throw new ForbiddenException("Tài khoản không ở trạng thái hoạt động");
-            if (!string.Equals(NormalizeEmail(account.Email), NormalizeEmail(participant.Email), StringComparison.Ordinal))
-                throw new ForbiddenException("Email tài khoản không khớp participant được mời");
+            if (order.CustomerUserId == account.UserId ||
+                order.TripBookingOrder.Participants.Any(x => x.LinkedUserId == account.UserId))
+            {
+                throw new ConflictException("Tài khoản này đã ở trong nhóm");
+            }
 
+            // Kiểm tra lại mã khi liên kết: bước verify trước đăng nhập chỉ để trải nghiệm
+            await EnsureGroupCodeMatchesAsync(outstanding, code, cancellationToken);
+
+            // Tài khoản được ghép với participant có cùng email trong danh sách người đặt đã khai báo
+            var accountEmail = NormalizeEmail(account.Email);
+            var invitation = outstanding.FirstOrDefault(x =>
+                string.Equals(NormalizeEmail(x.Participant.Email), accountEmail, StringComparison.Ordinal))
+                ?? throw new ForbiddenException(
+                    "Email tài khoản không có trong danh sách người tham gia. Hãy đăng nhập bằng email trưởng nhóm đã khai báo");
+
+            var participant = invitation.Participant;
             participant.LinkedUserId = account.UserId;
             participant.UpdatedAt = utcNow;
             invitation.RedeemedAt = utcNow;
@@ -312,6 +369,125 @@ public sealed class TripBookingService(
             throw;
         }
     }
+
+    private async Task<bool> TrySendInvitationEmailAsync(
+        Order order,
+        BookingParticipant participant,
+        string code,
+        string buyerName,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        var settings = emailOptions.Value;
+        if (!settings.IsConfigured)
+        {
+            logger.LogWarning("Chưa cấu hình Email SMTP, không gửi được lời mời cho participant {ParticipantId}", participant.ParticipantId);
+            return false;
+        }
+
+        var trip = order.TripBookingOrder.Trip;
+        var link = $"{settings.FrontendBaseUrl.TrimEnd('/')}/trip-bookings/{order.OrderId}/join";
+        var vn = TimeSpan.FromHours(7);
+        var body = $"""
+            <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2937">
+              <h2 style="color:#1f4d3a">Bạn được mời tham gia chuyến đi</h2>
+              <p>Xin chào <b>{WebUtility.HtmlEncode(participant.FullName)}</b>,</p>
+              <p><b>{WebUtility.HtmlEncode(buyerName)}</b> đã thêm bạn vào nhóm chuyến đi
+                 <b>{WebUtility.HtmlEncode(trip.Tour?.Name ?? order.OrderCode)}</b>
+                 ({trip.StartAt.ToOffset(vn):dd/MM/yyyy HH:mm} – {trip.EndAt.ToOffset(vn):dd/MM/yyyy HH:mm}).</p>
+              <p>Mã tham gia nhóm:</p>
+              <p style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#1f4d3a">{code}</p>
+              <p><a href="{WebUtility.HtmlEncode(link)}" style="display:inline-block;background:#1f4d3a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Tham gia nhóm</a></p>
+              <p style="font-size:13px;color:#6b7280">Nhập mã, sau đó đăng nhập hoặc tạo tài khoản bằng đúng email {WebUtility.HtmlEncode(participant.Email)}.
+                 Mã hết hạn lúc {expiresAt.ToOffset(vn):dd/MM/yyyy HH:mm}.</p>
+            </div>
+            """;
+
+        try
+        {
+            await emailSender.SendAsync(
+                participant.Email,
+                participant.FullName,
+                "Lời mời tham gia chuyến đi trên RenTrek",
+                body,
+                cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Gửi email lời mời thất bại cho participant {ParticipantId}", participant.ParticipantId);
+            return false;
+        }
+    }
+
+    private static string NormalizeInvitationCode(Guid orderId, string? code)
+    {
+        code = code?.Trim() ?? string.Empty;
+        if (orderId == Guid.Empty || code.Length != 6 || !code.All(char.IsAsciiDigit))
+            throw new BadRequestException("Mã xác nhận gồm đúng 6 chữ số");
+        return code;
+    }
+
+    // Lời mời còn dùng được của nhóm: chưa dùng, chưa thu hồi, chưa hết hạn, participant chưa liên kết
+    private List<ParticipantInvitation> UsableInvitations(Order order)
+    {
+        var utcNow = timeProvider.GetUtcNow();
+        return order.TripBookingOrder.Invitations
+            .Where(x => x.RedeemedAt is null && x.RevokedAt is null && x.ExpiresAt > utcNow &&
+                        x.Participant?.LinkedUserId is null)
+            .ToList();
+    }
+
+    // Khóa booking (advisory lock) rồi tải lời mời của nhóm; gọi trong transaction
+    private async Task<(Order Order, List<ParticipantInvitation> Outstanding)> LockUsableInvitationsAsync(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        await unitOfWork.TripBookings.AcquireBookingLockAsync(orderId, cancellationToken);
+        var order = await unitOfWork.TripBookings.GetBookingWithInvitationsAsync(orderId, cancellationToken)
+            ?? throw new NotFoundException("Lời mời không tồn tại hoặc đã hết hiệu lực");
+
+        if (!string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException("Booking chưa đủ điều kiện để nhận lời mời");
+        }
+
+        var outstanding = UsableInvitations(order);
+        if (outstanding.Count == 0)
+            throw new NotFoundException("Lời mời không tồn tại hoặc đã hết hiệu lực");
+        if (outstanding.Any(x => x.FailedAttempts >= MaxInvitationAttempts))
+            throw new ConflictException("Mã đã bị khóa do nhập sai quá nhiều lần. Hãy nhờ trưởng nhóm gửi lại lời mời");
+
+        return (order, outstanding);
+    }
+
+    // Mọi lời mời đang chờ của nhóm dùng chung mã; sai mã thì tăng lượt sai cho cả nhóm và commit trước khi báo lỗi
+    private async Task EnsureGroupCodeMatchesAsync(
+        IReadOnlyList<ParticipantInvitation> outstanding,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        var sample = outstanding[0];
+        var expectedHash = Encoding.ASCII.GetBytes(sample.TokenHash);
+        var actualHash = Encoding.ASCII.GetBytes(HashInvitationCode(sample.ParticipantInvitationId, code));
+        if (CryptographicOperations.FixedTimeEquals(expectedHash, actualHash))
+            return;
+
+        foreach (var invitation in outstanding)
+            invitation.FailedAttempts++;
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
+
+        var remaining = MaxInvitationAttempts - outstanding.Max(x => x.FailedAttempts);
+        throw remaining > 0
+            ? new BadRequestException($"Mã xác nhận không đúng. Còn {remaining} lần thử")
+            : new ConflictException("Mã đã bị khóa do nhập sai quá nhiều lần. Hãy nhờ trưởng nhóm gửi lại lời mời");
+    }
+
+    // Băm kèm id lời mời: cùng một mã nhóm vẫn cho hash khác nhau ở từng dòng
+    private string HashInvitationCode(Guid invitationId, string code)
+        => inviteTokenHelper.HashToken($"{invitationId:N}:{code}");
 
     private static string NormalizeEmail(string email)
     {

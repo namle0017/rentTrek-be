@@ -5,17 +5,14 @@ namespace RenTrek.BLL.Tests;
 public sealed class InviteTokenHelperTests
 {
     [Fact]
-    public void CreateToken_ReturnsDifferentUrlSafeTokens()
+    public void CreateCode_ReturnsSixDigits()
     {
         var helper = new InviteTokenHelper();
 
-        var first = helper.CreateToken();
-        var second = helper.CreateToken();
+        var codes = Enumerable.Range(0, 50).Select(_ => helper.CreateCode()).ToList();
 
-        Assert.NotEqual(first, second);
-        Assert.DoesNotContain('+', first);
-        Assert.DoesNotContain('/', first);
-        Assert.DoesNotContain('=', first);
+        Assert.All(codes, code => Assert.Matches(@"^\d{6}$", code));
+        Assert.True(codes.Distinct().Count() > 1);
     }
 
     [Fact]

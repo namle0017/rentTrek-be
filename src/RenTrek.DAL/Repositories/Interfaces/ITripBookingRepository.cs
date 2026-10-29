@@ -14,8 +14,7 @@ public interface ITripBookingRepository
     Task<Order?> GetOwnedBookingAsync(Guid orderId, Guid ownerUserId, CancellationToken cancellationToken = default);
     Task<decimal> GetSucceededPaymentTotalAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ParticipantInvitation>> GetOutstandingInvitationsAsync(Guid orderId, CancellationToken cancellationToken = default);
-    Task<Guid?> GetInvitationBookingOrderIdAsync(string tokenHash, CancellationToken cancellationToken = default);
-    Task<ParticipantInvitation?> GetInvitationByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
+    Task<Order?> GetBookingWithInvitationsAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task AddOrderAsync(Order order, CancellationToken cancellationToken = default);
     Task AddInvitationAsync(ParticipantInvitation invitation, CancellationToken cancellationToken = default);
 }
