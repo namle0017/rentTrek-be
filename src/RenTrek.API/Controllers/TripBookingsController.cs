@@ -40,9 +40,29 @@ public sealed class TripBookingsController(ITripBookingService tripBookingServic
         CancellationToken cancellationToken)
     {
         var result = await tripBookingService.GenerateParticipantInvitationsAsync(orderId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<ParticipantInvitationResponse>>.Ok(
+        return Ok(ApiResponse<GroupInvitationResponse>.Ok(
             result,
-            "Tạo lời mời participant thành công"));
+            "Đã tạo và gửi lời mời participant"));
+    }
+
+    /// <summary>Trang link mời: công khai, chỉ trả thông tin chuyến đi và số người còn chờ.</summary>
+    [HttpGet("{orderId:guid}/participant-invitations")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetInvitationPreview(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.GetInvitationPreviewAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<InvitationPreviewResponse>.Ok(result, "Lấy lời mời thành công"));
+    }
+
+    /// <summary>Nhập mã nhóm trước khi đăng nhập: chỉ kiểm tra mã, sai vẫn bị tính lượt. Liên kết thật ở claim.</summary>
+    [HttpPost("participant-invitations/verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyParticipantInvitationCode(
+        [FromBody] ClaimParticipantInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        await tripBookingService.VerifyParticipantInvitationCodeAsync(request.OrderId, request.Code, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Mã xác nhận hợp lệ"));
     }
 
     [HttpPost("participant-invitations/claim")]
@@ -50,7 +70,7 @@ public sealed class TripBookingsController(ITripBookingService tripBookingServic
         [FromBody] ClaimParticipantInvitationRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await tripBookingService.ClaimParticipantInvitationAsync(request.Token, cancellationToken);
+        var result = await tripBookingService.ClaimParticipantInvitationAsync(request.OrderId, request.Code, cancellationToken);
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Liên kết participant thành công"));
     }
 }
