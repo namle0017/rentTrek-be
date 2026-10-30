@@ -52,4 +52,20 @@ public class AuthController : ControllerBase
         await _authService.LogoutAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đăng xuất thành công"));
     }
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ForgotPasswordAsync(request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Nếu email tồn tại trong hệ thống, mã xác thực OTP đã được gửi thành công"));
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ResetPasswordAsync(request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới"));
+    }
 }

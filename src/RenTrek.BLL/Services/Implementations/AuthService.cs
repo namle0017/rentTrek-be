@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth;
 using RenTrek.BLL.Exceptions;
@@ -17,17 +18,20 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtHelper _jwtHelper;
+    private readonly IEmailService _emailService;
     private readonly JwtSettings _jwt;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         IJwtHelper jwtHelper,
+        IEmailService emailService,
         IOptions<JwtSettings> jwtOptions)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtHelper = jwtHelper;
+        _emailService = emailService;
         _jwt = jwtOptions.Value;
     }
 
@@ -137,6 +141,83 @@ public class AuthService : IAuthService
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
+
+        // Chống Email Enumeration: Luôn trả về thành công giả lập ngay cả khi email không tồn tại trong hệ thống
+        if (account is null)
+        {
+            return;
+        }
+
+        // Vô hiệu hóa các mã OTP cũ còn hiệu lực của user này
+        await _unitOfWork.PasswordResetTokens.InvalidateTokensByUserIdAsync(account.UserId, cancellationToken);
+
+        // Sinh mã OTP 6 chữ số ngẫu nhiên cryptographically secure
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        var otpHash = _jwtHelper.HashToken(otp);
+
+        var resetToken = new PasswordResetToken
+        {
+            PasswordResetTokenId = Guid.NewGuid(),
+            UserId = account.UserId,
+            TokenHash = otpHash,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _unitOfWork.PasswordResetTokens.AddAsync(resetToken, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _emailService.SendPasswordResetOtpAsync(account.Email, account.FullName, otp, cancellationToken);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
+
+        if (account is null)
+        {
+            throw new ValidationException("Email hoặc mã xác thực OTP không chính xác");
+        }
+
+        var otpHash = _jwtHelper.HashToken(request.Otp.Trim());
+        var validToken = await _unitOfWork.PasswordResetTokens.GetValidTokenAsync(account.UserId, otpHash, cancellationToken);
+
+        if (validToken is null)
+        {
+            throw new ValidationException("Mã xác thực OTP không chính xác hoặc đã hết hạn (15 phút)");
+        }
+
+        // Cập nhật mật khẩu mới
+        account.PasswordHash = _passwordHasher.Hash(request.NewPassword);
+        account.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Accounts.Update(account);
+
+        // Đánh dấu OTP đã sử dụng
+        validToken.UsedAt = DateTime.UtcNow;
+        _unitOfWork.PasswordResetTokens.Update(validToken);
+
+        // Thu hồi toàn bộ Refresh Tokens và Access Tokens đang hoạt động của tài khoản này
+        var otherRefreshTokens = await _unitOfWork.RefreshTokens.GetOtherActiveTokensAsync(account.UserId, null, tracking: true, cancellationToken);
+        var now = DateTime.UtcNow;
+        foreach (var rt in otherRefreshTokens)
+        {
+            rt.RevokedAt = now;
+            rt.RevokedReason = "Khôi phục mật khẩu qua Email OTP";
+            foreach (var at in rt.AccessTokens.Where(a => a.RevokedAt == null))
+            {
+                at.RevokedAt = now;
+                at.RevokedReason = "Khôi phục mật khẩu qua Email OTP";
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     // Tạo cặp refresh/access token mới; lưu cùng các thay đổi đang chờ trong một lần SaveChanges
