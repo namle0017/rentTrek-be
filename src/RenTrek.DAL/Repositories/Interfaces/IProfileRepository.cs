@@ -4,5 +4,5 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IProfileRepository : IGenericRepository<Profile>
 {
-    // Query đặc thù của Profile khai báo tại đây
+    Task<Profile?> GetByUserIdAsync(Guid userId, bool tracking = false, CancellationToken cancellationToken = default);
 }
