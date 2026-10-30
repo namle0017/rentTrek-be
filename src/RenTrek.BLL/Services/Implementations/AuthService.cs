@@ -220,6 +220,122 @@ public class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request, CancellationToken cancellationToken = default)
+    {
+        string subject;
+        string email;
+        string fullName;
+        string? avatarUrl;
+
+        using (var httpClient = new HttpClient())
+        {
+            try
+            {
+                var response = await httpClient.GetAsync($"https://oauth2.googleapis.com/tokeninfo?id_token={request.IdToken}", cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new UnauthorizedException("Google ID Token không hợp lệ hoặc đã hết hạn");
+                }
+
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var jsonDoc = System.Text.Json.JsonDocument.Parse(content);
+                var root = jsonDoc.RootElement;
+
+                subject = root.GetProperty("sub").GetString()
+                    ?? throw new UnauthorizedException("Thiếu Google Subject ID");
+                email = (root.GetProperty("email").GetString() ?? string.Empty).Trim().ToLowerInvariant();
+                fullName = root.TryGetProperty("name", out var nameEl) ? (nameEl.GetString() ?? "Google User") : "Google User";
+                avatarUrl = root.TryGetProperty("picture", out var picEl) ? picEl.GetString() : null;
+            }
+            catch (Exception ex) when (ex is not AppException)
+            {
+                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                if (handler.CanReadToken(request.IdToken))
+                {
+                    var jwt = handler.ReadJwtToken(request.IdToken);
+                    subject = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? Guid.NewGuid().ToString();
+                    email = (jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty).Trim().ToLowerInvariant();
+                    fullName = jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value ?? "Google User";
+                    avatarUrl = jwt.Claims.FirstOrDefault(c => c.Type == "picture")?.Value;
+                }
+                else
+                {
+                    throw new UnauthorizedException("Không thể xác thực danh tính Google: " + ex.Message);
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new UnauthorizedException("Tài khoản Google không cung cấp email");
+        }
+
+        var externalLogin = await _unitOfWork.UserExternalLogins.GetByProviderAndSubjectAsync("Google", subject, tracking: true, cancellationToken);
+        Account? account;
+
+        if (externalLogin != null)
+        {
+            account = externalLogin.User;
+        }
+        else
+        {
+            account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(email, tracking: true, cancellationToken);
+
+            if (account == null)
+            {
+                var customerRole = await _unitOfWork.Roles.GetByNameAsync("Customer", tracking: true, cancellationToken)
+                    ?? throw new InvalidOperationException("Chưa có role Customer trong bảng roles");
+
+                account = new Account
+                {
+                    UserId = Guid.NewGuid(),
+                    Email = email,
+                    FullName = fullName,
+                    PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N")),
+                    RoleId = customerRole.RoleId,
+                    Role = customerRole,
+                    Status = "Active",
+                    EmailConfirmedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _unitOfWork.Accounts.AddAsync(account, cancellationToken);
+
+                var profile = new Profile
+                {
+                    ProfileId = Guid.NewGuid(),
+                    UserId = account.UserId,
+                    UserCode = $"RT-{account.UserId:N}"[..10].ToUpperInvariant(),
+                    AvatarUrl = avatarUrl,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.Profiles.AddAsync(profile, cancellationToken);
+                account.Profile = profile;
+            }
+
+            var newExtLogin = new UserExternalLogin
+            {
+                UserExternalLoginId = Guid.NewGuid(),
+                UserId = account.UserId,
+                Provider = "Google",
+                ProviderSubject = subject,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.UserExternalLogins.AddAsync(newExtLogin, cancellationToken);
+        }
+
+        if (account.Status != "Active")
+        {
+            throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa");
+        }
+
+        account.LastLoginAt = DateTime.UtcNow;
+        _unitOfWork.Accounts.Update(account);
+
+        return await IssueTokensAsync(account, Guid.NewGuid(), replaces: null, cancellationToken);
+    }
+
     // Tạo cặp refresh/access token mới; lưu cùng các thay đổi đang chờ trong một lần SaveChanges
     private async Task<AuthResponse> IssueTokensAsync(
         Account account,
