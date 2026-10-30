@@ -68,4 +68,12 @@ public class AuthController : ControllerBase
         await _authService.ResetPasswordAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới"));
     }
+
+    [HttpPost("google")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.GoogleLoginAsync(request, cancellationToken);
+        return Ok(ApiResponse<AuthResponse>.Ok(result, "Đăng nhập Google thành công"));
+    }
 }

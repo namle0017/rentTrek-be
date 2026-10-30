@@ -4,5 +4,5 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IUserExternalLoginRepository : IGenericRepository<UserExternalLogin>
 {
-    // Query đặc thù của UserExternalLogin khai báo tại đây
+    Task<UserExternalLogin?> GetByProviderAndSubjectAsync(string provider, string providerSubject, bool tracking = false, CancellationToken cancellationToken = default);
 }
