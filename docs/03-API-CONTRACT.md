@@ -68,13 +68,21 @@
 
 | # | Module | Method | Endpoint | Auth | Mô tả | Trạng thái |
 |---|---|---|---|---|---|---|
-| 1.1 | Auth | `POST` | `/auth/register` | Public | Đăng ký | ⬜ TODO |
-| 1.2 | Auth | `POST` | `/auth/login` | Public | Đăng nhập | ⬜ TODO |
-| 1.3 | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | ⬜ TODO |
-| 1.4 | Auth | `POST` | `/auth/logout` | User | Đăng xuất | ⬜ TODO |
-| 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ⬜ TODO |
-| 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ⬜ TODO |
-| 2.3 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
+| 1.1 | Auth | `POST` | `/auth/register` | Public | Đăng ký tài khoản Customer mới | ✅ Done |
+| 1.2 | Auth | `POST` | `/auth/login` | Public | Đăng nhập hệ thống (cấp Access + Refresh Token) | ✅ Done |
+| 1.3 | Auth | `POST` | `/auth/refresh-token` | Public | Xoay vòng Refresh Token (Token Rotation) | ✅ Done |
+| 1.4 | Auth | `POST` | `/auth/logout` | User | Đăng xuất và thu hồi token tức thì | ✅ Done |
+| 1.5 | Auth | `POST` | `/auth/forgot-password` | Public | Yêu cầu mã OTP khôi phục mật khẩu qua email | ✅ Done |
+| 1.6 | Auth | `POST` | `/auth/reset-password` | Public | Đặt lại mật khẩu bằng mã OTP 6 số | ✅ Done |
+| 1.7 | Auth | `POST` | `/auth/google` | Public | Đăng nhập / Đăng ký nhanh bằng Google OAuth 2.0 | ✅ Done |
+| 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân và hồ sơ chi tiết | ✅ Done |
+| 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật hồ sơ cá nhân (Họ tên, SĐT, Địa chỉ, Bio) | ✅ Done |
+| 2.3 | Users | `POST` | `/users/me/avatar` | User | Tải lên ảnh đại diện cá nhân (Multipart Form) | ✅ Done |
+| 2.4 | Users | `PUT` | `/users/me/password` | User | Đổi mật khẩu (Thu hồi phiên thiết bị khác - Phương án A) | ✅ Done |
+| 2.5 | Users | `GET` | `/users/me/sessions` | User | Danh sách phiên thiết bị đang hoạt động | ✅ Done |
+| 2.6 | Users | `DELETE` | `/users/me/sessions/{familyId}` | User | Thu hồi một phiên thiết bị chỉ định | ✅ Done |
+| 2.7 | Users | `POST` | `/users/me/sessions/revoke-others` | User | Đăng xuất khỏi tất cả các thiết bị khác | ✅ Done |
+| 2.8 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
 | 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking và giữ chỗ | ✅ Done |
 | 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | ✅ Done |
 | 3.3 | Trip Bookings | `POST` | `/trip-bookings/{orderId}/participant-invitations` | User | Tạo lại lời mời sau thanh toán | ✅ Done |
@@ -99,11 +107,19 @@
 
 | Field | Type | Required | Validation | Mô tả |
 |---|---|---|---|---|
-| `TODO` | `string` | ✔ | TODO | TODO |
+| `email` | `string` | ✔ | Email hợp lệ, max 255 | Email đăng nhập |
+| `password` | `string` | ✔ | Min 8 ký tự, 1 hoa, 1 thường, 1 số, 1 ký tự đặc biệt | Mật khẩu |
+| `confirmPassword` | `string` | ✔ | Trùng khớp với `password` | Xác nhận mật khẩu |
+| `fullName` | `string` | ✔ | 2-100 ký tự | Họ và tên |
+| `phone` | `string` | ✘ | 10 số đầu số VN hợp lệ | Số điện thoại |
 
 ```json
 {
-  "TODO": "TODO"
+  "email": "trekker@rentrek.com",
+  "password": "Trekker@2026",
+  "confirmPassword": "Trekker@2026",
+  "fullName": "Nguyễn Văn Trek",
+  "phone": "0987654321"
 }
 ```
 
@@ -113,12 +129,21 @@
 {
   "success": true,
   "statusCode": 201,
-  "message": "TODO",
+  "message": "Đăng ký tài khoản thành công",
   "data": {
-    "TODO": "TODO"
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "accessTokenExpiresAt": "2026-10-30T22:30:00Z",
+    "user": {
+      "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "email": "trekker@rentrek.com",
+      "fullName": "Nguyễn Văn Trek",
+      "role": "Customer",
+      "avatarUrl": null
+    }
   },
   "errors": null,
-  "timestamp": "..."
+  "timestamp": "2026-10-30T22:00:00Z"
 }
 ```
 
@@ -126,8 +151,8 @@
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 400 | TODO | TODO |
-| 409 | TODO | TODO |
+| 400 | Dữ liệu không hợp lệ (sai định dạng, mật khẩu yếu, confirm không khớp) | Dữ liệu không hợp lệ |
+| 409 | Email đã được sử dụng | Email đã tồn tại trong hệ thống |
 
 ---
 
@@ -139,11 +164,13 @@
 
 | Field | Type | Required | Validation | Mô tả |
 |---|---|---|---|---|
-| `TODO` | `string` | ✔ | TODO | TODO |
+| `email` | `string` | ✔ | Email hợp lệ | Email đăng nhập |
+| `password` | `string` | ✔ | Không để trống | Mật khẩu |
 
 ```json
 {
-  "TODO": "TODO"
+  "email": "trekker@rentrek.com",
+  "password": "Trekker@2026"
 }
 ```
 
@@ -153,12 +180,21 @@
 {
   "success": true,
   "statusCode": 200,
-  "message": "TODO",
+  "message": "Đăng nhập thành công",
   "data": {
-    "TODO": "TODO"
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "accessTokenExpiresAt": "2026-10-30T22:30:00Z",
+    "user": {
+      "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "email": "trekker@rentrek.com",
+      "fullName": "Nguyễn Văn Trek",
+      "role": "Customer",
+      "avatarUrl": null
+    }
   },
   "errors": null,
-  "timestamp": "..."
+  "timestamp": "2026-10-30T22:00:00Z"
 }
 ```
 
@@ -166,12 +202,13 @@
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 400 | TODO | TODO |
-| 401 | TODO | TODO |
+| 400 | Thiếu thông tin đăng nhập | Dữ liệu không hợp lệ |
+| 401 | Sai email hoặc mật khẩu | Email hoặc mật khẩu không chính xác |
+| 403 | Tài khoản bị vô hiệu hóa | Tài khoản đã bị khóa |
 
 ---
 
-### 1.3. Làm mới token
+### 1.3. Làm mới token (Token Rotation)
 
 `POST /auth/refresh-token` · **Auth:** Public
 
@@ -179,15 +216,43 @@
 
 | Field | Type | Required | Validation | Mô tả |
 |---|---|---|---|---|
-| `TODO` | `string` | ✔ | TODO | TODO |
+| `refreshToken` | `string` | ✔ | Không để trống | Refresh Token hiện tại |
 
-**Response `200 OK`** — TODO
+```json
+{
+  "refreshToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+```
+
+**Response `200 OK`** — Trả về cặp Token mới (Access Token + Refresh Token mới nối tiếp Family).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Làm mới phiên đăng nhập thành công",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "4ab96g75-6828-5673-c4gd-3d074g77bgb7",
+    "accessTokenExpiresAt": "2026-10-30T23:00:00Z",
+    "user": {
+      "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "email": "trekker@rentrek.com",
+      "fullName": "Nguyễn Văn Trek",
+      "role": "Customer",
+      "avatarUrl": null
+    }
+  },
+  "errors": null,
+  "timestamp": "2026-10-30T22:30:00Z"
+}
+```
 
 **Lỗi**
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 401 | TODO | TODO |
+| 401 | Token không tồn tại, hết hạn hoặc bị thu hồi (Token Reuse Detection thu hồi toàn bộ Family) | Phiên đăng nhập không hợp lệ hoặc đã hết hạn |
 
 ---
 
@@ -195,15 +260,152 @@
 
 `POST /auth/logout` · **Auth:** User
 
-**Request body** — TODO
+**Request body**
 
-**Response `200 OK`** — TODO
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `refreshToken` | `string` | ✔ | Không để trống | Refresh Token cần thu hồi |
+
+```json
+{
+  "refreshToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đăng xuất thành công",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:30:00Z"
+}
+```
 
 **Lỗi**
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 401 | TODO | TODO |
+| 401 | Chưa đăng nhập hoặc Access Token không hợp lệ | Bạn chưa đăng nhập |
+
+---
+
+### 1.5. Yêu cầu OTP quên mật khẩu
+
+`POST /auth/forgot-password` · **Auth:** Public
+
+**Request body**
+
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `email` | `string` | ✔ | Email hợp lệ | Email tài khoản cần đặt lại mật khẩu |
+
+```json
+{
+  "email": "trekker@rentrek.com"
+}
+```
+
+**Response `200 OK`** (Áp dụng Email Enumeration Prevention — luôn trả 200 OK).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Nếu email tồn tại trong hệ thống, mã xác thực OTP đã được gửi thành công",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:35:00Z"
+}
+```
+
+---
+
+### 1.6. Đặt lại mật khẩu bằng OTP
+
+`POST /auth/reset-password` · **Auth:** Public
+
+**Request body**
+
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `email` | `string` | ✔ | Email hợp lệ | Email tài khoản |
+| `otp` | `string` | ✔ | 6 chữ số | Mã OTP nhận qua email (hạn 15 phút) |
+| `newPassword` | `string` | ✔ | Min 8 ký tự, hoa, thường, số, ký tự đặc biệt | Mật khẩu mới |
+| `confirmPassword` | `string` | ✔ | Khớp `newPassword` | Xác nhận mật khẩu mới |
+
+```json
+{
+  "email": "trekker@rentrek.com",
+  "otp": "123456",
+  "newPassword": "NewTrekker@2026",
+  "confirmPassword": "NewTrekker@2026"
+}
+```
+
+**Response `200 OK`** (Sau khi thành công, toàn bộ phiên đăng nhập trên mọi thiết bị sẽ bị thu hồi).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:40:00Z"
+}
+```
+
+**Lỗi**
+
+| Status | Khi nào | Message |
+|---|---|---|
+| 400 | Sai mã OTP hoặc mã đã hết hạn (> 15 phút) / đã sử dụng | Mã xác thực OTP không chính xác hoặc đã hết hạn |
+
+---
+
+### 1.7. Đăng nhập bằng Google OAuth 2.0
+
+`POST /auth/google` · **Auth:** Public
+
+**Request body**
+
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `idToken` | `string` | ✔ | Không để trống | Google ID Token (hỗ trợ Dev Mock Token) |
+
+```json
+{
+  "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1NiJ9..."
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đăng nhập Google thành công",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "accessTokenExpiresAt": "2026-10-30T23:30:00Z",
+    "user": {
+      "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "email": "google.trekker@rentrek.com",
+      "fullName": "Google Trekker",
+      "role": "Customer",
+      "avatarUrl": "https://lh3.googleusercontent.com/a/default-user"
+    }
+  },
+  "errors": null,
+  "timestamp": "2026-10-30T22:45:00Z"
+}
+```
 
 ---
 
@@ -219,12 +421,24 @@
 {
   "success": true,
   "statusCode": 200,
-  "message": "TODO",
+  "message": "Lấy thông tin tài khoản thành công",
   "data": {
-    "TODO": "TODO"
+    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "trekker@rentrek.com",
+    "fullName": "Nguyễn Văn Trek",
+    "phone": "0987654321",
+    "role": "Customer",
+    "status": "Active",
+    "avatarUrl": "/uploads/avatars/avatar-3fa85f64.webp",
+    "address": "123 Đường Leo Núi, Phường Bến Nghé, Quận 1, TP.HCM",
+    "bio": "Đam mê cắm trại cuối tuần và trekking khám phá",
+    "dateOfBirth": "2000-01-15",
+    "userCode": "KH-00101",
+    "createdAt": "2026-10-23T19:00:00Z",
+    "updatedAt": "2026-10-30T21:00:00Z"
   },
   "errors": null,
-  "timestamp": "..."
+  "timestamp": "2026-10-30T22:00:00Z"
 }
 ```
 
@@ -232,7 +446,8 @@
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 401 | TODO | TODO |
+| 401 | Chưa đăng nhập hoặc token hết hạn | Phiên đăng nhập không hợp lệ hoặc đã hết hạn |
+| 404 | User không còn tồn tại | Không tìm thấy thông tin tài khoản người dùng |
 
 ---
 
@@ -244,37 +459,73 @@
 
 | Field | Type | Required | Validation | Mô tả |
 |---|---|---|---|---|
-| `TODO` | `string` | ✔ | TODO | TODO |
-
-**Response `200 OK`** — TODO
-
-**Lỗi**
-
-| Status | Khi nào | Message |
-|---|---|---|
-| 400 | TODO | TODO |
-| 401 | TODO | TODO |
-
----
-
-### 2.3. Danh sách user
-
-`GET /users` · **Auth:** Admin
-
-**Query params**
-
-| Param | Type | Required | Default | Mô tả |
-|---|---|---|---|---|
-| `pageNumber` | `int` | ✘ | `1` | |
-| `pageSize` | `int` | ✘ | `10` | |
-| `search` | `string` | ✘ | | TODO |
-| `TODO` | `TODO` | ✘ | | TODO |
-
-**Response `200 OK`** — `data` là Paged data, mỗi item:
+| `fullName` | `string` | ✔ | 2-100 ký tự | Họ và tên |
+| `phone` | `string` | ✘ | 10 số đầu số VN hợp lệ | Số điện thoại |
+| `address` | `string` | ✘ | Max 500 ký tự | Địa chỉ |
+| `bio` | `string` | ✘ | Max 1000 ký tự | Giới thiệu bản thân |
+| `dateOfBirth` | `string` | ✘ | Định dạng DateOnly (YYYY-MM-DD) | Ngày tháng năm sinh |
 
 ```json
 {
-  "TODO": "TODO"
+  "fullName": "Nguyễn Văn Trek (Updated)",
+  "phone": "0912345678",
+  "address": "456 Đường Trekking, Phường Bến Nghé, Quận 1, TP.HCM",
+  "bio": "Chuyên gia cắm trại và sinh tồn vùng hoang dã",
+  "dateOfBirth": "2000-01-15"
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật thông tin cá nhân thành công",
+  "data": {
+    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "trekker@rentrek.com",
+    "fullName": "Nguyễn Văn Trek (Updated)",
+    "phone": "0912345678",
+    "role": "Customer",
+    "status": "Active",
+    "avatarUrl": "/uploads/avatars/avatar-3fa85f64.webp",
+    "address": "456 Đường Trekking, Phường Bến Nghé, Quận 1, TP.HCM",
+    "bio": "Chuyên gia cắm trại và sinh tồn vùng hoang dã",
+    "dateOfBirth": "2000-01-15",
+    "userCode": "KH-00101",
+    "createdAt": "2026-10-23T19:00:00Z",
+    "updatedAt": "2026-10-30T22:15:00Z"
+  },
+  "errors": null,
+  "timestamp": "2026-10-30T22:15:00Z"
+}
+```
+
+---
+
+### 2.3. Tải lên ảnh đại diện
+
+`POST /users/me/avatar` · **Auth:** User · **Content-Type:** `multipart/form-data`
+
+**Form data**
+
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `file` | `file` | ✔ | Định dạng `.jpg`, `.jpeg`, `.png`, `.webp`; Tối đa 2MB | File ảnh avatar |
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Tải lên ảnh đại diện thành công",
+  "data": {
+    "avatarUrl": "/uploads/avatars/avatar-3fa85f64-5717-4562-b3fc-2c963f66afa6-a1b2c3d4.webp"
+  },
+  "errors": null,
+  "timestamp": "2026-10-30T22:20:00Z"
 }
 ```
 
@@ -282,8 +533,154 @@
 
 | Status | Khi nào | Message |
 |---|---|---|
-| 401 | TODO | TODO |
-| 403 | TODO | TODO |
+| 400 | File rỗng, không đúng định dạng hoặc vượt quá 2MB | Dung lượng file ảnh vượt quá giới hạn cho phép (tối đa 2MB) |
+
+---
+
+### 2.4. Đổi mật khẩu
+
+`PUT /users/me/password` · **Auth:** User
+
+Áp dụng **Phương án A**: Tự động thu hồi phiên đăng nhập trên các thiết bị khác, giữ nguyên phiên thiết bị hiện tại.
+
+**Request body**
+
+| Field | Type | Required | Validation | Mô tả |
+|---|---|---|---|---|
+| `currentPassword` | `string` | ✔ | Khớp mật khẩu đang dùng | Mật khẩu hiện tại |
+| `newPassword` | `string` | ✔ | Min 8 ký tự, hoa, thường, số, ký tự đặc biệt, khác mật khẩu cũ | Mật khẩu mới |
+| `confirmNewPassword` | `string` | ✔ | Khớp `newPassword` | Xác nhận mật khẩu mới |
+
+```json
+{
+  "currentPassword": "Trekker@2026",
+  "newPassword": "NewStrongPass@2026!",
+  "confirmNewPassword": "NewStrongPass@2026!"
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đổi mật khẩu thành công. Các phiên đăng nhập trên thiết bị khác đã được đăng xuất",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:25:00Z"
+}
+```
+
+---
+
+### 2.5. Danh sách phiên đăng nhập
+
+`GET /users/me/sessions` · **Auth:** User
+
+**Response `200 OK`** — Danh sách các phiên đăng nhập đang hoạt động theo Family:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách phiên làm việc thành công",
+  "data": [
+    {
+      "familyId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "deviceInfo": "Windows • Chrome",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-10-30T20:00:00Z",
+      "lastUsedAt": "2026-10-30T22:30:00Z",
+      "isCurrent": true
+    },
+    {
+      "familyId": "7c8e9f0a-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+      "deviceInfo": "iPhone • Mobile Safari",
+      "ipAddress": "14.161.20.15",
+      "createdAt": "2026-10-29T15:00:00Z",
+      "lastUsedAt": "2026-10-30T10:00:00Z",
+      "isCurrent": false
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-10-30T22:30:00Z"
+}
+```
+
+---
+
+### 2.6. Thu hồi một phiên thiết bị
+
+`DELETE /users/me/sessions/{familyId}` · **Auth:** User
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `familyId` | `guid` | Định danh chuỗi phiên thiết bị cần thu hồi |
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Thu hồi phiên làm việc thành công",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:35:00Z"
+}
+```
+
+---
+
+### 2.7. Đăng xuất tất cả thiết bị khác
+
+`POST /users/me/sessions/revoke-others` · **Auth:** User
+
+Thu hồi toàn bộ phiên đăng nhập ngoại trừ phiên `familyId` tương ứng với Access Token hiện tại.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đã đăng xuất khỏi tất cả các thiết bị khác",
+  "data": null,
+  "errors": null,
+  "timestamp": "2026-10-30T22:35:00Z"
+}
+```
+
+---
+
+### 2.8. Danh sách user
+
+`GET /users` · **Auth:** Admin
+
+**Query params**
+
+| Param | Type | Required | Default | Mô tả |
+|---|---|---|---|---|
+| `pageNumber` | `int` | ✘ | `1` | Số trang |
+| `pageSize` | `int` | ✘ | `10` | Kích thước trang |
+| `search` | `string` | ✘ | | Tìm theo email hoặc họ tên |
+
+**Response `200 OK`** — `data` là Paged data:
+
+```json
+{
+  "items": [],
+  "pageNumber": 1,
+  "pageSize": 10,
+  "totalItems": 0,
+  "totalPages": 0,
+  "hasPrevious": false,
+  "hasNext": false
+}
+```
 
 ---
 
@@ -564,6 +961,7 @@ Copy khối dưới đây khi thêm API mới:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-10-30 | Ông Gia Huy | `/auth/*`, `/users/*` | Hoàn thành toàn bộ API Auth, Session Security, Upload Avatar, Forgot Password OTP và Google OAuth 2.0 |
 | 2026-10-26 | Codex | `/trip-bookings/*` | Thêm tạo booking nhóm, xem theo quyền, tạo và nhận lời mời participant |
 | 2026-10-06 | — | — | Khởi tạo skeleton |
 | 2026-10-23 | — | Products | Thêm API danh sách, chi tiết và danh mục cho sản phẩm thuê / bán |
