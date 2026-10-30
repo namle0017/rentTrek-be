@@ -184,7 +184,8 @@ public class AuthService : IAuthService
                 UserId = account.UserId,
                 Email = account.Email,
                 FullName = account.FullName,
-                Role = account.Role?.RoleName ?? "Customer"
+                Role = account.Role?.RoleName ?? "Customer",
+                AvatarUrl = account.Profile?.AvatarUrl
             }
         };
     }

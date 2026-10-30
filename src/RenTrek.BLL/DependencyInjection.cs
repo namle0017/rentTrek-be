@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
 
         // Services
+        services.AddScoped<IFileStorageService, FileStorageService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
