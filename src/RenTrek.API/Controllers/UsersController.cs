@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Users;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Order.Requests;
+using RenTrek.BLL.DTOs.Order.Responses;
+using RenTrek.BLL.DTOs.Users.Requests;
+using RenTrek.BLL.DTOs.Users.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 
@@ -15,11 +19,13 @@ namespace RenTrek.API.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IOrderService _orderService;
     private readonly ICurrentUserService _currentUserService;
 
-    public UsersController(IUserService userService, ICurrentUserService currentUserService)
+    public UsersController(IUserService userService, IOrderService orderService, ICurrentUserService currentUserService)
     {
         _userService = userService;
+        _orderService = orderService;
         _currentUserService = currentUserService;
     }
 
@@ -70,5 +76,15 @@ public class UsersController : ControllerBase
 
         await _userService.ChangePasswordAsync(userId, request, _currentUserService.Jti, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đổi mật khẩu thành công"));
+    }
+
+    [HttpGet("me/orders")]
+    [Authorize]
+    public async Task<IActionResult> GetMyOrders([FromQuery] MyOrderQueryRequest request, CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.RequiredUserId;
+
+        var result = await _orderService.GetMyOrdersAsync(userId, request, cancellationToken);
+        return Ok(ApiResponse<PagedResponse<MyOrderResponse>>.Ok(result, "Lấy danh sách đơn hàng thành công"));
     }
 }

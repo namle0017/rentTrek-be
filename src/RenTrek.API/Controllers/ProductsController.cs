@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Product;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Product.Requests;
+using RenTrek.BLL.DTOs.Product.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -23,12 +24,12 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<ProductResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllAsync([FromQuery] ProductQueryRequest request, CancellationToken cancellationToken)
     {
         var products = await _productService.GetAllAsync(request, cancellationToken);
-        return Ok(ApiResponse<PagedResult<ProductResponse>>.Ok(products, "Lấy danh sách sản phẩm thành công"));
+        return Ok(ApiResponse<PagedResponse<ProductResponse>>.Ok(products, "Lấy danh sách sản phẩm thành công"));
     }
 
     [HttpGet("categories")]

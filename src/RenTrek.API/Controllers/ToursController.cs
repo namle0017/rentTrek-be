@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Tour;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Tour.Requests;
+using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -28,14 +29,14 @@ public class ToursController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Danh sách tour phân trang bọc trong ApiResponse chuẩn</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<PagedResult<TourResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<TourResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ApiResponse<PagedResult<TourResponse>>>> GetTours(
+    public async Task<ActionResult<ApiResponse<PagedResponse<TourResponse>>>> GetTours(
         [FromQuery] TourQueryRequest query,
         CancellationToken cancellationToken)
     {
         var result = await _tourService.GetToursAsync(query, cancellationToken);
-        return Ok(ApiResponse<PagedResult<TourResponse>>.Ok(result, "Lấy danh sách tour thành công"));
+        return Ok(ApiResponse<PagedResponse<TourResponse>>.Ok(result, "Lấy danh sách tour thành công"));
     }
 
     /// <summary>

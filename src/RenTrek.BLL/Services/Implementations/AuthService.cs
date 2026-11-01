@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
-using RenTrek.BLL.DTOs.Auth;
+using RenTrek.BLL.DTOs.Auth.Requests;
+using RenTrek.BLL.DTOs.Auth.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;

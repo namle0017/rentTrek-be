@@ -38,6 +38,11 @@ public static class DependencyInjection
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
+        services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
+        services.AddScoped<IProductBundleService, ProductBundleService>();
+        services.AddScoped<IPromotionService, PromotionService>();
+        services.AddScoped<IRentalOrderService, RentalOrderService>();
+        services.AddScoped<IOrderService, OrderService>();
 
         return services;
     }

@@ -1,4 +1,5 @@
-using RenTrek.BLL.DTOs.TripBooking;
+using RenTrek.BLL.DTOs.TripBooking.Requests;
+using RenTrek.BLL.DTOs.TripBooking.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 

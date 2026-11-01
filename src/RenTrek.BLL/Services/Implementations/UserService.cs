@@ -1,4 +1,5 @@
-using RenTrek.BLL.DTOs.Users;
+using RenTrek.BLL.DTOs.Users.Requests;
+using RenTrek.BLL.DTOs.Users.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
