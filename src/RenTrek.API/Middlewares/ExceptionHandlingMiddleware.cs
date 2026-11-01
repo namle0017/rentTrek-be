@@ -38,10 +38,8 @@ public class ExceptionHandlingMiddleware
     {
         var response = ex switch
         {
-            ValidationException validationEx =>
-                ApiResponse<object>.Fail(validationEx.Message, validationEx.StatusCode, validationEx.Errors),
             AppException appEx =>
-                ApiResponse<object>.Fail(appEx.Message, appEx.StatusCode),
+                ApiResponse<object>.Fail(appEx.Message, appEx.StatusCode, BuildErrors(appEx)),
             _ =>
                 ApiResponse<object>.Fail(
                     _environment.IsDevelopment() ? ex.Message : "Đã xảy ra lỗi hệ thống",
@@ -59,5 +57,31 @@ public class ExceptionHandlingMiddleware
         context.Response.Clear();
         context.Response.StatusCode = response.StatusCode;
         await context.Response.WriteAsJsonAsync(response);
+    }
+
+    /// <summary>
+    /// Gộp lỗi theo field (ValidationException / ConflictException) với mã lỗi nghiệp vụ (errors["code"] = [ErrorCode]).
+    /// Trả null khi không có gì để gộp.
+    /// </summary>
+    private static IDictionary<string, string[]>? BuildErrors(AppException appEx)
+    {
+        var source = appEx switch
+        {
+            ValidationException validationEx => validationEx.Errors,
+            ConflictException conflictEx => conflictEx.Errors,
+            _ => null
+        };
+
+        if (source is null && appEx.ErrorCode is null)
+            return null;
+
+        var errors = source is null
+            ? new Dictionary<string, string[]>()
+            : new Dictionary<string, string[]>(source);
+
+        if (appEx.ErrorCode is not null)
+            errors["code"] = [appEx.ErrorCode];
+
+        return errors;
     }
 }

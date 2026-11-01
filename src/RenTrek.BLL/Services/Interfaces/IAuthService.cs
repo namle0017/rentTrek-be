@@ -1,4 +1,5 @@
-using RenTrek.BLL.DTOs.Auth;
+using RenTrek.BLL.DTOs.Auth.Requests;
+using RenTrek.BLL.DTOs.Auth.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 

@@ -1,8 +1,9 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Product;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Product.Requests;
+using RenTrek.BLL.DTOs.Product.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -31,7 +32,7 @@ public class ProductService : IProductService
             && product.Variants.Any(variant => variant.Status == CatalogStatus.Active
                 && variant.RentalPriceTiers.Any()));
 
-    public async Task<PagedResult<ProductResponse>> GetAllAsync(ProductQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<ProductResponse>> GetAllAsync(ProductQueryRequest request, CancellationToken cancellationToken = default)
     {
         var query = PublicProducts;
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -55,7 +56,7 @@ public class ProductService : IProductService
             _ => request.IsDescending ? products.OrderByDescending(product => product.CreatedAt) : products.OrderBy(product => product.CreatedAt)
         };
 
-        return await sortedProducts.ThenBy(product => product.Id).ToPagedResultAsync(request, cancellationToken);
+        return await sortedProducts.ThenBy(product => product.Id).ToPagedResponseAsync(request, cancellationToken);
     }
 
     public async Task<ProductDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
