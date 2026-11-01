@@ -17,7 +17,7 @@ public class RentalOrderAmountsResponse
     /// <summary>Số tiền khách cần thanh toán, bằng TotalAmount.</summary>
     public decimal TotalPayable { get; set; }
 
-    /// <summary>Tổng các giao dịch thu (Collection) đã thành công.</summary>
+    /// <summary>Tổng tiền đã nhận, gồm tiền chuyển một phần; không đồng nghĩa order đã Confirmed.</summary>
     public decimal PaidAmount { get; set; }
 
     /// <summary>Tổng các giao dịch hoàn (Refund) đã thành công.</summary>

@@ -17,14 +17,19 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly RenTrek.BLL.Services.Implementations.Payments.SePayWebhookService _webhooks;
 
-    public PaymentsController(IPaymentService paymentService, ICurrentUserService currentUserService)
+    public PaymentsController(IPaymentService paymentService, ICurrentUserService currentUserService,
+        RenTrek.BLL.Services.Implementations.Payments.SePayWebhookService webhooks)
     {
         _paymentService = paymentService;
         _currentUserService = currentUserService;
+        _webhooks = webhooks;
     }
 
     [HttpPost("orders/{orderId:guid}/payments")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<PaymentResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Customer)]
     public async Task<IActionResult> Create(
         Guid orderId,
@@ -32,6 +37,7 @@ public class PaymentsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
+        request.IdempotencyKey = Request.Headers["Idempotency-Key"].ToString();
 
         var (payment, created) = await _paymentService.CreateAsync(userId, orderId, request, cancellationToken);
         return created
@@ -42,6 +48,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("orders/{orderId:guid}/payments/{paymentId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentStatusResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Customer)]
     public async Task<IActionResult> GetStatus(Guid orderId, Guid paymentId, CancellationToken cancellationToken)
     {
@@ -54,12 +61,15 @@ public class PaymentsController : ControllerBase
     /// <summary>SePay gọi khi tài khoản có giao dịch; phản hồi <c>{"success": true}</c> để SePay không gửi lại.</summary>
     [HttpPost("payments/webhooks/sepay")]
     [AllowAnonymous]
-    public async Task<IActionResult> SePayWebhook(
-        [FromBody] SePayWebhookRequest request,
-        [FromHeader(Name = "Authorization")] string? authorization,
-        CancellationToken cancellationToken)
+    [RequestSizeLimit(32768)]
+    [Consumes("application/json")]
+    public async Task<IActionResult> SePayWebhook(CancellationToken cancellationToken)
     {
-        await _paymentService.HandleSePayWebhookAsync(authorization, request, cancellationToken);
-        return Ok(ApiResponse<object?>.Ok(null, "Đã nhận webhook"));
+        using var reader = new StreamReader(Request.Body, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        var raw = await reader.ReadToEndAsync(cancellationToken);
+        await _webhooks.ReceiveAsync(raw, Request.Headers.Authorization.ToString(),
+            Request.Headers["X-SePay-Signature"].ToString(), Request.Headers["X-SePay-Timestamp"].ToString(), cancellationToken);
+        return Ok(new { success = true });
     }
+
 }

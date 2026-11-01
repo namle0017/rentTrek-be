@@ -21,12 +21,5 @@ public interface IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Xử lý webhook SePay: xác thực API key, khớp nội dung chuyển khoản với lần thanh toán, chống xử lý lặp,
-    /// rồi xác nhận đơn hoặc đánh dấu cần đối soát.
-    /// </summary>
-    Task HandleSePayWebhookAsync(
-        string? authorization,
-        SePayWebhookRequest request,
-        CancellationToken cancellationToken = default);
+
 }

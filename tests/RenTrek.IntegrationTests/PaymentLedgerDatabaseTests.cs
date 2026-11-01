@@ -7,6 +7,15 @@ namespace RenTrek.IntegrationTests;
 public sealed class PaymentLedgerDatabaseTests(PostgresFixture fixture)
 {
     [Fact]
+    public async Task ActiveCollectionIntent_IsUniquePerOrder()
+    {
+        var seed = await fixture.SeedOrderAsync(); await using var db = fixture.CreateDb();
+        db.Add(new Payment { PaymentId = Guid.NewGuid(), OrderId = seed.OrderId, PaymentType = "Collection", Amount = 100, Status = "Pending", PaymentMethod = "BankTransfer", Purpose = "RentalFee" });
+        await db.SaveChangesAsync();
+        db.Add(new Payment { PaymentId = Guid.NewGuid(), OrderId = seed.OrderId, PaymentType = "Collection", Amount = 100, Status = "Pending", PaymentMethod = "BankTransfer", Purpose = "RentalFee" });
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+    [Fact]
     public async Task ProviderTransactionUniqueConstraint_PreventsCrossOrderDuplicate()
     {
         await using var db = fixture.CreateDb();

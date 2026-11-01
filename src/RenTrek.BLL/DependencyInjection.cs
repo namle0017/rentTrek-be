@@ -47,6 +47,11 @@ public static class DependencyInjection
         services.AddScoped<IRentalOrderService, RentalOrderService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<Services.Implementations.Payments.SePayWebhookService>();
+        services.AddScoped<Services.Implementations.Payments.OrderPaymentLifecycleService>();
+        services.AddScoped<Services.Implementations.Payments.StaffReconciliationService>();
+        services.AddScoped<Services.Implementations.Refunds.RefundRequestService>();
+        services.AddScoped<Services.Implementations.Refunds.StaffRefundRequestService>();
 
         return services;
     }

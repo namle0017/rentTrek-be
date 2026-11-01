@@ -12,6 +12,7 @@ public class RentalOrderPaymentResponse
     public string Purpose { get; set; } = string.Empty;
 
     public decimal Amount { get; set; }
+    public decimal ReceivedAmount { get; set; }
 
     public string PaymentMethod { get; set; } = string.Empty;
 

@@ -9,6 +9,7 @@ using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
+using Microsoft.AspNetCore.DataProtection;
 
 const string CorsPolicyName = "DefaultCors";
 
@@ -19,6 +20,14 @@ var builder = WebApplication.CreateBuilder(args);
 // ── Layers ──────────────────────────────────────────────
 builder.Services.AddDataAccessLayer(builder.Configuration);
 builder.Services.AddBusinessLayer(builder.Configuration);
+var paymentKeyRing = builder.Configuration["Payments:KeyRingPath"];
+if (string.IsNullOrWhiteSpace(paymentKeyRing) && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Payments:KeyRingPath must point to a durable shared key directory.");
+if (string.IsNullOrWhiteSpace(paymentKeyRing)) paymentKeyRing = Path.Combine(builder.Environment.ContentRootPath, ".payment-keys");
+builder.Services.AddDataProtection().SetApplicationName("RenTrek.Payments").PersistKeysToFileSystem(new DirectoryInfo(paymentKeyRing));
+builder.Services.AddScoped<IPaymentDataProtector, PaymentDataProtector>();
+builder.Services.AddSingleton<RenTrek.API.BackgroundJobs.PaymentMaintenanceRunner>();
+builder.Services.AddHostedService<RenTrek.API.BackgroundJobs.PaymentMaintenanceWorker>();
 
 // ── Presentation ────────────────────────────────────────
 builder.Services
@@ -54,7 +63,7 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()));
 
 // Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddCheck<RenTrek.API.Health.PaymentReadinessHealthCheck>("payment-readiness", tags: ["ready"]);
 
 var app = builder.Build();
 
@@ -72,6 +81,9 @@ app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 
 app.Run();
+
+public partial class Program;

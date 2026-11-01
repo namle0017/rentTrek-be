@@ -4,8 +4,9 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IPaymentRepository : IGenericRepository<Payment>
 {
+    Task AcquireIdentityLockAsync(string identity, CancellationToken cancellationToken = default);
     /// <summary>
-    /// Khoá advisory theo transaction cho một đơn (khoá <c>payment:order:{orderId:N}</c>) để tạo thanh toán và xử lý webhook
+    /// Khoá row orders FOR UPDATE trong transaction để tạo thanh toán và xử lý webhook
     /// của cùng đơn chạy tuần tự. BẮT BUỘC gọi trong transaction đã mở.
     /// </summary>
     Task AcquireOrderLockAsync(Guid orderId, CancellationToken cancellationToken = default);

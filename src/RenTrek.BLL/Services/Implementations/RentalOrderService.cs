@@ -736,6 +736,7 @@ public class RentalOrderService : IRentalOrderService
             PaymentType = payment.PaymentType,
             Purpose = payment.Purpose,
             Amount = payment.Amount,
+            ReceivedAmount = payment.PaymentType == PaymentTypeCollection ? GetCollectedAmount(payment) : 0,
             PaymentMethod = payment.PaymentMethod,
             Status = payment.Status,
             CreatedAt = payment.CreatedAt.UtcDateTime,
@@ -743,8 +744,8 @@ public class RentalOrderService : IRentalOrderService
         }).ToList();
 
         var paidAmount = detail.Payments
-            .Where(payment => payment.PaymentType == PaymentTypeCollection && payment.Status == PaymentStatusSucceeded)
-            .Sum(payment => payment.Amount);
+            .Where(payment => payment.PaymentType == PaymentTypeCollection)
+            .Sum(GetCollectedAmount);
         var refundedAmount = detail.Payments
             .Where(payment => payment.PaymentType == PaymentTypeRefund && payment.Status == PaymentStatusSucceeded)
             .Sum(payment => payment.Amount);
@@ -754,7 +755,7 @@ public class RentalOrderService : IRentalOrderService
         var canCancel = statusAllowsCancel && !hasDeliveredAsset;
         var canPay = detail.Status == OrderStatuses.PendingPayment
                      && detail.PaymentStatus == OrderPaymentStatuses.Unpaid
-                     && (detail.HoldExpiresAt is null || detail.HoldExpiresAt > now);
+                     && detail.HoldExpiresAt is not null && detail.HoldExpiresAt > now;
 
         string? cancelBlockedReason = null;
         if (!canCancel)
@@ -849,6 +850,10 @@ public class RentalOrderService : IRentalOrderService
     }
 
     // Dòng thời gian dẫn xuất từ đơn, thanh toán và phân bổ tài sản
+    private static decimal GetCollectedAmount(RentalOrderPaymentRow payment)
+        // Legacy display fallback only; refund entitlement uses verified bank_transactions.
+        => payment.ReceivedAmount > 0 ? payment.ReceivedAmount : payment.Status == PaymentStatusSucceeded ? payment.Amount : 0;
+
     private static List<RentalOrderTimelineEventResponse> BuildTimeline(
         RentalOrderDetailRow detail,
         IReadOnlyList<RentalOrderAssignmentRow> visibleAssignments)
@@ -864,7 +869,9 @@ public class RentalOrderService : IRentalOrderService
                               && payment.ProcessedAt is not null)
             .Select(payment => payment.ProcessedAt)
             .Min();
-        if (firstPaidAt is not null)
+        var fullyCollected = detail.Payments.Where(payment => payment.PaymentType == PaymentTypeCollection).Sum(GetCollectedAmount) >= detail.TotalAmount;
+        if (firstPaidAt is not null && fullyCollected && detail.Status != OrderStatuses.Expired
+            && detail.PaymentStatus is "Paid" or "PartiallyRefunded" or "Refunded")
             events.Add(new RentalOrderTimelineEventResponse { Event = "Paid", At = firstPaidAt.Value.UtcDateTime });
 
         if (visibleAssignments.Count > 0)

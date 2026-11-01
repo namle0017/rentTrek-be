@@ -7,6 +7,8 @@ namespace RenTrek.BLL.DTOs.Payment.Requests;
 /// </summary>
 public sealed class CreatePaymentRequest
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? IdempotencyKey { get; set; }
     /// <summary>MVP chỉ hỗ trợ <c>BankTransfer</c>.</summary>
     [Required]
     public string PaymentMethod { get; set; } = string.Empty;

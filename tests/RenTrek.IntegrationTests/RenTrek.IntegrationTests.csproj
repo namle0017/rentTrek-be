@@ -5,7 +5,16 @@
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.31" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.13" />
     <Using Include="Xunit" />
     <ProjectReference Include="../../src/RenTrek.BLL/RenTrek.BLL.csproj" />
+    <ProjectReference Include="../../src/RenTrek.API/RenTrek.API.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures/**/*.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../database/migrations/20261101_payment_ledger_manual_refunds.sql" Link="Fixtures/payment-ledger-migration.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../database/migrations/20261026_add_participant_invitations.sql" Link="Fixtures/base-prerequisite.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

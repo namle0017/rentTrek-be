@@ -39,6 +39,8 @@ public sealed class PaymentLedgerConfiguration :
         b.HasKey(x => x.RefundRequestId); b.HasIndex(x => new { x.CustomerUserId, x.IdempotencyKey }).IsUnique();
         b.HasIndex(x => new { x.Status, x.SubmittedAt });
         b.HasIndex(x => x.RefundPaymentId).IsUnique();
+        b.HasIndex(x => x.TransferReference).IsUnique().HasFilter("status = 'Done'")
+            .HasDatabaseName("ux_refund_requests_transfer_reference");
         b.Property(x => x.IdempotencyKey).HasMaxLength(100); b.Property(x => x.RequestHash).HasMaxLength(64);
         b.Property(x => x.Amount).HasPrecision(18, 0); b.Property(x => x.Status).HasMaxLength(30);
         b.Property(x => x.Note).HasMaxLength(2000); b.Property(x => x.RejectReason).HasMaxLength(2000);

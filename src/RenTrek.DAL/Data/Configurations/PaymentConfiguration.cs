@@ -23,6 +23,9 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(x => x.TransferCode).HasMaxLength(40);
         builder.HasIndex(x => x.TransferCode).IsUnique();
         builder.Property(x => x.ReceivedAmount).HasPrecision(18, 0);
+        builder.HasIndex(x => new { x.OrderId, x.PaymentType }).IsUnique()
+            .HasFilter("payment_type = 'Collection' AND status = 'Pending' AND provider_transaction_id IS NULL")
+            .HasDatabaseName("ux_payments_active_collection");
         builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(50);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at");
         builder.Property(x => x.ProcessedAt).HasColumnName("processed_at");

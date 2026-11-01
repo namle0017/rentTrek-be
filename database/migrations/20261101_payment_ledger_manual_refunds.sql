@@ -1,16 +1,26 @@
--- Apply once after the B base schema; transactional failure preserves existing data.
+-- Apply once after the B base schema and existing 20261026 migration.
+-- All checks/DDL run in one transaction. Never delete legacy financial rows to satisfy an index.
 BEGIN;
 SELECT pg_advisory_xact_lock(hashtext('rentrek:payment-ledger-migration'));
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='orders' AND column_name='idempotency_key') THEN
+  RAISE EXCEPTION 'Apply 20261026_add_participant_invitations.sql before the payment ledger migration';
+ END IF;
+ IF EXISTS (SELECT 1 FROM payments WHERE payment_type='Collection' AND status='Pending' AND provider_transaction_id IS NULL GROUP BY order_id HAVING count(*) > 1) THEN
+  RAISE EXCEPTION 'Conflicting legacy active intents: reconcile duplicates first, preserving all money records';
+ END IF;
+END $$;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS transfer_code varchar(40);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS received_amount numeric(18,0) NOT NULL DEFAULT 0;
 DO $$ BEGIN
- IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='payments' AND column_name='received_amount' AND (data_type <> 'numeric' OR numeric_scale <> 0)) THEN
- RAISE EXCEPTION 'Incompatible payments.received_amount: review donor schema before migrating';
+ IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='payments' AND column_name='received_amount' AND (data_type <> 'numeric' OR numeric_scale <> 0 OR is_nullable <> 'NO')) THEN
+  RAISE EXCEPTION 'Incompatible payments.received_amount: review donor schema before migrating';
  END IF;
 END $$;
 UPDATE payments SET transfer_code = 'RTP' || upper(left(replace(payment_id::text, '-', ''), 16)) WHERE payment_type='Collection' AND transfer_code IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS ix_payments_transfer_code ON payments(transfer_code);
--- Historical aggregate Paid/ReceivedAmount is preserved. No bank transactions or Done refunds are inferred.
+CREATE UNIQUE INDEX ix_payments_transfer_code ON payments(transfer_code);
+CREATE UNIQUE INDEX ux_payments_active_collection ON payments(order_id,payment_type) WHERE payment_type='Collection' AND status='Pending' AND provider_transaction_id IS NULL;
+-- Preserve historical Paid, Pending receipts and ReceivedAmount. Do not infer bank transfers or Done refunds.
 CREATE TABLE payment_webhook_receipts (
     payment_webhook_receipt_id uuid NOT NULL,
     provider character varying(30) NOT NULL,
@@ -144,4 +154,6 @@ CREATE INDEX "IX_refund_requests_refund_policy_id" ON refund_requests (refund_po
 CREATE INDEX "IX_refund_requests_refund_policy_rule_id" ON refund_requests (refund_policy_rule_id);
 
 CREATE INDEX "IX_refund_requests_status_submitted_at" ON refund_requests (status, submitted_at);
+
+CREATE UNIQUE INDEX ux_refund_requests_transfer_reference ON refund_requests (transfer_reference) WHERE status = 'Done';
 COMMIT;

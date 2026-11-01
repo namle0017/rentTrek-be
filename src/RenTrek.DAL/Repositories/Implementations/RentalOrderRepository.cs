@@ -169,6 +169,7 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
                 PaymentType = p.PaymentType,
                 Purpose = p.Purpose,
                 Amount = p.Amount,
+                ReceivedAmount = p.ReceivedAmount,
                 PaymentMethod = p.PaymentMethod,
                 Status = p.Status,
                 CreatedAt = p.CreatedAt,

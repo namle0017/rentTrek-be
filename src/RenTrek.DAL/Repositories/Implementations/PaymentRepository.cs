@@ -7,6 +7,8 @@ namespace RenTrek.DAL.Repositories.Implementations;
 
 public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
 {
+    public Task AcquireIdentityLockAsync(string identity, CancellationToken cancellationToken = default)
+        => PostgresAdvisoryLock.AcquireAsync(_context, identity, cancellationToken);
     public PaymentRepository(AppDbContext context) : base(context)
     {
     }
@@ -24,7 +26,7 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
 
     public Task<Payment?> GetLatestPendingCollectionAsync(Guid orderId, CancellationToken cancellationToken = default)
         => _dbSet
-            .Where(p => p.OrderId == orderId && p.PaymentType == "Collection" && p.Status == "Pending")
+            .Where(p => p.OrderId == orderId && p.PaymentType == "Collection" && p.Status == "Pending" && p.ProviderTransactionId == null)
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 

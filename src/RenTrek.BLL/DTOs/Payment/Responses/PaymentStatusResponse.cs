@@ -8,6 +8,10 @@ public sealed class PaymentStatusResponse
     public Guid PaymentId { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public decimal ReceivedAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
+    public string ReconciliationStatus { get; set; } = "None";
+    public string? RefundStatus { get; set; }
     public DateTimeOffset? ExpiresAt { get; set; }
     public string OrderStatus { get; set; } = string.Empty;
     public string OrderPaymentStatus { get; set; } = string.Empty;

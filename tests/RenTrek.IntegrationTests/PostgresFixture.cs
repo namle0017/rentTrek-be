@@ -12,6 +12,7 @@ public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>;
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17-alpine").Build();
+    public string ConnectionString => container.GetConnectionString();
     public AppDbContext CreateDb() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(container.GetConnectionString()).Options);
     public async Task InitializeAsync()
     {
@@ -40,6 +41,17 @@ public sealed class PostgresFixture : IAsyncLifetime
         db.AddRange(customer, staff, rule, rental);
         await db.SaveChangesAsync();
         return new Seed(order.OrderId, customer.UserId, staff.UserId, policy.RefundPolicyId, rule.RefundPolicyRuleId);
+    }
+
+    public async Task<Seed> SeedTripOrderAsync()
+    {
+        var seed = await SeedOrderAsync(); await using var db = CreateDb();
+        db.RentalOrders.Remove((await db.RentalOrders.FindAsync(seed.OrderId))!);
+        var order = (await db.Orders.FindAsync(seed.OrderId))!; order.OrderType = "TripBooking";
+        var tour = new Tour { Name = "Test trek", Category = new Category { Name = "Test trekking", CategoryType = "TOUR" }, MainLocation = new Location { Name = "Test mountain", Address = "Test location" }, CreatedByUserId = seed.StaffId, BasePrice = 1_000_000 };
+        var trip = new Trip { TripId = Guid.NewGuid(), Tour = tour, RefundPolicyId = seed.PolicyId, ManagedByUserId = seed.StaffId, StartAt = TestClock.Now.AddDays(3), EndAt = TestClock.Now.AddDays(4), TotalSlots = 10, MinParticipants = 1, PricePerPerson = 1_000_000, Status = "Open", CreatedAt = TestClock.Now, UpdatedAt = TestClock.Now };
+        db.Add(new TripBookingOrder { Order = order, Trip = trip, ParticipantCount = 1, UnitPrice = 1_000_000, GroupingPreference = "KeepTogether" });
+        await db.SaveChangesAsync(); return seed;
     }
 }
 

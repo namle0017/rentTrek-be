@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Payment.Requests;
 using RenTrek.BLL.DTOs.Payment.Responses;
@@ -33,8 +34,6 @@ public sealed partial class PaymentService(
     private const string TransferCodePrefix = "RTP";
     private const int TransferCodeHexLength = 16;
 
-    [GeneratedRegex("RTP([0-9A-F]{16})")]
-    private static partial Regex TransferCodeRegex();
 
     public async Task<(PaymentResponse Payment, bool Created)> CreateAsync(
         Guid userId,
@@ -45,25 +44,45 @@ public sealed partial class PaymentService(
         if (!string.Equals(request.PaymentMethod?.Trim(), PaymentMethodBankTransfer, StringComparison.OrdinalIgnoreCase))
             throw new BadRequestException("Chỉ hỗ trợ phương thức BankTransfer", ErrorCodes.ValidationError);
 
+        var key = request.IdempotencyKey?.Trim();
+        if (string.IsNullOrWhiteSpace(key) || key.Length > 100)
+            throw new BadRequestException("Idempotency-Key phải có từ 1 đến 100 ký tự", "IDEMPOTENCY_KEY_REQUIRED");
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{orderId:N}:BankTransfer")));
+
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
+            await unitOfWork.Payments.AcquireIdentityLockAsync($"payment:create:{userId:N}:{key}", cancellationToken);
             await unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
             var order = await unitOfWork.Payments.GetOrderAsync(orderId, userId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đơn", ErrorCodes.OrderNotFound);
 
+            var replay = await unitOfWork.Repository<PaymentIdempotencyKey>().Query()
+                .SingleOrDefaultAsync(x => x.CustomerUserId == userId && x.Key == key, cancellationToken);
+            if (replay is not null)
+            {
+                if (replay.RequestHash != hash) throw new ConflictException("Idempotency-Key đã dùng cho yêu cầu khác", "IDEMPOTENCY_KEY_REUSED");
+                var original = await unitOfWork.Payments.GetByIdAsync(replay.PaymentId, cancellationToken)
+                    ?? throw new ConflictException("Payment replay không tồn tại", "PAYMENT_REPLAY_UNAVAILABLE");
+                await unitOfWork.CommitAsync(cancellationToken);
+                return (await MapPaymentAsync(original, order, cancellationToken), false);
+            }
+
+            if (order.TotalAmount <= 0 || order.TotalAmount != decimal.Truncate(order.TotalAmount))
+                throw new ConflictException("Số tiền đơn không hợp lệ để chuyển khoản.", "ORDER_AMOUNT_INVALID");
             if (order.Status != OrderStatuses.PendingPayment || order.PaymentStatus != OrderPaymentStatuses.Unpaid)
                 throw new ConflictException("Đơn không ở trạng thái chờ thanh toán", ErrorCodes.OrderNotPayable);
 
             var now = timeProvider.GetUtcNow();
-            if (order.HoldExpiresAt <= now)
+            if (order.HoldExpiresAt is null || order.HoldExpiresAt <= now)
                 throw new ConflictException("Thời gian giữ chỗ đã hết, vui lòng tạo lại đơn", ErrorCodes.HoldExpired);
 
             var existing = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
             if (existing is not null)
             {
+                await unitOfWork.Repository<PaymentIdempotencyKey>().AddAsync(new PaymentIdempotencyKey { CustomerUserId = userId, Key = key, RequestHash = hash, PaymentId = existing.PaymentId, CreatedAt = now }, cancellationToken);
                 await unitOfWork.CommitAsync(cancellationToken);
-                return (MapPayment(existing, order), false);
+                return (await MapPaymentAsync(existing, order, cancellationToken), false);
             }
 
             var payment = new Payment
@@ -77,10 +96,13 @@ public sealed partial class PaymentService(
                 CreatedAt = now,
                 Purpose = order.OrderType == OrderTypes.TripBooking ? PurposeTourFee : PurposeRentalFee
             };
+            payment.TransferCode = TransferCodePrefix + payment.PaymentId.ToString("N")[..TransferCodeHexLength].ToUpperInvariant();
             await unitOfWork.Payments.AddAsync(payment, cancellationToken);
+            await unitOfWork.Repository<PaymentIdempotencyKey>().AddAsync(new PaymentIdempotencyKey { CustomerUserId = userId, Key = key, RequestHash = hash, PaymentId = payment.PaymentId, CreatedAt = now }, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
-            return (MapPayment(payment, order), true);
+            logger.LogInformation("Created payment {PaymentId} for order {OrderId}", payment.PaymentId, order.OrderId);
+            return (await MapPaymentAsync(payment, order, cancellationToken), true);
         }
         catch
         {
@@ -98,11 +120,21 @@ public sealed partial class PaymentService(
         var payment = await unitOfWork.Payments.GetOwnedAsync(paymentId, orderId, userId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy lần thanh toán", ErrorCodes.PaymentNotFound);
 
+        var collected = await unitOfWork.Repository<BankTransaction>().Query().Where(x => x.OrderId == orderId && x.AppliedAt != null).SumAsync(x => x.Amount, cancellationToken);
+        var needsReview = payment.Order.PaymentStatus == "NeedsReconciliation" || await unitOfWork.Repository<BankTransaction>().Query()
+            .AnyAsync(x => x.OrderId == orderId && x.Status == "NeedsReconciliation", cancellationToken);
+        var refundStatus = await unitOfWork.Repository<RefundRequest>().Query().Where(x => x.OrderId == orderId)
+            .OrderByDescending(x => x.SubmittedAt).ThenByDescending(x => x.RefundRequestId).Select(x => x.Status).FirstOrDefaultAsync(cancellationToken);
+
         return new PaymentStatusResponse
         {
             PaymentId = payment.PaymentId,
             Status = payment.Status,
             Amount = payment.Amount,
+            ReceivedAmount = payment.ReceivedAmount,
+            RemainingAmount = Math.Max(0, payment.Order.TotalAmount - collected),
+            ReconciliationStatus = needsReview ? "NeedsReview" : "None",
+            RefundStatus = refundStatus,
             ExpiresAt = payment.Order.HoldExpiresAt,
             OrderStatus = payment.Order.Status,
             OrderPaymentStatus = payment.Order.PaymentStatus,
@@ -110,129 +142,24 @@ public sealed partial class PaymentService(
         };
     }
 
-    public async Task HandleSePayWebhookAsync(
-        string? authorization,
-        SePayWebhookRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureSePayAuthorized(authorization);
-
-        if (!string.Equals(request.TransferType, "in", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var match = TransferCodeRegex().Match($"{request.Code} {request.Content}".ToUpperInvariant());
-        if (!match.Success)
-        {
-            logger.LogWarning("SePay giao dịch {TransactionId} không chứa mã thanh toán: {Content}", request.Id, request.Content);
-            return;
-        }
-
-        var candidate = await unitOfWork.Payments.FindByIdPrefixAsync(
-            match.Groups[1].Value.ToLowerInvariant(),
-            cancellationToken);
-        if (candidate is null)
-        {
-            logger.LogWarning("SePay giao dịch {TransactionId} có mã {Code} không khớp thanh toán nào", request.Id, match.Value);
-            return;
-        }
-
-        var providerTransactionId = $"SEPAY:{request.Id}";
-        await unitOfWork.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await unitOfWork.Payments.AcquireOrderLockAsync(candidate.OrderId, cancellationToken);
-            if (await unitOfWork.Payments.ProviderTransactionExistsAsync(providerTransactionId, cancellationToken))
-            {
-                await unitOfWork.CommitAsync(cancellationToken);
-                return;
-            }
-
-            var payment = await unitOfWork.Payments.GetByIdAsync(candidate.PaymentId, cancellationToken);
-            var order = await unitOfWork.Payments.GetOrderAsync(candidate.OrderId, cancellationToken: cancellationToken);
-            if (payment is null || order is null)
-            {
-                await unitOfWork.CommitAsync(cancellationToken);
-                return;
-            }
-
-            var now = timeProvider.GetUtcNow();
-            var payable = payment.Status == PaymentStatuses.Pending
-                          && order.Status == OrderStatuses.PendingPayment
-                          && order.PaymentStatus == OrderPaymentStatuses.Unpaid
-                          && !(order.HoldExpiresAt <= now)
-                          && request.TransferAmount == payment.Amount;
-
-            if (payable)
-            {
-                payment.Status = PaymentStatuses.Succeeded;
-                payment.ProviderTransactionId = providerTransactionId;
-                payment.ProcessedAt = now;
-                order.Status = OrderStatuses.Confirmed;
-                order.PaymentStatus = OrderPaymentStatuses.Paid;
-                order.UpdatedAt = now;
-            }
-            else
-            {
-                // Tiền đã vào nhưng không tự xác nhận được (sai số tiền / hết hạn giữ chỗ / đơn đã xử lý): ghi lại để admin đối soát
-                await unitOfWork.Payments.AddAsync(new Payment
-                {
-                    PaymentId = Guid.NewGuid(),
-                    OrderId = order.OrderId,
-                    PaymentType = PaymentTypeCollection,
-                    Amount = request.TransferAmount,
-                    PaymentMethod = PaymentMethodBankTransfer,
-                    ProviderTransactionId = providerTransactionId,
-                    Status = PaymentStatuses.Pending,
-                    CreatedAt = now,
-                    Purpose = payment.Purpose
-                }, cancellationToken);
-
-                if (order.Status == OrderStatuses.PendingPayment)
-                {
-                    order.PaymentStatus = OrderPaymentStatuses.NeedsReconciliation;
-                    order.UpdatedAt = now;
-                }
-
-                logger.LogWarning(
-                    "SePay giao dịch {TransactionId} ({Amount}) cho đơn {OrderCode} cần đối soát",
-                    request.Id,
-                    request.TransferAmount,
-                    order.OrderCode);
-            }
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-            await unitOfWork.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await unitOfWork.RollbackAsync(CancellationToken.None);
-            throw;
-        }
-    }
-
-    private void EnsureSePayAuthorized(string? authorization)
-    {
-        var apiKey = sePayOptions.Value.Api.Key;
-        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(authorization))
-            throw new UnauthorizedException("API key webhook không hợp lệ");
-
-        var expected = Encoding.UTF8.GetBytes($"Apikey {apiKey}");
-        var actual = Encoding.UTF8.GetBytes(authorization.Trim());
-        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
-            throw new UnauthorizedException("API key webhook không hợp lệ");
-    }
-
-    private PaymentResponse MapPayment(Payment payment, Order order)
+    private async Task<PaymentResponse> MapPaymentAsync(Payment payment, Order order, CancellationToken ct)
     {
         var settings = sePayOptions.Value;
-        var transferContent = TransferCodePrefix + payment.PaymentId.ToString("N")[..TransferCodeHexLength].ToUpperInvariant();
-        var amount = payment.Amount.ToString("0", CultureInfo.InvariantCulture);
+        var transferContent = payment.TransferCode ?? TransferCodePrefix + payment.PaymentId.ToString("N")[..TransferCodeHexLength].ToUpperInvariant();
+        var funds = await unitOfWork.Repository<BankTransaction>().Query().Where(x => x.OrderId == order.OrderId && x.AppliedAt != null)
+            .GroupBy(x => x.PaymentId).Select(x => new { PaymentId = x.Key, Amount = x.Sum(t => t.Amount) }).ToListAsync(ct);
+        var remaining = Math.Max(0, order.TotalAmount - funds.Sum(x => x.Amount));
+        var amount = remaining.ToString("0", CultureInfo.InvariantCulture);
+        var canPay = remaining > 0 && order.Status == "PendingPayment" && order.PaymentStatus == "Unpaid"
+            && order.HoldExpiresAt is not null && timeProvider.GetUtcNow() < order.HoldExpiresAt;
 
         return new PaymentResponse
         {
             PaymentId = payment.PaymentId,
             OrderCode = order.OrderCode,
             Amount = payment.Amount,
+            ReceivedAmount = funds.Where(x => x.PaymentId == payment.PaymentId).Sum(x => x.Amount),
+            RemainingAmount = remaining,
             Status = payment.Status,
             ExpiresAt = order.HoldExpiresAt,
             BankTransfer = new BankTransferResponse
@@ -241,9 +168,10 @@ public sealed partial class PaymentService(
                 AccountNumber = settings.AccountNumber,
                 AccountName = settings.AccountName,
                 TransferContent = transferContent,
-                QrImageUrl = $"https://qr.sepay.vn/img?acc={Uri.EscapeDataString(settings.AccountNumber)}" +
-                             $"&bank={Uri.EscapeDataString(settings.BankName)}&amount={amount}&des={transferContent}"
+                QrImageUrl = canPay ? $"https://qr.sepay.vn/img?acc={Uri.EscapeDataString(settings.AccountNumber)}" +
+                             $"&bank={Uri.EscapeDataString(settings.BankName)}&amount={amount}&des={transferContent}" : null
             }
         };
     }
+
 }

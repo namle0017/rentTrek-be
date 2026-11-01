@@ -516,4 +516,6 @@ graphify-out/
 logs/
 *.log
 uploads/
+**/.payment-keys/
 
+/.ua/

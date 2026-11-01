@@ -8,6 +8,8 @@ public sealed class PaymentResponse
     public Guid PaymentId { get; set; }
     public string OrderCode { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public decimal ReceivedAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
     public string Currency { get; set; } = "VND";
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset? ExpiresAt { get; set; }
