@@ -20,6 +20,9 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 0);
         builder.Property(x => x.PaymentMethod).HasColumnName("payment_method").HasMaxLength(50);
         builder.Property(x => x.ProviderTransactionId).HasColumnName("provider_transaction_id").HasMaxLength(255);
+        builder.Property(x => x.TransferCode).HasMaxLength(40);
+        builder.HasIndex(x => x.TransferCode).IsUnique();
+        builder.Property(x => x.ReceivedAmount).HasPrecision(18, 0);
         builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(50);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at");
         builder.Property(x => x.ProcessedAt).HasColumnName("processed_at");

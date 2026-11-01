@@ -11,8 +11,11 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
     {
     }
 
-    public Task AcquireOrderLockAsync(Guid orderId, CancellationToken cancellationToken = default)
-        => PostgresAdvisoryLock.AcquireAsync(_context, $"payment:order:{orderId:N}", cancellationToken);
+    public async Task AcquireOrderLockAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        await _context.Orders.FromSqlInterpolated($"SELECT * FROM orders WHERE order_id = {orderId} FOR UPDATE")
+            .AsNoTracking().ToListAsync(cancellationToken);
+    }
 
     public Task<Order?> GetOrderAsync(Guid orderId, Guid? customerUserId = null, CancellationToken cancellationToken = default)
         => _context.Orders.SingleOrDefaultAsync(
