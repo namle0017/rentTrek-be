@@ -1,4 +1,4 @@
-namespace RenTrek.BLL.DTOs.Auth;
+namespace RenTrek.BLL.DTOs.Auth.Requests;
 
 public class GoogleLoginRequest
 {
