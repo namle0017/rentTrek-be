@@ -11,7 +11,7 @@ public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>;
 
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer container = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17-alpine").Build();
     public AppDbContext CreateDb() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(container.GetConnectionString()).Options);
     public async Task InitializeAsync()
     {

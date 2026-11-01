@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
@@ -23,7 +24,8 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
-        services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
+        services.AddOptions<SePaySettings>().Bind(configuration.GetSection(SePaySettings.SectionName)).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<SePaySettings>, SePaySettingsValidator>();
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
 
         // Helpers

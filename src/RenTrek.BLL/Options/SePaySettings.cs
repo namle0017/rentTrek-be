@@ -8,6 +8,9 @@ public class SePaySettings
     public const string SectionName = "SePay";
 
     public ApiSettings Api { get; set; } = new();
+    public string AuthMode { get; set; } = "ApiKey";
+    public string WebhookSecret { get; set; } = string.Empty;
+    public string? SubAccount { get; set; }
 
     /// <summary>Mã ngân hàng theo qr.sepay.vn, ví dụ MBBank, Vietcombank.</summary>
     public string BankName { get; set; } = string.Empty;
