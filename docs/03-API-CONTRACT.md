@@ -195,7 +195,7 @@ HTTP 404 Not Found
 {
   "success": false,
   "statusCode": 404,
-  "message": "Không tìm thấy chuyến đi với ID '88888888-9999-aaaa-bbbb-111111111111'.",
+  "message": "Không tìm thấy chuyến đi với ID '<trip-id>'.",
   "data": null,
   "errors": {
     "code": ["NOT_FOUND"]
@@ -348,40 +348,40 @@ HTTP 500 Internal Server Error
 | **6.24**| Tours | `GET` | `/admin/tours/{tourId}/versions` | Staff/Admin | Lịch sử phiên bản tour | Drawer O07 tra cứu cây phiên bản | ⬜ TODO |
 | **6.25**| Tours | `POST` | `/admin/tours/{tourId}/versions/clone` | Admin | Tạo phiên bản mới (Clone) | Nhân bản cấu trúc tour sang version mới (Draft) | ⬜ TODO |
 | **6.26**| Tours | `GET` | `/admin/tours/{tourId}/versions/diff` | Staff/Admin | So sánh 2 phiên bản tour | So sánh sai khác lịch trình giữa 2 phiên bản | ⬜ TODO |
-| **7.1** | Recurrence| `GET` | `/admin/tours/{tourId}/recurrence-rules` | Staff/Admin | Danh sách quy tắc lặp chuyến | Cấu hình lặp sinh chuyến của tour O08 | ⬜ TODO |
-| **7.2** | Recurrence| `POST`| `/admin/tours/{tourId}/recurrence-rules` | Admin | Tạo quy tắc lặp mới | Thiết lập tần suất, thứ trong tuần, số chỗ, giá | ⬜ TODO |
-| **7.3** | Recurrence| `PUT` | `/admin/recurrence-rules/{ruleId}` | Admin | Sửa quy tắc lặp | Không làm ảnh hưởng chuyến đã sinh ra trước đó | ⬜ TODO |
-| **7.4** | Recurrence| `DELETE`|`/admin/recurrence-rules/{ruleId}`| Admin | Xóa quy tắc lặp | Dừng lặp tự động | ⬜ TODO |
-| **7.5** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/preview` | Staff/Admin | Xem trước lịch sinh chuyến | Kiểm tra lịch trước khi chạy, tránh trùng ngày | ⬜ TODO |
-| **7.6** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/generate` | Admin | Kích hoạt sinh chuyến hàng loạt | Batch generate hàng loạt chuyến đi vào DB | ⬜ TODO |
-| **8.1** | Trips | `GET` | `/admin/trips` | Staff/Admin | Danh sách chuyến đi (Table/Calendar) | Lọc tour, trạng thái, khoảng ngày | ⬜ TODO |
-| **8.2** | Trips | `POST` | `/admin/trips` | Admin/Staff | Tạo chuyến đi thủ công | Khởi tạo chuyến với ngày, số chỗ, giá, guide | ⬜ TODO |
-| **8.3** | Trips | `GET` | `/admin/trips/{tripId}` | Staff/Admin | Chi tiết tổng quan chuyến đi | Tab 1 O10, kiểm tra tiến độ bán chỗ | ⬜ TODO |
-| **8.4** | Trips | `PUT` | `/admin/trips/{tripId}` | Admin/Staff | Sửa thông tin chuyến đi | Chặn giảm chỗ nhỏ hơn số khách đã mua | ⬜ TODO |
-| **8.5** | Trips | `GET` | `/admin/trips/{tripId}/readiness-checklist` | Staff/Admin | Checklist sẵn sàng khởi hành | Tổng hợp 5 điều kiện khởi hành (FR-D07) | ⬜ TODO |
-| **8.6** | Trips | `POST` | `/admin/trips/{tripId}/open-booking` | Admin/Staff | Mở bán chuyến | Chuyển trạng thái Draft -> Open | ⬜ TODO |
-| **8.7** | Trips | `POST` | `/admin/trips/{tripId}/close-booking`| Admin/Staff | Đóng cổng nhận khách | Chuyển trạng thái Open -> ClosedForBooking | ⬜ TODO |
-| **8.8** | Trips | `POST` | `/admin/trips/{tripId}/start` | Admin/Staff | Bắt đầu chuyến đi | Chuyển sang InProgress khi khách lên đường | ⬜ TODO |
-| **8.9** | Trips | `POST` | `/admin/trips/{tripId}/complete` | Admin/Staff | Hoàn thành chuyến đi | Chuyển sang Completed, kích hoạt quyền review | ⬜ TODO |
-| **8.10**| Trips | `POST` | `/admin/trips/{tripId}/cancel` | Admin | Hủy chuyến đi | Tính toán hoàn tiền, giải phóng kho thiết bị | ⬜ TODO |
-| **8.11**| Trips | `GET` | `/admin/trips/{tripId}/bookings` | Staff/Admin | Danh sách booking và khách của chuyến| Tab Booking O11 | ⬜ TODO |
-| **8.12**| Trips | `GET` | `/admin/trips/{tripId}/manifest` | Staff/Admin | Xuất danh sách khách (Manifest) | Báo cáo in ấn danh sách hành khách theo nhóm | ⬜ TODO |
-| **9.1** | Groups | `GET` | `/admin/trips/{tripId}/groups-board` | Staff/Admin | Bảng Kanban chia nhóm | Lấy cột chưa xếp + các cột nhóm và guide O12 | ⬜ TODO |
-| **9.2** | Groups | `POST` | `/admin/trips/{tripId}/groups` | Admin/Staff | Tạo nhóm mới trong chuyến | Tạo nhóm kèm sĩ số tối đa và gán Guide | ⬜ TODO |
-| **9.3** | Groups | `PUT` | `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Cập nhật thông tin nhóm | Đổi guide, đổi tên nhóm | ⬜ TODO |
-| **9.4** | Groups | `DELETE`| `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Giải tán nhóm | Chuyển toàn bộ khách về cột chưa chia nhóm | ⬜ TODO |
-| **9.5** | Groups | `PATCH`| `/admin/trips/{tripId}/participants/assign-group` | Admin/Staff | Gán / Chuyển nhóm cho khách | Kéo thả Kanban, kiểm tra sức chứa nhóm | ⬜ TODO |
-| **9.6** | Groups | `POST` | `/admin/trips/{tripId}/auto-group` | Admin/Staff | Tự động chia nhóm theo thuật toán | Thuật toán gom nhóm giữ nguyên các đơn đi chung | ⬜ TODO |
-| **9.7** | Groups | `POST` | `/admin/trips/{tripId}/bookings/{bookingId}/split-approve` | Admin/Staff | Duyệt tách booking đi chung | Bắt buộc nhập lý do tách đoàn, lưu audit | ⬜ TODO |
+| **7.1** | Recurrence| `GET` | `/admin/tours/{tourId}/recurrence-rules` | Staff/Admin | Danh sách quy tắc lặp chuyến | Cấu hình lặp sinh chuyến của tour O08 | ✅ Done |
+| **7.2** | Recurrence| `POST`| `/admin/tours/{tourId}/recurrence-rules` | Admin | Tạo quy tắc lặp mới | Thiết lập tần suất, thứ trong tuần, số chỗ, giá | ✅ Done |
+| **7.3** | Recurrence| `PUT` | `/admin/recurrence-rules/{ruleId}` | Admin | Sửa quy tắc lặp | Không làm ảnh hưởng chuyến đã sinh ra trước đó | ✅ Done |
+| **7.4** | Recurrence| `DELETE`|`/admin/recurrence-rules/{ruleId}`| Admin | Xóa quy tắc lặp | Dừng lặp tự động | ✅ Done |
+| **7.5** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/preview` | Staff/Admin | Xem trước lịch sinh chuyến | Kiểm tra lịch trước khi chạy, tránh trùng ngày | ✅ Done |
+| **7.6** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/generate` | Admin | Kích hoạt sinh chuyến hàng loạt | Batch generate hàng loạt chuyến đi vào DB | ✅ Done |
+| **8.1** | Trips | `GET` | `/admin/trips` | Staff/Admin | Danh sách chuyến đi (Table/Calendar) | Lọc tour, trạng thái, khoảng ngày | ✅ Done |
+| **8.2** | Trips | `POST` | `/admin/trips` | Admin/Staff | Tạo chuyến đi thủ công | Khởi tạo chuyến với ngày, số chỗ, giá, guide | ✅ Done |
+| **8.3** | Trips | `GET` | `/admin/trips/{tripId}` | Staff/Admin | Chi tiết tổng quan chuyến đi | Tab 1 O10, kiểm tra tiến độ bán chỗ | ✅ Done |
+| **8.4** | Trips | `PUT` | `/admin/trips/{tripId}` | Admin/Staff | Sửa thông tin chuyến đi | Chặn giảm chỗ nhỏ hơn số khách đã mua | ✅ Done |
+| **8.5** | Trips | `GET` | `/admin/trips/{tripId}/readiness-checklist` | Staff/Admin | Checklist sẵn sàng khởi hành | Tổng hợp 5 điều kiện khởi hành (FR-D07) | ✅ Done |
+| **8.6** | Trips | `POST` | `/admin/trips/{tripId}/open-booking` | Admin/Staff | Mở bán chuyến | Chuyển trạng thái Draft -> Open | ✅ Done |
+| **8.7** | Trips | `POST` | `/admin/trips/{tripId}/close-booking`| Admin/Staff | Đóng cổng nhận khách | Chuyển trạng thái Open -> ClosedForBooking | ✅ Done |
+| **8.8** | Trips | `POST` | `/admin/trips/{tripId}/start` | Admin/Staff | Bắt đầu chuyến đi | Chuyển sang InProgress khi khách lên đường | ✅ Done |
+| **8.9** | Trips | `POST` | `/admin/trips/{tripId}/complete` | Admin/Staff | Hoàn thành chuyến đi | Chuyển sang Completed, kích hoạt quyền review | ✅ Done |
+| **8.10**| Trips | `POST` | `/admin/trips/{tripId}/cancel` | Admin | Hủy chuyến đi | Tính toán hoàn tiền, giải phóng kho thiết bị | ✅ Done |
+| **8.11**| Trips | `GET` | `/admin/trips/{tripId}/bookings` | Staff/Admin | Danh sách booking và khách của chuyến| Tab Booking O11 | ✅ Done |
+| **8.12**| Trips | `GET` | `/admin/trips/{tripId}/manifest` | Staff/Admin | Xuất danh sách khách (Manifest) | Báo cáo in ấn danh sách hành khách theo nhóm | ✅ Done |
+| **9.1** | Groups | `GET` | `/admin/trips/{tripId}/groups-board` | Staff/Admin | Bảng Kanban chia nhóm | Lấy cột chưa xếp + các cột nhóm và guide O12 | ✅ Done |
+| **9.2** | Groups | `POST` | `/admin/trips/{tripId}/groups` | Admin/Staff | Tạo nhóm mới trong chuyến | Tạo nhóm kèm sĩ số tối đa và gán Guide | ✅ Done |
+| **9.3** | Groups | `PUT` | `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Cập nhật thông tin nhóm | Đổi guide, đổi tên nhóm | ✅ Done |
+| **9.4** | Groups | `DELETE`| `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Giải tán nhóm | Chuyển toàn bộ khách về cột chưa chia nhóm | ✅ Done |
+| **9.5** | Groups | `PATCH`| `/admin/trips/{tripId}/participants/assign-group` | Admin/Staff | Gán / Chuyển nhóm cho khách | Kéo thả Kanban, kiểm tra sức chứa nhóm | ✅ Done |
+| **9.6** | Groups | `POST` | `/admin/trips/{tripId}/auto-group` | Admin/Staff | Tự động chia nhóm theo thuật toán | Thuật toán gom nhóm giữ nguyên các đơn đi chung | ✅ Done |
+| **9.7** | Groups | `POST` | `/admin/trips/{tripId}/bookings/{bookingId}/split-approve` | Admin/Staff | Duyệt tách booking đi chung | Bắt buộc nhập lý do tách đoàn, lưu audit | ✅ Done |
 | **10.1**| Gear | `GET` | `/admin/trips/{tripId}/provided-items` | Staff/Admin | Danh sách đồ cấp cần chuẩn bị | Tab O13 tính nhu cầu dựa theo số khách/nhóm | ⬜ TODO |
 | **10.2**| Gear | `GET` | `/admin/trips/{tripId}/provided-items/{itemId}/available-assets` | Staff/Admin | Tra cứu thiết bị trống trong kho | Tìm asset khả dụng trong khung ngày chuyến đi | ⬜ TODO |
 | **10.3**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/{itemId}/assignments` | Staff/Admin | Gán thiết bị cụ thể cho chuyến | Giữ chỗ asset (`Reserved`) | ⬜ TODO |
 | **10.4**| Gear | `DELETE`| `/admin/trips/{tripId}/assignments/{assignmentId}` | Staff/Admin | Hủy gán thiết bị | Giải phóng asset trả về kho | ⬜ TODO |
 | **10.5**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/issue` | Staff/Admin | Quét barcode xuất kho giao đoàn | Chuyển trạng thái sang `Issued` trước khi đi | ⬜ TODO |
 | **10.6**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/return` | Staff/Admin | Quét barcode thu hồi sau chuyến | Ghi nhận tình trạng khi nhận lại thiết bị | ⬜ TODO |
-| **11.1**| Attendance| `GET` | `/admin/trips/{tripId}/attendance-matrix` | Staff/Admin | Ma trận điểm danh chuyến | Lấy lưới 2 chiều (khách × hoạt động tour) O14 | ⬜ TODO |
-| **11.2**| Attendance| `PUT` | `/admin/trips/{tripId}/attendances` | Staff/Admin/Guide | Ghi nhận/Cập nhật điểm danh | Cập nhật trạng thái điểm danh, bắt buộc lý do nếu sửa | ⬜ TODO |
-| **11.3**| Attendance| `GET` | `/admin/trips/{tripId}/attendances/history` | Staff/Admin | Lịch sử sửa đổi điểm danh | Audit trail chi tiết cho từng ô điểm danh | ⬜ TODO |
+| **11.1**| Attendance| `GET` | `/admin/trips/{tripId}/attendance-matrix` | Staff/Admin | Ma trận điểm danh chuyến | Lấy lưới 2 chiều (khách × hoạt động tour) O14 | ✅ Done |
+| **11.2**| Attendance| `PUT` | `/admin/trips/{tripId}/attendances` | Staff/Admin/Guide | Ghi nhận/Cập nhật điểm danh | Cập nhật trạng thái điểm danh, bắt buộc lý do nếu sửa | ✅ Done |
+| **11.3**| Attendance| `GET` | `/admin/trips/{tripId}/attendances/history` | Staff/Admin | Lịch sử sửa đổi điểm danh | Audit trail chi tiết cho từng ô điểm danh | ✅ Done |
 | **12.1**| Orders | `GET` | `/admin/orders` | Staff/Admin | Danh sách đơn hàng tổng hợp | Màn O38 lọc cả đơn tour & đơn thuê, hạn đối soát | ⬜ TODO |
 | **12.2**| Orders | `GET` | `/admin/orders/{orderCode}` | Staff/Admin | Chi tiết đơn hàng cho vận hành | Màn O15 xem toàn bộ khách, khuyến mãi, thanh toán | ⬜ TODO |
 | **12.3**| Orders | `PATCH`| `/admin/orders/{orderCode}/participants/{participantId}` | Staff/Admin | Sửa thông tin participant thay khách | Hỗ trợ sửa sai sót họ tên/SĐT, ghi audit | ⬜ TODO |
@@ -468,12 +468,12 @@ HTTP 500 Internal Server Error
 | **23.1**| Reviews | `GET` | `/admin/reviews` | Staff/Admin | Danh sách đánh giá của khách | Màn O39 lọc số sao, tour, chuyến, guide | ⬜ TODO |
 | **23.2**| Reviews | `POST` | `/admin/reviews/{reviewId}/hide` | Admin | Ẩn đánh giá vi phạm tiêu chuẩn | Bắt buộc nhập lý do ẩn, ghi audit | ⬜ TODO |
 | **23.3**| Reviews | `POST` | `/admin/reviews/{reviewId}/unhide` | Admin | Khôi phục hiển thị đánh giá | Bỏ cờ ẩn đánh giá | ⬜ TODO |
-| **24.1**| Guide | `GET` | `/guide/trips` | Guide | Danh sách chuyến của Guide | Màn G01 xem chuyến hôm nay / sắp tới / đã xong | ⬜ TODO |
-| **24.2**| Guide | `GET` | `/guide/trips/{tripId}/group` | Guide | Chi tiết nhóm & danh sách khách | Màn G02 danh sách thành viên trong nhóm kèm số phone | ⬜ TODO |
-| **24.3**| Guide | `GET` | `/guide/participants/{participantId}` | Guide | Chi tiết thông tin khách & cứu hộ | Màn G03 liên hệ khẩn cấp & danh sách đồ cấp của khách | ⬜ TODO |
-| **24.4**| Guide | `POST` | `/guide/trips/{tripId}/attendances/batch` | Guide | Điểm danh thực địa nhanh (Batch) | Màn G04 điểm danh Present/Absent/Late, hỗ trợ offline sync | ⬜ TODO |
-| **24.5**| Guide | `GET` | `/guide/trips/{tripId}/itinerary` | Guide | Timeline lịch trình hoạt động chuyến | Màn G05 timeline hoạt động kèm tỉ lệ điểm danh | ⬜ TODO |
-| **24.6**| Guide | `GET` | `/guide/trips/{tripId}/provided-items` | Guide | Danh sách đồ cấp giao cho nhóm | Màn G06 kiểm tra đồ cấp, thiết bị trước khi leo | ⬜ TODO |
+| **24.1**| Guide | `GET` | `/guide/trips` | Guide | Danh sách chuyến của Guide | Màn G01 xem chuyến hôm nay / sắp tới / đã xong | ✅ Done |
+| **24.2**| Guide | `GET` | `/guide/trips/{tripId}/group` | Guide | Chi tiết nhóm & danh sách khách | Màn G02 danh sách thành viên trong nhóm kèm số phone | ✅ Done |
+| **24.3**| Guide | `GET` | `/guide/participants/{participantId}` | Guide | Chi tiết thông tin khách & cứu hộ | Màn G03 liên hệ khẩn cấp & danh sách đồ cấp của khách | ✅ Done |
+| **24.4**| Guide | `POST` | `/guide/trips/{tripId}/attendances/batch` | Guide | Điểm danh thực địa nhanh (Batch) | Màn G04 điểm danh Present/Absent/Late, hỗ trợ offline sync | ✅ Done |
+| **24.5**| Guide | `GET` | `/guide/trips/{tripId}/itinerary` | Guide | Timeline lịch trình hoạt động chuyến | Màn G05 timeline hoạt động kèm tỉ lệ điểm danh | ✅ Done |
+| **24.6**| Guide | `GET` | `/guide/trips/{tripId}/provided-items` | Guide | Danh sách đồ cấp giao cho nhóm | Màn G06 kiểm tra đồ cấp, thiết bị trước khi leo | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
@@ -512,7 +512,7 @@ HTTP 500 Internal Server Error
   "statusCode": 201,
   "message": "Đăng ký tài khoản thành công",
   "data": {
-    "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "userId": "<user-id>",
     "email": "customer@gmail.com",
     "fullName": "Nguyễn Văn A",
     "userCode": "CUS-8921",
@@ -549,11 +549,11 @@ HTTP 500 Internal Server Error
   "statusCode": 200,
   "message": "Đăng nhập thành công",
   "data": {
-    "accessToken": "eyJhbGciOi...",
-    "refreshToken": "d7a8b9c0...",
+    "accessToken": "<access-token>",
+    "refreshToken": "<refresh-token>",
     "expiresIn": 3600,
     "user": {
-      "userId": "11111111-2222-3333-4444-555555555555",
+      "userId": "<user-id>",
       "email": "admin@rentrek.vn",
       "fullName": "Quản Trị Viên",
       "role": "Admin",
@@ -575,7 +575,7 @@ HTTP 500 Internal Server Error
 
 ```json
 {
-  "refreshToken": "d7a8b9c0..."
+  "refreshToken": "<refresh-token>"
 }
 ```
 
@@ -587,8 +587,8 @@ HTTP 500 Internal Server Error
   "statusCode": 200,
   "message": "Làm mới phiên thành công",
   "data": {
-    "accessToken": "eyJhbGciOi...",
-    "refreshToken": "e8b9c0d1...",
+    "accessToken": "<access-token>",
+    "refreshToken": "<refresh-token>",
     "expiresIn": 3600
   },
   "errors": null,
@@ -605,7 +605,7 @@ HTTP 500 Internal Server Error
 
 ```json
 {
-  "refreshToken": "e8b9c0d1..."
+  "refreshToken": "<refresh-token>"
 }
 ```
 
@@ -688,7 +688,7 @@ HTTP 500 Internal Server Error
 **Request body**
 ```json
 {
-  "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1NiJ9..."
+  "idToken": "<google-id-token>"
 }
 ```
 
@@ -709,7 +709,7 @@ HTTP 500 Internal Server Error
   "statusCode": 200,
   "message": "Thành công",
   "data": {
-    "userId": "11111111-2222-3333-4444-555555555555",
+    "userId": "<user-id>",
     "email": "admin@rentrek.vn",
     "fullName": "Quản Trị Viên",
     "phone": "0901234567",
@@ -799,7 +799,7 @@ HTTP 500 Internal Server Error
   "message": "Thành công",
   "data": [
     {
-      "familyId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "familyId": "<device-family-id>",
       "deviceInfo": "Windows • Chrome",
       "ipAddress": "127.0.0.1",
       "createdAt": "2026-10-30T20:00:00Z",
@@ -882,8 +882,8 @@ HTTP 500 Internal Server Error
       "title": "Chuyến Tà Năng - Phan Dũng thiếu 3 Đèn đội đầu",
       "message": "Khởi hành ngày 05/11/2026 nhưng đồ cấp chưa được gán đủ tài sản.",
       "relatedEntity": "Trip",
-      "entityId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "actionUrl": "/ops/trips/a1b2c3d4-e5f6-7890-abcd-ef1234567890/provided-items"
+      "entityId": "<entity-id>",
+      "actionUrl": "/ops/trips/<trip-id>/provided-items"
     },
     {
       "alertType": "OverdueRental",
@@ -957,7 +957,7 @@ HTTP 500 Internal Server Error
   "data": {
     "items": [
       {
-        "userId": "12345678-aaaa-bbbb-cccc-111122223333",
+        "userId": "<user-id>",
         "userCode": "STA-0012",
         "email": "staff1@rentrek.vn",
         "fullName": "Trần Thị B",
@@ -1110,7 +1110,7 @@ HTTP 500 Internal Server Error
   "message": "Thành công",
   "data": [
     {
-      "categoryId": "22222222-3333-4444-5555-666666666666",
+      "categoryId": "<category-id>",
       "name": "Trekking Núi cao",
       "categoryType": "Tour",
       "description": "Các cung đường chinh phục đỉnh núi trên 2000m",
@@ -1178,7 +1178,7 @@ HTTP 500 Internal Server Error
   "message": "Thành công",
   "data": [
     {
-      "locationId": "33333333-4444-5555-6666-777777777777",
+      "locationId": "<location-id>",
       "name": "Vườn quốc gia Bidoup Núi Bà",
       "address": "Huyện Lạc Dương, Tỉnh Lâm Đồng",
       "latitude": 12.0954,
@@ -1256,8 +1256,8 @@ HTTP 500 Internal Server Error
   "data": {
     "items": [
       {
-        "tourId": "44444444-5555-6666-7777-888888888888",
-        "tourFamilyId": "44444444-0000-0000-0000-888888888888",
+        "tourId": "<tour-id>",
+        "tourFamilyId": "<tour-family-id>",
         "name": "Chinh phục Tà Năng - Phan Dũng",
         "categoryName": "Trekking Núi cao",
         "mainLocationName": "Lâm Đồng - Bình Thuận",
@@ -1295,8 +1295,8 @@ HTTP 500 Internal Server Error
 ```json
 {
   "name": "Khám phá Vườn quốc gia Bạch Mã",
-  "categoryId": "22222222-3333-4444-5555-666666666666",
-  "mainLocationId": "33333333-4444-5555-6666-777777777777",
+  "categoryId": "<category-id>",
+  "mainLocationId": "<location-id>",
   "description": "Cung đường xuyên rừng nhiệt đới ngắm Ngũ Hồ và Thác Đỗ Quyên",
   "durationDays": 2,
   "durationNights": 1,
@@ -1362,7 +1362,7 @@ HTTP 500 Internal Server Error
   "message": "Thành công",
   "data": [
     {
-      "activityId": "55555555-6666-7777-8888-999999999999",
+      "activityId": "<activity-id>",
       "dayNumber": 1,
       "startTime": "07:30:00",
       "durationMinutes": 180,
@@ -1371,7 +1371,7 @@ HTTP 500 Internal Server Error
       "displayOrder": 1
     },
     {
-      "activityId": "55555555-6666-7777-8888-000000000000",
+      "activityId": "<activity-id>",
       "dayNumber": 1,
       "startTime": "12:00:00",
       "durationMinutes": 60,
@@ -1434,8 +1434,8 @@ HTTP 400 Bad Request
 {
   "dayNumber": 1,
   "activityIdsInOrder": [
-    "55555555-6666-7777-8888-999999999999",
-    "55555555-6666-7777-8888-000000000000"
+    "<activity-id-1>",
+    "<activity-id-2>"
   ]
 }
 ```
@@ -1463,8 +1463,8 @@ HTTP 400 Bad Request
   "message": "Thành công",
   "data": [
     {
-      "tourProvidedItemId": "66666666-7777-8888-9999-000000000001",
-      "productVariantId": "77777777-8888-9999-0000-111111111111",
+      "tourProvidedItemId": "<tour-provided-item-id>",
+      "productVariantId": "<product-variant-id>",
       "sku": "HEADLAMP-PETZL-TIKKA-BLK",
       "productName": "Đèn đội đầu Petzl Tikka",
       "variantName": "Đen - 350 Lumens",
@@ -1473,8 +1473,8 @@ HTTP 400 Bad Request
       "note": "Phát cho mỗi khách tại điểm tập kết"
     },
     {
-      "tourProvidedItemId": "66666666-7777-8888-9999-000000000002",
-      "productVariantId": "77777777-8888-9999-0000-222222222222",
+      "tourProvidedItemId": "<tour-provided-item-id>",
+      "productVariantId": "<product-variant-id>",
       "sku": "FIRST-AID-KIT-ADVANCED",
       "productName": "Túi y tế dã ngoại chuyên sâu",
       "variantName": "Tiêu chuẩn đoàn",
@@ -1551,8 +1551,8 @@ HTTP 400 Bad Request
   "message": "Thành công",
   "data": [
     {
-      "recurrenceRuleId": "77777777-8888-9999-aaaa-111111111111",
-      "tourId": "44444444-5555-6666-7777-888888888888",
+      "recurrenceRuleId": "<recurrence-rule-id>",
+      "tourId": "<tour-id>",
       "frequency": "Weekly",
       "intervalValue": 1,
       "daysOfWeek": "Friday,Saturday",
@@ -1627,7 +1627,7 @@ HTTP 400 Bad Request
       "startAt": "2026-12-11T06:00:00Z",
       "endAt": "2026-12-13T18:00:00Z",
       "isAlreadyGenerated": true,
-      "existingTripId": "88888888-9999-aaaa-bbbb-111111111111"
+      "existingTripId": "<trip-id>"
     }
   ],
   "errors": null,
@@ -1663,8 +1663,8 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "tripId": "88888888-9999-aaaa-bbbb-111111111111",
-        "tourId": "44444444-5555-6666-7777-888888888888",
+        "tripId": "<trip-id>",
+        "tourId": "<tour-id>",
         "tourName": "Chinh phục Tà Năng - Phan Dũng",
         "tourVersion": 2,
         "startAt": "2026-11-20T06:00:00Z",
@@ -1703,14 +1703,14 @@ HTTP 400 Bad Request
 
 ```json
 {
-  "tourId": "44444444-5555-6666-7777-888888888888",
+  "tourId": "<tour-id>",
   "startAt": "2026-12-15T06:00:00Z",
   "endAt": "2026-12-17T18:00:00Z",
   "totalSlots": 25,
   "minParticipants": 12,
   "pricePerPerson": 3200000,
-  "refundPolicyId": "99999999-0000-1111-2222-333333333333",
-  "managedByUserId": "12345678-aaaa-bbbb-cccc-111122223333"
+  "refundPolicyId": "<policy-id>",
+  "managedByUserId": "<admin-user-id>"
 }
 ```
 
@@ -1803,7 +1803,7 @@ Các API chuyển trạng thái có điều kiện kiểm tra nghiêm ngặt:
   "statusCode": 200,
   "message": "Hủy chuyến thành công",
   "data": {
-    "tripId": "88888888-9999-aaaa-bbbb-111111111111",
+    "tripId": "<trip-id>",
     "affectedBookingsCount": 8,
     "affectedParticipantsCount": 16,
     "totalRefundAmount": 51200000,
@@ -1870,7 +1870,7 @@ HTTP 400 Bad Request
   "data": {
     "unassignedParticipants": [
       {
-        "participantId": "aaaa1111-2222-3333-4444-555555555555",
+        "participantId": "<participant-id>",
         "fullName": "Nguyễn Hoàng Nam",
         "phone": "0987111222",
         "orderCode": "ORD-2026-1001",
@@ -1880,18 +1880,18 @@ HTTP 400 Bad Request
     ],
     "groups": [
       {
-        "groupId": "bbbb1111-2222-3333-4444-555555555555",
+        "groupId": "<group-id>",
         "groupName": "Nhóm Đại Bàng",
         "maxParticipants": 10,
         "currentCount": 8,
         "guide": {
-          "userId": "cccc1111-2222-3333-4444-555555555555",
+          "userId": "<user-id>",
           "fullName": "Lê Văn Nam (Guide)",
           "avatarUrl": "https://cdn.rentrek.vn/avatars/guide1.png"
         },
         "participants": [
           {
-            "participantId": "dddd1111-2222-3333-4444-555555555555",
+            "participantId": "<participant-id>",
             "fullName": "Trần Thị Mai",
             "orderCode": "ORD-2026-0995"
           }
@@ -1915,7 +1915,7 @@ HTTP 400 Bad Request
 {
   "groupName": "Nhóm Báo Đốm",
   "maxParticipants": 10,
-  "guideUserId": "cccc1111-2222-3333-4444-555555555555"
+  "guideUserId": "<guide-user-id>"
 }
 ```
 
@@ -1945,8 +1945,8 @@ HTTP 400 Bad Request
 
 ```json
 {
-  "participantId": "aaaa1111-2222-3333-4444-555555555555",
-  "targetGroupId": "bbbb1111-2222-3333-4444-555555555555"
+  "participantId": "<participant-id>",
+  "targetGroupId": "<group-id>"
 }
 ```
 
@@ -2040,7 +2040,7 @@ HTTP 400 Bad Request
   "data": {
     "activities": [
       {
-        "activityId": "55555555-6666-7777-8888-999999999999",
+        "activityId": "<activity-id>",
         "dayNumber": 1,
         "name": "Tập trung bìa rừng",
         "startTime": "07:30:00"
@@ -2048,11 +2048,11 @@ HTTP 400 Bad Request
     ],
     "participants": [
       {
-        "participantId": "aaaa1111-2222-3333-4444-555555555555",
+        "participantId": "<participant-id>",
         "fullName": "Nguyễn Hoàng Nam",
         "groupName": "Nhóm Đại Bàng",
         "attendances": {
-          "55555555-6666-7777-8888-999999999999": {
+          "<activity-id>": {
             "status": "Present",
             "checkedAt": "2026-11-20T07:35:00Z",
             "checkedBy": "Lê Văn Nam (Guide)"
@@ -2078,10 +2078,10 @@ HTTP 400 Bad Request
 
 ```json
 {
-  "activityId": "55555555-6666-7777-8888-999999999999",
+  "activityId": "<activity-id>",
   "records": [
     {
-      "participantId": "aaaa1111-2222-3333-4444-555555555555",
+      "participantId": "<participant-id>",
       "status": "Late",
       "reason": "Khách đến muộn 15 phút do hỏng xe trên đường đến điểm tập kết"
     }
@@ -2118,11 +2118,11 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "orderId": "11112222-3333-4444-5555-666677778888",
+        "orderId": "<order-id>",
         "orderCode": "TRIP-2026-0421",
         "orderType": "Tour",
         "customer": {
-          "userId": "aaaa1111-2222-3333-4444-555555555555",
+          "userId": "<user-id>",
           "fullName": "Nguyễn Hoàng Nam",
           "email": "nam.nguyen@gmail.com",
           "phone": "0987111222"
@@ -2228,7 +2228,7 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "productId": "99990000-1111-2222-3333-444455556666",
+        "productId": "<product-id>",
         "name": "Lều cắm trại chống nước 4 người",
         "categoryName": "Lều trại & Nghỉ đêm",
         "primaryImageUrl": "https://cdn.rentrek.vn/products/tent-4p-thumb.jpg",
@@ -2261,7 +2261,7 @@ HTTP 400 Bad Request
 ```json
 {
   "name": "Balo trợ lực dã ngoại 50L - Osprey Rook",
-  "categoryId": "22222222-3333-4444-5555-666666666666",
+  "categoryId": "<category-id>",
   "description": "Balo leo núi chuyên dụng có khung trợ lực thoáng khí",
   "status": "Draft"
 }
@@ -2337,19 +2337,19 @@ HTTP 400 Bad Request
   "message": "Thành công",
   "data": [
     {
-      "priceTierId": "aaaa0000-1111-2222-3333-444455556666",
+      "priceTierId": "<price-tier-id>",
       "minDays": 1,
       "maxDays": 2,
       "dailyPrice": 100000
     },
     {
-      "priceTierId": "aaaa0000-1111-2222-3333-444455556667",
+      "priceTierId": "<price-tier-id>",
       "minDays": 3,
       "maxDays": 5,
       "dailyPrice": 85000
     },
     {
-      "priceTierId": "aaaa0000-1111-2222-3333-444455556668",
+      "priceTierId": "<price-tier-id>",
       "minDays": 6,
       "maxDays": null,
       "dailyPrice": 70000
@@ -2394,7 +2394,7 @@ HTTP 400 Bad Request
 ```json
 {
   "name": "Combo Trekking Đầy Đủ 2 Người",
-  "categoryId": "22222222-3333-4444-5555-666666666666",
+  "categoryId": "<category-id>",
   "description": "Gồm 1 lều 2P, 2 túi ngủ, 2 đệm hơi và 2 đèn đội đầu",
   "status": "Draft"
 }
@@ -2430,11 +2430,11 @@ HTTP 400 Bad Request
 {
   "items": [
     {
-      "productVariantId": "77777777-8888-9999-0000-111111111111",
+      "productVariantId": "<product-variant-id>",
       "quantity": 1
     },
     {
-      "productVariantId": "77777777-8888-9999-0000-222222222222",
+      "productVariantId": "<product-variant-id>",
       "quantity": 2
     }
   ]
@@ -2467,7 +2467,7 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "assetId": "bbbb1111-2222-3333-4444-555566667777",
+        "assetId": "<asset-id>",
         "assetCode": "TENT-4P-0015",
         "sku": "TENT-EUREKA-4P-ORANGE",
         "productName": "Lều cắm trại 4 người Eureka",
@@ -2502,7 +2502,7 @@ HTTP 400 Bad Request
 
 ```json
 {
-  "productVariantId": "77777777-8888-9999-0000-111111111111",
+  "productVariantId": "<product-variant-id>",
   "quantity": 10,
   "codePrefix": "HL-PETZL-",
   "initialConditionNote": "Hàng mới nhập kho nguyên seal"
@@ -2571,7 +2571,7 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "orderId": "22223333-4444-5555-6666-777788889999",
+        "orderId": "<order-id>",
         "orderCode": "RENT-2026-0089",
         "customer": {
           "fullName": "Trần Văn Cường",
@@ -2759,7 +2759,7 @@ HTTP 400 Bad Request
   "message": "Thành công",
   "data": [
     {
-      "chargeId": "cccc1111-2222-3333-4444-555566667777",
+      "chargeId": "<charge-id>",
       "chargeType": "Damage",
       "equipmentAssetCode": "TENT-4P-0015",
       "productName": "Lều cắm trại 4 người Eureka",
@@ -2845,7 +2845,7 @@ HTTP 400 Bad Request
   "data": {
     "items": [
       {
-        "paymentId": "dddd0000-1111-2222-3333-444455556666",
+        "paymentId": "<payment-id>",
         "orderCode": "TRIP-2026-0421",
         "paymentType": "Refund",
         "purpose": "TourFee",
@@ -2901,7 +2901,7 @@ HTTP 400 Bad Request
   "statusCode": 200,
   "message": "Duyệt lệnh hoàn tiền thành công",
   "data": {
-    "paymentId": "dddd0000-1111-2222-3333-444455556666",
+    "paymentId": "<payment-id>",
     "orderCode": "TRIP-2026-0421",
     "amount": -2560000,
     "status": "Pending",
@@ -3013,7 +3013,7 @@ HTTP 502 Bad Gateway
   "data": {
     "items": [
       {
-        "promotionId": "eeee0000-1111-2222-3333-444455556666",
+        "promotionId": "<promotion-id>",
         "name": "Ưu đãi Mùa Leo Núi Cuối Năm 2026",
         "promotionCode": "TREK2026",
         "startAt": "2026-11-01T00:00:00Z",
@@ -3106,7 +3106,7 @@ HTTP 502 Bad Gateway
       "minThreshold": 8,
       "discountType": "GiftItem",
       "discountValue": 15,
-      "giftProductVariantId": "77777777-8888-9999-0000-333333333333",
+      "giftProductVariantId": "<gift-product-variant-id>",
       "giftQuantity": 1
     }
   ]
@@ -3140,7 +3140,7 @@ HTTP 502 Bad Gateway
   "data": {
     "items": [
       {
-        "postId": "ffff0000-1111-2222-3333-444455556666",
+        "postId": "<post-id>",
         "title": "Kỹ thuật thở và bước chân khi leo dốc cao",
         "slug": "ky-thuat-tho-va-buoc-chan-khi-leo-doc-cao",
         "postType": "Skill",
@@ -3176,8 +3176,8 @@ HTTP 502 Bad Gateway
   "slug": "chuan-bi-the-luc-truoc-khi-di-bidoup",
   "postType": "Guide",
   "content": "<p>Nội dung rich text bài viết chi tiết...</p>",
-  "tagIds": ["11110000-aaaa-bbbb-cccc-111122223333"],
-  "softSkillIds": ["22220000-aaaa-bbbb-cccc-111122223333"]
+  "tagIds": ["<tag-id>"],
+  "softSkillIds": ["<soft-skill-id>"]
 }
 ```
 
@@ -3236,8 +3236,8 @@ HTTP 502 Bad Gateway
   "message": "Thành công",
   "data": [
     {
-      "policyId": "99999999-0000-1111-2222-333333333333",
-      "policyFamilyId": "99999999-0000-0000-0000-333333333333",
+      "policyId": "<policy-id>",
+      "policyFamilyId": "<policy-family-id>",
       "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
       "policyType": "Tour",
       "version": 1,
@@ -3282,30 +3282,30 @@ HTTP 502 Bad Gateway
   "statusCode": 200,
   "message": "Thành công",
   "data": {
-    "policyId": "99999999-0000-1111-2222-333333333333",
+    "policyId": "<policy-id>",
     "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
     "isLocked": true,
     "rules": [
       {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667777",
+        "ruleId": "<recurrence-rule-id>",
         "minHoursBefore": 168,
         "refundPercentage": 100,
         "description": "Trước 7 ngày (≥ 168h): Hoàn 100%"
       },
       {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667778",
+        "ruleId": "<recurrence-rule-id>",
         "minHoursBefore": 72,
         "refundPercentage": 80,
         "description": "Từ 3 đến 7 ngày (72h - 168h): Hoàn 80%"
       },
       {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667779",
+        "ruleId": "<recurrence-rule-id>",
         "minHoursBefore": 24,
         "refundPercentage": 50,
         "description": "Từ 24h đến 72h: Hoàn 50%"
       },
       {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667780",
+        "ruleId": "<recurrence-rule-id>",
         "minHoursBefore": 0,
         "refundPercentage": 0,
         "description": "Dưới 24h: Không hoàn tiền (0%)"
@@ -3425,7 +3425,7 @@ HTTP 502 Bad Gateway
   "data": {
     "items": [
       {
-        "reviewId": "7777aaaa-8888-9999-0000-111122223333",
+        "reviewId": "<review-id>",
         "rating": 5,
         "comment": "Chuyến đi tuyệt vời! Anh Nam guide hỗ trợ rất nhiệt tình, đồ ăn ngon và lều trại rất sạch sẽ.",
         "customerFullName": "Nguyễn Hoàng Nam",
@@ -3505,7 +3505,7 @@ HTTP 502 Bad Gateway
   "message": "Thành công",
   "data": [
     {
-      "tripId": "33333333-4444-5555-6666-777777777777",
+      "tripId": "<trip-id>",
       "tourName": "Chinh phục Tà Năng - Phan Dũng",
       "groupId": "gggg1111-2222-3333-4444-555555555555",
       "groupName": "Nhóm Đại Bàng",
@@ -3556,24 +3556,24 @@ HTTP 502 Bad Gateway
   "data": {
     "groupId": "gggg1111-2222-3333-4444-555555555555",
     "groupName": "Nhóm Đại Bàng",
-    "tripId": "33333333-4444-5555-6666-777777777777",
+    "tripId": "<trip-id>",
     "tourName": "Chinh phục Tà Năng - Phan Dũng",
     "currentActivity": {
-      "activityId": "55555555-6666-7777-8888-999999999999",
+      "activityId": "<activity-id>",
       "name": "Tập trung bìa rừng & khởi động",
       "dayNumber": 1,
       "startTime": "07:30:00"
     },
     "participants": [
       {
-        "participantId": "aaaa1111-2222-3333-4444-555555555555",
+        "participantId": "<participant-id>",
         "fullName": "Nguyễn Hoàng Nam",
         "age": 28,
         "phone": "0987654321",
         "currentAttendanceStatus": "Present"
       },
       {
-        "participantId": "aaaa2222-3333-4444-5555-666666666666",
+        "participantId": "<participant-id>",
         "fullName": "Trần Thị Mai",
         "age": 25,
         "phone": "0912334455",
@@ -3607,7 +3607,7 @@ HTTP 502 Bad Gateway
   "statusCode": 200,
   "message": "Thành công",
   "data": {
-    "participantId": "aaaa1111-2222-3333-4444-555555555555",
+    "participantId": "<participant-id>",
     "fullName": "Nguyễn Hoàng Nam",
     "dateOfBirth": "1998-05-12",
     "age": 28,
@@ -3619,13 +3619,13 @@ HTTP 502 Bad Gateway
     },
     "assignedAssets": [
       {
-        "assetId": "99990000-1111-2222-3333-444455556666",
+        "assetId": "<asset-id>",
         "assetCode": "WALK-0012",
         "productName": "Bộ đàm Motorola T82 Extreme",
         "issuedAt": "2026-11-20T06:30:00Z"
       },
       {
-        "assetId": "99990000-1111-2222-3333-777788889999",
+        "assetId": "<asset-id>",
         "assetCode": "POLE-0045",
         "productName": "Gậy leo núi Decathlon Forclaz",
         "issuedAt": "2026-11-20T06:30:00Z"
@@ -3633,7 +3633,7 @@ HTTP 502 Bad Gateway
     ],
     "attendanceHistory": [
       {
-        "activityId": "55555555-6666-7777-8888-999999999999",
+        "activityId": "<activity-id>",
         "activityName": "Tập trung bìa rừng & khởi động",
         "dayNumber": 1,
         "status": "Present",
@@ -3667,17 +3667,17 @@ HTTP 502 Bad Gateway
 
 ```json
 {
-  "activityId": "55555555-6666-7777-8888-999999999999",
+  "activityId": "<activity-id>",
   "clientBatchId": "offline-sync-20261120-0740-001",
   "markAllPresent": false,
   "attendances": [
     {
-      "participantId": "aaaa1111-2222-3333-4444-555555555555",
+      "participantId": "<participant-id>",
       "status": "Present",
       "reason": null
     },
     {
-      "participantId": "aaaa2222-3333-4444-5555-666666666666",
+      "participantId": "<participant-id>",
       "status": "Late",
       "reason": "Khách đến muộn 15 phút do kẹt xe"
     }
@@ -3693,7 +3693,7 @@ HTTP 502 Bad Gateway
   "statusCode": 200,
   "message": "Ghi nhận điểm danh thành công",
   "data": {
-    "activityId": "55555555-6666-7777-8888-999999999999",
+    "activityId": "<activity-id>",
     "updatedCount": 2,
     "presentCount": 17,
     "totalCount": 18,
@@ -3757,7 +3757,7 @@ HTTP 502 Bad Gateway
   "statusCode": 200,
   "message": "Thành công",
   "data": {
-    "tripId": "33333333-4444-5555-6666-777777777777",
+    "tripId": "<trip-id>",
     "tourName": "Chinh phục Tà Năng - Phan Dũng",
     "days": [
       {
@@ -3765,7 +3765,7 @@ HTTP 502 Bad Gateway
         "title": "Ngày 1: Rìa rừng Tà Hine - Đồi lính",
         "activities": [
           {
-            "activityId": "55555555-6666-7777-8888-999999999999",
+            "activityId": "<activity-id>",
             "name": "Tập trung bìa rừng & khởi động",
             "startTime": "07:30:00",
             "durationMinutes": 45,
@@ -3774,7 +3774,7 @@ HTTP 502 Bad Gateway
             "attendanceRate": "18/18"
           },
           {
-            "activityId": "55555555-6666-7777-8888-000000000000",
+            "activityId": "<activity-id>",
             "name": "Trekking dốc Đồi Lính",
             "startTime": "09:00:00",
             "durationMinutes": 180,
@@ -3812,7 +3812,7 @@ HTTP 502 Bad Gateway
   "statusCode": 200,
   "message": "Thành công",
   "data": {
-    "tripId": "33333333-4444-5555-6666-777777777777",
+    "tripId": "<trip-id>",
     "items": [
       {
         "providedItemId": "pppp1111-2222-3333-4444-555555555555",
@@ -4004,3 +4004,5 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 | 2026-10-06 | Team | 1.1 – 2.3 | Khởi tạo skeleton cơ bản ban đầu |
 | 2026-11-01 | Antigravity Pair | 1.1 – 23.3 | Hoàn tất thiết kế toàn diện 176 API cho Phân hệ Quản trị (Admin & Vận hành) từ Màn O01 đến O39 theo RenTrekk Design System và DB Supabase Schema. Bổ sung mục tiêu, lý do phân rã chi tiết, bảng enum và mã lỗi nghiệp vụ. |
 | 2026-11-01 | Antigravity Pair | 24.1 – 24.6 | Bổ sung phân hệ API Hướng dẫn viên Thực địa (Màn G01 – G06) gồm 6 API chuyên biệt `/api/v1/guide/*`, bảo mật dữ liệu tài chính và hỗ trợ offline sync trên mobile. Nâng tổng số API lên 182 endpoints. |
+| 2026-11-02 | Huy (Trip Ops & Guide) | 1.5–1.7, 2.4–2.7, 7.1–7.6, 8.1–8.12, 9.1–9.7, 11.1–11.3, 24.1–24.6 | Hoàn tất triển khai Backend + Frontend và Unit Tests cho 34 API thuộc phân hệ Vận hành Chuyến đi (O08–O12, O14) và Khu vực Hướng dẫn viên Thực địa (G01–G06). |
+| 2026-11-02 | Huy | Toàn bộ tài liệu | Chuẩn hóa toàn bộ Token và ID thành định dạng placeholder <access-token>, <user-id>,... loại bỏ hoàn toàn báo động giả của Git/GitHub Secret Scanning theo góp ý của Leader. |

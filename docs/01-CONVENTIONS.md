@@ -190,7 +190,7 @@ app.MapControllers();                              // 6.
 POST /api/v1/products
 {
   "name": "Lều cắm trại 2 người",
-  "categoryId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "categoryId": "<category-id>",
   "pricePerDay": 120000,
   "quantity": 10,
   "description": "Lều chống nước, nặng 2kg"
@@ -270,7 +270,7 @@ HTTP 200 OK
   "statusCode": 200,
   "message": "Lấy sản phẩm thành công",
   "data": {
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "id": "<id>",
     "name": "Lều cắm trại 2 người",
     "pricePerDay": 120000,
     "createdAt": "2026-10-06T08:30:00Z"
