@@ -43,6 +43,11 @@ public static class DependencyInjection
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IRentalOrderService, RentalOrderService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IAdminRecurrenceRuleService, AdminRecurrenceRuleService>();
+        services.AddScoped<IAdminTripService, AdminTripService>();
+        services.AddScoped<IAdminTripGroupService, AdminTripGroupService>();
+        services.AddScoped<IAdminTripAttendanceService, AdminTripAttendanceService>();
+        services.AddScoped<IGuidePortalService, GuidePortalService>();
 
         return services;
     }
