@@ -1,0 +1,16 @@
+namespace RenTrek.BLL.Constants;
+
+/// <summary>
+/// Giá trị refund_cases.status (máy trạng thái ở docs/05-MANUAL-REFUND-WORKFLOW.md §4).
+/// </summary>
+public static class RefundCaseStatuses
+{
+    public const string Requested = "Requested";
+    public const string Approved = "Approved";
+    public const string Completed = "Completed";
+    public const string Rejected = "Rejected";
+    public const string Failed = "Failed";
+    public const string Cancelled = "Cancelled";
+
+    public static readonly IReadOnlyList<string> AdminQueue = [Requested, Approved, Completed, Rejected, Failed];
+}
