@@ -46,17 +46,41 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
                         && o.OrderType == RentalOrderType)
             .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<RentalOrderDetailRow?> GetOwnedDetailAsync(
+    public Task<RentalOrderDetailRow?> GetOwnedDetailAsync(
         Guid orderId,
         Guid customerUserId,
         CancellationToken cancellationToken = default)
+        => LoadDetailAsync(orderId, customerUserId, cancellationToken);
+
+    public Task<RentalOrderDetailRow?> GetDetailAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => LoadDetailAsync(orderId, null, cancellationToken);
+
+    public Task AcquireFulfillmentLockAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => PostgresAdvisoryLock.AcquireAsync(_context, $"rental-order:fulfillment:{orderId:N}", cancellationToken);
+
+    public Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Orders
+            .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalOrderItems.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.AssetAssignments).ThenInclude(a => a.EquipmentAsset)
+            .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalCharges)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.OrderId == orderId
+                                      && !o.IsDeleted
+                                      && o.OrderType == RentalOrderType
+                                      && o.RentalOrder != null, cancellationToken);
+
+    // customerUserId null = màn vận hành (Staff/Admin) đọc mọi đơn
+    private async Task<RentalOrderDetailRow?> LoadDetailAsync(
+        Guid orderId,
+        Guid? customerUserId,
+        CancellationToken cancellationToken)
     {
         // Bỏ query filter để đơn lịch sử vẫn đọc được tên sản phẩm / tài khoản đã xoá mềm; tự lọc đơn chưa xoá
         var detail = await _context.Orders
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(o => o.OrderId == orderId
-                        && o.CustomerUserId == customerUserId
+                        && (customerUserId == null || o.CustomerUserId == customerUserId)
                         && !o.IsDeleted
                         && o.OrderType == RentalOrderType
                         && o.RentalOrder != null)
@@ -78,6 +102,9 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
                 RentalStartAt = o.RentalOrder!.RentalStartAt,
                 RentalEndAt = o.RentalOrder.RentalEndAt,
                 DepositAmount = o.RentalOrder.DepositAmount,
+                CustomerName = o.CustomerUser.FullName,
+                CustomerEmail = o.CustomerUser.Email,
+                CustomerPhone = o.CustomerUser.Phone,
                 HandledByName = o.RentalOrder.HandledByUser != null ? o.RentalOrder.HandledByUser.FullName : null,
                 RefundPolicyId = o.RefundPolicy.RefundPolicyId,
                 RefundPolicyName = o.RefundPolicy.Name,
@@ -128,6 +155,8 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
             {
                 AssignmentId = a.AssetAssignmentId,
                 RentalOrderItemId = a.RentalOrderItemId,
+                EquipmentAssetId = a.EquipmentAssetId,
+                AssetStatus = a.EquipmentAsset.AssetStatus,
                 Status = a.Status,
                 AssignedAt = a.AssignedAt,
                 ReturnedAt = a.ReturnedAt,

@@ -42,6 +42,7 @@ public class RentalOrderDetailResponse
     public RentalOrderAmountsResponse Amounts { get; set; } = new();
 
     public List<RentalOrderChargeResponse> Charges { get; set; } = [];
+    public RentalOrderDepositSettlementResponse DepositSettlement { get; set; } = new();
 
     public List<RentalOrderPaymentResponse> Payments { get; set; } = [];
 

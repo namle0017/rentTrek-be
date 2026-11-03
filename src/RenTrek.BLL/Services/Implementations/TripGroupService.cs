@@ -5,6 +5,7 @@ using RenTrek.BLL.DTOs.TripBooking.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
@@ -587,6 +588,11 @@ public sealed class TripGroupService(
                 throw new ConflictException(
                     "Không được đưa Trip quay lại trạng thái Draft sau khi đã mở",
                     ErrorCodes.TripGroupCountLocked);
+            }
+            else if (TripStatusTimeRules.Validate(previousStatus, targetStatus, trip.StartAt, trip.EndAt, utcNow) is { } timeError)
+            {
+                // InProgress / Completed / Cancelled: đúng thứ tự và đúng thời điểm (PRD §7.2)
+                throw new ConflictException(timeError);
             }
 
             trip.Status = targetStatus;

@@ -19,7 +19,14 @@ public static class DependencyInjection
         var assembly = typeof(DependencyInjection).Assembly;
 
         // AutoMapper
-        services.AddAutoMapper(cfg => cfg.LicenseKey = configuration["AutoMapper:LicenseKey"], assembly);
+        services.AddAutoMapper(cfg =>
+        {
+            var licenseKey = configuration["AutoMapper:LicenseKey"];
+            if (!string.IsNullOrWhiteSpace(licenseKey))
+            {
+                cfg.LicenseKey = licenseKey;
+            }
+        }, assembly);
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
@@ -38,7 +45,8 @@ public static class DependencyInjection
         services.AddSingleton<IRefundDataProtector, RefundDataProtector>();
 
         // Services
-        services.AddScoped<IAuthService, AuthService>();
+        // Phiên đăng nhập luôn theo giờ thật: tua đồng hồ giả lập không làm hết hạn token
+        services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
@@ -53,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IRentalFulfillmentService, RentalFulfillmentService>();
 
         return services;
     }

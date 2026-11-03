@@ -59,7 +59,18 @@ public class TourProfile : AutoMapper.Profile
             .ForMember(d => d.Activities, opt => opt.MapFrom(s => s.Activities.OrderBy(a => a.DayNumber).ThenBy(a => a.DisplayOrder)))
             .ForMember(d => d.AvailableTrips, opt => opt.MapFrom(s => s.Trips
                 .Where(t => t.Status != "Draft" && t.Status != "Cancelled")
-                .OrderBy(t => t.StartAt)));
+                .OrderBy(t => t.StartAt)))
+            .ForMember(d => d.RelatedPosts, opt => opt.MapFrom(s => s.TourPosts
+                .Where(tp => !tp.Post.IsDeleted && tp.Post.Status == "Published")
+                .OrderBy(tp => tp.DisplayOrder)
+                .Select(tp => new TourRelatedPostResponse
+                {
+                    PostId = tp.Post.PostId,
+                    Title = tp.Post.Title,
+                    Slug = tp.Post.Slug,
+                    PostType = tp.Post.PostType,
+                    PublishedAt = tp.Post.PublishedAt
+                })));
     }
 
     private static string GetSlotStatusText(Tour tour)

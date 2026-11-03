@@ -812,6 +812,7 @@ public class RentalOrderService : IRentalOrderService
                 RefundedAmount = refundedAmount
             },
             Charges = charges,
+            DepositSettlement = MapDepositSettlement(detail),
             Payments = payments,
             Timeline = BuildTimeline(detail, visibleAssignments),
             AllowedActions = new RentalOrderAllowedActionsResponse
@@ -820,6 +821,21 @@ public class RentalOrderService : IRentalOrderService
                 CanCancel = canCancel,
                 CancelBlockedReason = cancelBlockedReason
             }
+        };
+    }
+
+    // Cọc chỉ tính là đang giữ khi đơn đã thanh toán; phí hợp lệ = phí Assessed (PRD §8.7)
+    private static RentalOrderDepositSettlementResponse MapDepositSettlement(RentalOrderDetailRow detail)
+    {
+        var depositHeld = detail.PaymentStatus == OrderPaymentStatuses.Paid ? detail.DepositAmount : 0m;
+        var validCharges = detail.Charges.Where(c => c.Status == RentalChargeStatuses.Assessed).Sum(c => c.Amount);
+        var (toRefund, due) = RentalFulfillmentCalculator.Settle(depositHeld, validCharges);
+        return new RentalOrderDepositSettlementResponse
+        {
+            DepositHeld = depositHeld,
+            ValidCharges = validCharges,
+            DepositToRefund = toRefund,
+            AdditionalAmountDue = due
         };
     }
 
