@@ -1,0 +1,72 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using RenTrek.API.Common;
+using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Post.Requests;
+using RenTrek.BLL.DTOs.Post.Responses;
+using RenTrek.BLL.Services.Interfaces;
+
+namespace RenTrek.API.Controllers;
+
+/// <summary>
+/// Soạn và xuất bản bài viết (O32). Staff chỉ sửa / xóa bài mình tạo; Admin sửa tất cả.
+/// </summary>
+[ApiController]
+[Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
+[Route("api/v1/admin/posts")]
+[Produces("application/json")]
+public sealed class AdminPostsController(IPostService postService) : ControllerBase
+{
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminPostListItemResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] AdminPostQueryRequest query, CancellationToken cancellationToken)
+    {
+        var result = await postService.GetAdminPostsAsync(query, cancellationToken);
+        return Ok(ApiResponse<PagedResponse<AdminPostListItemResponse>>.Ok(result, "Lấy danh sách bài viết thành công"));
+    }
+
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await postService.GetAdminPostByIdAsync(id, cancellationToken);
+        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, "Lấy bài viết thành công"));
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Create([FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
+    {
+        var result = await postService.CreateAsync(request, cancellationToken);
+        return StatusCode(
+            StatusCodes.Status201Created,
+            ApiResponse<AdminPostDetailResponse>.Ok(result, MessageFor(result.Status, "Đã tạo"), StatusCodes.Status201Created));
+    }
+
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
+    {
+        var result = await postService.UpdateAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, MessageFor(result.Status, "Đã lưu")));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Delete([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        await postService.DeleteAsync(id, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã xóa bài viết"));
+    }
+
+    private static string MessageFor(string status, string verb)
+        => status == PostStatuses.Published ? "Đã xuất bản bài viết" : $"{verb} bản nháp";
+}
