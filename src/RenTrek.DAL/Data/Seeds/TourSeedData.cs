@@ -395,6 +395,7 @@ public static class TourSeedData
         foreach (var tour in tours)
         {
             tour.CreatedByUserId = systemUserId;
+            tour.GroupMaxParticipants ??= 8;
             foreach (var item in tour.ProvidedItems)
                 item.ProductVariantId = providedVariants[item.ItemName];
             foreach (var trip in tour.Trips)
@@ -403,6 +404,22 @@ public static class TourSeedData
                 trip.ManagedByUserId = systemUserId;
                 trip.CreatedAt = now;
                 trip.UpdatedAt = now;
+                if (trip.TripGroups.Count == 0)
+                {
+                    var groupCount = Math.Max(1, (int)Math.Ceiling((double)trip.TotalSlots / 10));
+                    for (var i = 1; i <= groupCount; i++)
+                    {
+                        trip.TripGroups.Add(new TripGroup
+                        {
+                            TripGroupId = Guid.NewGuid(),
+                            GroupName = $"Nhóm {i}",
+                            MaxParticipants = tour.GroupMaxParticipants ?? 8,
+                            Status = "Draft",
+                            CreatedAt = now.UtcDateTime,
+                            UpdatedAt = now.UtcDateTime
+                        });
+                    }
+                }
             }
         }
 

@@ -57,7 +57,9 @@ public class TourProfile : AutoMapper.Profile
             .ForMember(d => d.Longitude, opt => opt.MapFrom(s => s.MainLocation.Longitude))
             .ForMember(d => d.Images, opt => opt.MapFrom(s => s.Images.OrderBy(i => i.DisplayOrder)))
             .ForMember(d => d.Activities, opt => opt.MapFrom(s => s.Activities.OrderBy(a => a.DayNumber).ThenBy(a => a.DisplayOrder)))
-            .ForMember(d => d.AvailableTrips, opt => opt.MapFrom(s => s.Trips.OrderBy(t => t.StartAt)));
+            .ForMember(d => d.AvailableTrips, opt => opt.MapFrom(s => s.Trips
+                .Where(t => t.Status != "Draft" && t.Status != "Cancelled")
+                .OrderBy(t => t.StartAt)));
     }
 
     private static string GetSlotStatusText(Tour tour)

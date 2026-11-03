@@ -30,6 +30,8 @@ public sealed class BookingParticipantConfiguration : IEntityTypeConfiguration<B
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted");
         builder.HasOne(x => x.BookingOrder).WithMany(x => x.Participants).HasForeignKey(x => x.BookingOrderId);
         builder.HasOne(x => x.LinkedUser).WithMany(x => x.BookingParticipants).HasForeignKey(x => x.LinkedUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Trip).WithMany(x => x.BookingParticipants).HasForeignKey(x => x.TripId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.TripGroup).WithMany(x => x.BookingParticipants).HasForeignKey(x => x.TripGroupId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

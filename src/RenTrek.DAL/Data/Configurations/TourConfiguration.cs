@@ -37,6 +37,9 @@ public class TourConfiguration : IEntityTypeConfiguration<Tour>
         builder.Property(t => t.EquipmentDeposit)
             .HasPrecision(18, 0);
 
+        builder.Property(t => t.GroupMaxParticipants)
+            .HasColumnName("group_max_participants");
+
         // Relationships
         builder.HasOne(t => t.Category)
             .WithMany(c => c.Tours)

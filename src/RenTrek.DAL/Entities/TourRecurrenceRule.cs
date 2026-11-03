@@ -1,4 +1,4 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
 public class TourRecurrenceRule
 {
@@ -12,6 +12,7 @@ public class TourRecurrenceRule
     public TimeOnly StartTime { get; set; }
     public string? DaysOfWeek { get; set; }
     public int DefaultTotalSlots { get; set; }
+    public int? DefaultGroupCount { get; set; }
     public decimal DefaultPrice { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

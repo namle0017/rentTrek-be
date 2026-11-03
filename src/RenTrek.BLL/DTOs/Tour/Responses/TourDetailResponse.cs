@@ -16,6 +16,7 @@ public class TourDetailResponse
     public decimal BasePrice { get; set; }
     public decimal EquipmentDeposit { get; set; } = 500000m; // Cọc thiết bị: 500.000đ (hoàn 100%)
     public int InspectionRate { get; set; } = 96;           // Đồ kiểm định 96%
+    public int? GroupMaxParticipants { get; set; }
     public string Status { get; set; } = string.Empty;
 
     // Phân loại & Địa điểm

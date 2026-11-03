@@ -24,6 +24,7 @@
 - [5. Products](#5-products)
 - [6. Product Bundles](#6-product-bundles)
 - [7. Rental Orders](#7-rental-orders)
+- [8. Trip Groups](#8-trip-groups)
 - [Phụ lục: Enum](#phụ-lục-enum)
 - [Phụ lục: Mã lỗi](#phụ-lục-mã-lỗi)
 - [Template endpoint](#template-endpoint)
@@ -74,16 +75,22 @@
 | 1.2 | Auth | `POST` | `/auth/login` | Public | Đăng nhập | ⬜ TODO |
 | 1.3 | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | ⬜ TODO |
 | 1.4 | Auth | `POST` | `/auth/logout` | User | Đăng xuất | ⬜ TODO |
+| 1.5 | Auth | `POST` | `/auth/verify-email` | Public | Xác thực email và tự gán chuyến đã thanh toán | ✅ Done |
+| 1.6 | Auth | `POST` | `/auth/resend-verification-email` | User | Gửi lại email xác thực | ✅ Done |
 | 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ⬜ TODO |
 | 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ⬜ TODO |
 | 2.3 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
-| 2.4 | Users | `GET` | `/users/me/orders` | User | Đơn hàng của tôi (đơn thuê và booking chuyến đi) | 🟨 In progress |
-| 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking và giữ chỗ | ✅ Done |
-| 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | ✅ Done |
-| 3.3 | Trip Bookings | `POST` | `/trip-bookings/{orderId}/participant-invitations` | User | Tạo lại lời mời sau thanh toán | ✅ Done |
-| 3.4 | Trip Bookings | `POST` | `/trip-bookings/participant-invitations/claim` | User | Nhận vị trí participant bằng token | ✅ Done |
+| 2.4 | Users | `GET` | `/users/me/orders` | User | Đơn hàng của tôi (đơn thuê và booking chuyến đi) | 🔁 Changed |
+| 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking nhóm và giữ chỗ (hỗ trợ đặt giùm, gán theo email) | 🔁 Changed |
+| 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | 🔁 Changed |
+| 3.3 | Trip Bookings | `PUT` | `/trip-bookings/{orderId}/participants/{participantId}` | User | Buyer sửa họ tên, email, số điện thoại người đi trước khởi hành | ✅ Done |
+| 3.4 | Trip Bookings | `GET`, `POST` | `/trip-bookings/{orderId}/invite-link`, `/invite-link/rotate` | User | Lấy hoặc đổi link xem chuyến chỉ đọc | 🔁 Changed |
+| 3.5 | Trip Bookings | `POST` | `/trip-bookings/participant-invitations/preview` | Public | Xem danh sách họ tên đoàn và lịch hoạt động bằng link | 🔁 Changed |
+| 3.6 | Trip Bookings | `POST` | `/trip-bookings/{orderId}/cancel` | User | Hủy toàn bộ booking trước khởi hành, giải phóng chỗ group và giữ lịch sử | ✅ Done |
 | 4.1 | Tours | `GET` | `/tours` | Public | Lấy danh sách tour kèm bộ lọc & phân trang | ✅ Done |
 | 4.2 | Tours | `GET` | `/tours/{id}` | Public | Lấy thông tin chi tiết một tour | ✅ Done |
+| 4.3 | Tours | `PUT` | `/tours/{id}/group-settings` | Admin | Cấu hình `groupMaxParticipants` cho phiên bản Tour | ✅ Done |
+| 4.4 | Tours | `GET`, `POST` | `/tours/{id}/recurrence-rules` | Admin | Danh sách và tạo quy tắc lịch lặp kèm `defaultGroupCount` | ✅ Done |
 | 5.1 | Products | `GET` | `/products` | Public | Danh sách sản phẩm thuê / bán | ✅ Done |
 | 5.2 | Products | `GET` | `/products/{id}` | Public | Chi tiết sản phẩm, biến thể, ảnh, giá | ✅ Done |
 | 5.3 | Products | `GET` | `/products/categories` | Public | Danh mục lọc sản phẩm | ✅ Done |
@@ -93,6 +100,17 @@
 | 7.2 | Rental Orders | `POST` | `/rental-orders/quote` | User | Báo giá đơn thuê | 🟨 In progress |
 | 7.3 | Rental Orders | `POST` | `/rental-orders` | Customer | Tạo đơn thuê và giữ chỗ (Idempotency-Key) | 🟨 In progress |
 | 7.4 | Rental Orders | `GET` | `/rental-orders/{orderId}` | Customer | Chi tiết đơn thuê của tôi | 🟨 In progress |
+| 8.1 | Trip Groups | `GET` | `/trips/{tripId}/grouping` | Staff/Admin/Guide | Snapshot chia đoàn theo quyền | ✅ Done |
+| 8.2 | Trip Groups | `PUT` | `/trips/{tripId}/groups/{groupId}/guide` | Staff/Admin | Gán hoặc bỏ guide khi còn Draft | ✅ Done |
+| 8.3 | Trip Groups | `PUT` | `/trips/{tripId}/bookings/{bookingOrderId}/group` | Staff/Admin | Chuyển nguyên booking sang group | ✅ Done |
+| 8.4 | Trip Groups | `POST` | `/trips/{tripId}/bookings/{bookingOrderId}/split` | Staff/Admin | Tách booking có lý do | ✅ Done |
+| 8.4b | Trip Groups | `POST` | `/trips/{tripId}/grouping/recalculate-provided-items` | Staff/Admin | Tính lại nhu cầu đồ cấp chuyến (`PER_GROUP` / `PER_PARTICIPANT`) | ✅ Done |
+| 8.5 | Trip Groups | `POST` | `/trips/{tripId}/grouping/publish` | Staff/Admin | Chốt toàn bộ group của Trip | ✅ Done |
+| 8.6 | Trip Groups | `GET` | `/trip-bookings/{orderId}/grouping` | User | Group Published trong phạm vi booking | ✅ Done |
+| 8.6b | Trip Groups | `GET` | `/guide/trip-groups`, `/guide/trip-groups/{groupId}` | Guide | Danh sách và chi tiết group được giao cho hướng dẫn viên | ✅ Done |
+| 8.0b | Trips (Admin) | `GET`, `POST`, `PUT`, `PATCH` | `/trips/{tripId}`, `/trips`, `/trips/{tripId}/status`, `/trips/generate-recurring` | Admin/Staff | Quản trị Trip, đồng bộ số group `Draft`, mở bán và sinh chuyến từ lịch lặp | ✅ Done |
+| 9.1 | Admin Catalog | `GET` | `/admin/tours` | Admin/Staff | Danh sách phiên bản Tour mới nhất cho O05 | ✅ Done |
+| 9.2 | Admin Catalog | `GET` | `/admin/products` | Admin/Staff | Danh sách sản phẩm và số lượng tài sản cho O16 | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
@@ -216,6 +234,36 @@
 
 ---
 
+### 1.5. Xác thực email
+
+`POST /auth/verify-email` · **Auth:** Public
+
+Xác thực email tài khoản bằng token HMAC gửi trong link `/verify-email#t=<token>` sau khi đăng ký (hạn 24 giờ). Khi xác thực thành công, BE gán `emailConfirmedAt` và tự động gắn `linkedUserId` cho mọi chỗ chưa liên kết có cùng email trong các đơn `Confirmed` / `Paid` chưa khởi hành (`trip.startAt > now`). Các response Auth (`user`) và `GET /users/me` đều có trường `emailConfirmed: bool`.
+
+**Request body**
+
+```json
+{
+  "token": "<token>"
+}
+```
+
+**Response `200 OK`** — `data = null`, message `Xác thực email thành công`.
+
+**Lỗi:** `400` thiếu token, token không hợp lệ hoặc đã hết hạn; `403` tài khoản không hoạt động; `404` không tìm thấy tài khoản.
+
+---
+
+### 1.6. Gửi lại email xác thực
+
+`POST /auth/resend-verification-email` · **Auth:** User
+
+Gửi lại link xác thực email cho tài khoản đang đăng nhập. Nếu tài khoản đã xác thực email rồi, API vẫn trả `200 OK` an toàn mà không gửi lại.
+
+**Response `200 OK`** — `data = null`, message `Đã gửi lại email xác thực`.
+
+---
+
 ## 2. Users
 
 ### 2.1. Lấy thông tin cá nhân
@@ -300,7 +348,7 @@
 
 `GET /users/me/orders` · **Auth:** User
 
-Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental`) và booking chuyến đi (`TripBooking`). Chỉ trả đơn của chính user. `totalPayable` luôn bằng `totalAmount` (không có cọc).
+Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental`) và booking chuyến đi (`TripBooking`). Bao gồm đơn do chính user tạo (`CustomerUserId`) và các chuyến đi mà user được gán chỗ (`LinkedUserId`) khi tài khoản đang hoạt động và **đã xác thực email**. Với chuyến đi xem dưới tư cách người đi cùng (không phải chủ đơn), `totalAmount = 0`, `totalPayable = 0`, `paymentStatus = ""`, `holdExpiresAt = null`. `totalPayable` luôn bằng `totalAmount` (không có cọc).
 
 **Query params**
 
@@ -348,7 +396,11 @@ Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental
 
 ## 3. Trip Bookings
 
-Người tạo booking phải có tài khoản đang hoạt động và luôn là participant đầu tiên. `additionalParticipants` chỉ chứa người đi cùng. Giá lấy từ trip trên server. Booking giữ chỗ 15 phút khi chưa thanh toán.
+Đơn đặt chuyến đi cho cá nhân hoặc nhóm theo cơ chế **gán theo email, không cần bước mời/claim**:
+
+- Người đặt (buyer) phải có tài khoản đang hoạt động. Mặc định `buyerParticipates = true` (buyer là participant đầu tiên); nếu `buyerParticipates = false` (**đặt giùm**) thì buyer không phải participant, không tốn chỗ và không tính tiền nhưng vẫn là chủ đơn (`CustomerUserId`) để thanh toán, xem và quản lý đơn.
+- Giá và số chỗ do server tính theo tổng số participant thực tế đi. Đơn giữ chỗ 15 phút khi chưa thanh toán.
+- `linkedUserId` của người đi cùng chỉ được tự động gán khi đơn `Confirmed` / `Paid`, chuyến chưa khởi hành (`trip.startAt > now`) và tài khoản trùng email **đã xác thực email** (xảy ra tại thời điểm webhook SePay xác nhận thanh toán hoặc khi người đó xác thực email sau đó). Sau khi thanh toán thành công, BE gửi email thông báo cho các người đi cùng có khai email.
 
 ### 3.1. Tạo booking chuyến đi
 
@@ -361,6 +413,8 @@ Người tạo booking phải có tài khoản đang hoạt động và luôn l�
 ```json
 {
   "tripId": "00000000-0000-0000-0000-000000000000",
+  "contactPhone": "0901234567",
+  "buyerParticipates": true,
   "note": "Đi cùng nhóm bạn",
   "additionalParticipants": [
     {
@@ -370,27 +424,32 @@ Người tạo booking phải có tài khoản đang hoạt động và luôn l�
       "dateOfBirth": "2000-01-01",
       "emergencyContactName": "Nguyễn Văn C",
       "emergencyContactPhone": "0911111111"
+    },
+    {
+      "fullName": "Bé Minh"
     }
   ]
 }
 ```
 
-- Tối đa 20 người đi cùng.
-- Email được `trim` và chuyển chữ thường, không trùng trong cùng booking.
-- Buyer tự lấy từ JWT/account, không nhập lại trong request.
+- `contactPhone`: bắt buộc (tối đa 20 ký tự). Nếu `buyerParticipates = true`, chỗ của buyer dùng `contactPhone` làm `phone`.
+- `buyerParticipates`: mặc định `true`. Khi `false` (đặt giùm), `additionalParticipants` bắt buộc có ít nhất 1 người, và một người đi cùng được phép dùng trùng email với buyer.
+- `additionalParticipants`: tối đa 20 người đi cùng. `fullName` bắt buộc; `email` và `phone` đều **tuỳ chọn** (trẻ em / người lớn tuổi có thể để trống).
+- Nếu người đi cùng có `phone` thì lưu vào `phone`; nếu bỏ trống `phone` (và không truyền `emergencyContactPhone`) thì BE tự gán `emergencyContactName` = tên buyer và `emergencyContactPhone` = `contactPhone`.
+- Các chỗ có khai `email` được `trim` + chuyển chữ thường và không được trùng nhau trong cùng đơn (không trùng email buyer khi `buyerParticipates = true`).
 - Kiểm tra trạng thái trip và sức chứa trong transaction có khóa hàng.
 
 **Response:** `201 Created`, `data` là `TripBookingResponse`.
 
-**Lỗi:** `400` dữ liệu/key sai; `403` account không hoạt động; `404` không có account/trip; `409` hết chỗ, trip đóng, email trùng, hoặc key dùng cho payload khác.
+**Lỗi:** `400` thiếu `contactPhone`, đặt giùm không có người đi cùng, định dạng email sai hoặc thiếu/sai `Idempotency-Key`; `403` account không hoạt động; `404` không có account/trip; `409` hết chỗ, trip đóng, email trùng, hoặc key dùng cho payload khác.
 
 ### 3.2. Xem booking
 
 `GET /trip-bookings/{orderId}` · **Auth:** User
 
-- Buyer nhận toàn bộ tiền, payment status, hold và participants; `canManage = true`.
-- Participant đã liên kết chỉ nhận trip, trạng thái booking và participant của chính mình. Các trường tiền bằng `0`, `paymentStatus` rỗng, `holdExpiresAt = null`, `canManage = false`.
-- User ngoài booking nhận `404` để không lộ booking tồn tại.
+- **Buyer** (kể cả đặt giùm): nhận toàn bộ tiền, `paymentStatus`, `holdExpiresAt` và toàn bộ `participants`; `canManage = true`.
+- **Participant đã liên kết** (tài khoản đang hoạt động và **đã xác thực email**): chỉ nhận trip, trạng thái booking và đúng participant của chính mình. Các trường tiền bằng `0`, `paymentStatus` rỗng, `holdExpiresAt = null`, `canManage = false`.
+- User ngoài booking hoặc tài khoản chưa xác thực email nhận `404` để không lộ booking tồn tại.
 
 **Response `200 OK`**
 
@@ -401,7 +460,7 @@ Người tạo booking phải có tài khoản đang hoạt động và luôn l�
   "message": "Lấy booking thành công",
   "data": {
     "orderId": "00000000-0000-0000-0000-000000000000",
-    "orderCode": "RT-20261026-ABC",
+    "orderCode": "RT-20261030-ABC",
     "tripId": "00000000-0000-0000-0000-000000000000",
     "tripStartAt": "2026-12-01T00:00:00Z",
     "tripEndAt": "2026-12-03T00:00:00Z",
@@ -412,40 +471,127 @@ Người tạo booking phải có tài khoản đang hoạt động và luôn l�
     "totalAmount": 2400000,
     "status": "PendingPayment",
     "paymentStatus": "Unpaid",
-    "holdExpiresAt": "2026-10-26T10:15:00Z",
+    "holdExpiresAt": "2026-10-30T10:15:00Z",
     "canManage": true,
-    "participants": []
+    "participants": [
+      {
+        "participantId": "11111111-1111-1111-1111-111111111111",
+        "fullName": "Nguyễn Văn A",
+        "email": "a@example.com",
+        "phone": "0901234567",
+        "linkedUserId": "22222222-2222-2222-2222-222222222222",
+        "status": "Registered"
+      }
+    ]
   },
   "errors": null,
   "timestamp": "..."
 }
 ```
 
-### 3.3. Tạo lời mời participant
+### 3.3. Sửa thông tin người tham gia
 
-`POST /trip-bookings/{orderId}/participant-invitations` · **Auth:** Buyer
+`PUT /trip-bookings/{orderId}/participants/{participantId}` · **Auth:** Buyer
 
-Chỉ buyer được gọi sau khi order `Confirmed`, payment `Paid`, và tổng payment `Succeeded` đủ tiền. Lời mời cũ chưa dùng bị thu hồi. Mỗi participant chưa liên kết nhận token dùng một lần. Token hết hạn sau 7 ngày hoặc lúc trip bắt đầu, tùy mốc nào đến trước. API chỉ trả token thô lúc tạo; DB chỉ lưu SHA-256.
-
-**Response `200 OK`:** `data` là mảng `{ participantId, fullName, email, token, expiresAt }`.
-
-**Lỗi:** `404` không phải booking của buyer; `409` chưa thanh toán đủ hoặc trip đã bắt đầu.
-
-### 3.4. Nhận lời mời participant
-
-`POST /trip-bookings/participant-invitations/claim` · **Auth:** User
+Người đặt sửa `fullName`, `email`, `phone` của một chỗ trước khi chuyến khởi hành (`now < trip.startAt`).
 
 ```json
 {
-  "token": "one-time-token"
+  "fullName": "Nguyễn Văn B",
+  "email": "b.new@example.com",
+  "phone": "0988888888"
 }
 ```
 
-Account phải đang hoạt động. Email account sau chuẩn hóa phải trùng email participant. Token phải chưa dùng, chưa thu hồi và chưa hết hạn. Thành công sẽ gắn `linkedUserId` và tiêu thụ token trong cùng transaction.
+- `fullName` bắt buộc; `email` và `phone` tuỳ chọn.
+- Nếu đổi sang `email` khác với email cũ của chỗ đó: BE xoá `linkedUserId` cũ ngay lập tức (tài khoản cũ mất quyền xem chuyến); nếu đơn đã `Confirmed` / `Paid` và email mới khớp tài khoản hoạt động đã xác thực email thì BE tự gán `linkedUserId` sang tài khoản mới (trừ khi tài khoản đó đã giữ một chỗ khác trong cùng đơn).
+- Nếu bỏ trống `phone`, BE tự điền `emergencyContactName` / `emergencyContactPhone` theo thông tin của buyer.
 
-**Response:** `200 OK`, `data` là booking ở phạm vi participant.
+**Response:** `200 OK`, `data` là `TripBookingResponse` đầy đủ của buyer.
 
-**Lỗi:** `400` thiếu token; `403` account không hoạt động hoặc email không khớp; `404` token không tồn tại; `409` token vô hiệu hoặc booking chưa đủ điều kiện.
+**Lỗi:** `400` thiếu họ tên hoặc email sai định dạng; `404` không phải booking của buyer hoặc không tìm thấy participant; `409` chuyến đã khởi hành hoặc email trùng chỗ khác trong cùng đơn.
+
+### 3.4. Link xem chuyến cho nhóm
+
+Cần **Auth:** Buyer, đơn `Confirmed`, payment `Paid`, tổng payment `Succeeded` đủ tiền và chuyến **chưa kết thúc** (`now < trip.endAt`; vẫn lấy và đổi được link khi chuyến đang diễn ra sau `trip.startAt`).
+
+- `GET /trip-bookings/{orderId}/invite-link`: trả `{ url, expiresAt, totalSeats }`. Token là HMAC-SHA256 từ `orderId` và `invite_version`, không lưu trong DB, nằm sau `#t=` trên URL. Link hết hạn tại `trip.endAt`.
+- `POST /trip-bookings/{orderId}/invite-link/rotate`: tăng `invite_version`, làm link cũ hết hiệu lực ngay. Trả cùng cấu trúc `InviteLinkResponse`.
+
+**Lỗi:** `404` không phải booking của buyer; `409` đơn chưa thanh toán đủ hoặc chuyến đã kết thúc.
+
+### 3.5. Xem thông tin chuyến và lịch hoạt động bằng link
+
+`POST /trip-bookings/participant-invitations/preview` · **Auth:** Public
+
+Trang chỉ đọc cho nhóm đi cùng (không cần đăng nhập, không gán tài khoản, không hiển thị giá tiền, thanh toán, email, số điện thoại hay ngày sinh).
+
+**Request body**
+
+```json
+{
+  "orderId": "00000000-0000-0000-0000-000000000000",
+  "token": "<token>"
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "orderId": "00000000-0000-0000-0000-000000000000",
+  "tourName": "Tà Năng - Phan Dũng 2N1Đ",
+  "tripStartAt": "2026-12-06T23:00:00Z",
+  "tripEndAt": "2026-12-08T11:00:00Z",
+  "buyerName": "Nguyễn Văn A",
+  "expiresAt": "2026-12-08T11:00:00Z",
+  "participantNames": ["Nguyễn Văn A", "Nguyễn Văn B"],
+  "activities": [
+    {
+      "activityId": "11111111-1111-1111-1111-111111111111",
+      "dayNumber": 1,
+      "dayTitle": "Ngày 1",
+      "startTime": "06:00:00",
+      "durationMinutes": 90,
+      "displayOrder": 1,
+      "name": "Tập trung đoàn",
+      "description": null,
+      "scheduledStartAt": "2026-12-07T06:00:00+07:00",
+      "scheduledEndAt": "2026-12-07T07:30:00+07:00",
+      "isCurrent": false
+    }
+  ]
+}
+```
+
+- `activities` xếp theo `dayNumber` rồi `displayOrder`; `scheduledStartAt` / `scheduledEndAt` tính từ ngày của `tripStartAt` theo giờ Việt Nam (`UTC+7`, `dayNumber = 1` là ngày khởi hành) cộng `startTime` và `durationMinutes`.
+- Khi chuyến đang diễn ra (`tripStartAt <= now < tripEndAt`), hoạt động có `scheduledStartAt <= now < scheduledEndAt` được đánh dấu `isCurrent = true` (theo lịch dự kiến).
+- Link sai, đã đổi (`rotate`), đơn chưa `Paid` hoặc đã qua `tripEndAt` đều trả `404`.
+
+### 3.6. Hủy booking chuyến đi
+
+`GET /trip-bookings/{orderId}/cancellation-preview` · **Auth:** Buyer — xem trước số tiền hoàn.
+
+`POST /trip-bookings/{orderId}/cancel` · **Auth:** Buyer hoặc Staff/Admin (Staff/Admin không hủy được đơn phát sinh hoàn tiền)
+
+Hủy toàn bộ booking chuyến đi trước giờ khởi hành (`now < trip.startAt`). Quy trình hoàn tiền xem [`05-MANUAL-REFUND-WORKFLOW.md`](05-MANUAL-REFUND-WORKFLOW.md).
+
+```json
+{
+  "reason": "Khách bận lịch đột xuất",
+  "expectedRefundAmount": 1600000,
+  "bankAccount": { "bankCode": "VCB", "accountNumber": "0123456789", "accountHolder": "NGUYEN VAN A" },
+  "consentVersion": "refund-bank-data-v1",
+  "consentAccepted": true
+}
+```
+
+- Đặt `order.status = "Cancelled"` và đóng các hold chưa hết hạn. Đơn đã `Paid` được hoàn tiền thì tạo Payment Refund `PendingApproval` + RefundCase; `paymentStatus` giữ `"Paid"` tới khi tiền hoàn thành công.
+- Số tiền lệch preview trả `409 REFUND_AMOUNT_CHANGED`. `bankAccount` và consent chỉ bắt buộc khi số tiền hoàn lớn hơn 0.
+- Giữ nguyên `participant.tripGroupId` để truy vết lịch sử/audit, nhưng participant của đơn hủy không còn tính vào sức chứa group hiện tại và không xuất hiện trên manifest Staff, màn Guide hay màn Customer.
+- Không tự cân bằng lại các booking khác; đánh dấu `trip.providedItemsNeedsRecalc = true` và tăng `trip.rowVersion`.
+- **Response:** `200 OK`, `data` là `TripBookingResponse`.
+- **Lỗi:** `404` không tìm thấy hoặc không thuộc quyền; `409` chuyến đã khởi hành hoặc trạng thái đơn không cho hủy (`Completed` / `Expired`).
 
 ## 5. Products
 
@@ -1032,6 +1178,337 @@ Quy tắc hiển thị:
 
 ---
 
+## 8. Trip Groups
+
+> **Trạng thái:** ✅ Done — BE đã triển khai đầy đủ các endpoint TripGroup, quản trị cấu hình group trên Tour/Trip/Lịch lặp, tính lại đồ cấp chuyến và màn Guide trên Swagger.
+
+### 8.0. Trường cấu hình trên màn Admin
+
+Các DTO quản trị Tour/Trip/lịch lặp bổ sung:
+
+| Field | Nằm trên | Quy tắc |
+|---|---|---|
+| `groupMaxParticipants` | Tour version | Số nguyên dương; là sức chứa chuẩn của mỗi group, được chụp vào `TripGroup.MaxParticipants` khi tạo Trip |
+| `groupCount` | Request tạo/cập nhật Trip `Draft` | Số nguyên dương; BE tạo đúng số group cùng transaction với Trip |
+| `defaultGroupCount` | Lịch lặp | Số nguyên dương; Trip sinh tự động dùng giá trị này |
+
+`totalSlots` của Trip vẫn độc lập. FE hiển thị:
+
+```text
+standardCapacity = groupCount * groupMaxParticipants
+operationalCapacity = groupCount * (groupMaxParticipants + overflowSlots)
+```
+
+Admin được lưu Trip `Draft` khi `operationalCapacity < totalSlots`, nhưng nút mở bán phải hiển thị blocker do BE trả. Sau khi Trip đã `Open`, `groupCount` chỉ đọc; FE không hiển thị thao tác thêm hoặc xóa group.
+
+**Các API quản trị tương ứng:**
+
+- `PUT /tours/{id}/group-settings` (`Admin`): `{ "groupMaxParticipants": 12 }` → cập nhật sức chứa chuẩn mỗi group trên Tour version.
+- `GET /tours/{id}/recurrence-rules` & `POST /tours/{id}/recurrence-rules` (`Admin`): cấu hình lịch lặp kèm `defaultGroupCount > 0`.
+- `POST /trips` (`Admin`), `PUT /trips/{tripId}` (`Admin`), `GET /trips/{tripId}` (`Staff/Admin`): tạo/sửa Trip `Draft` kèm `groupCount` (tự tạo/đồng bộ các group `Draft` trong cùng transaction; sau khi `Open` sửa `groupCount` trả `409 TRIP_GROUP_COUNT_LOCKED`).
+- `PATCH /trips/{tripId}/status` (`Staff/Admin`): `{ "status": "Open" | "ClosedForBooking" }` → mở bán kiểm tra `operationalCapacity >= totalSlots` (`409 TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT`).
+- `POST /trips/generate-recurring` (`Admin`): `{ "recurrenceRuleId"?, "fromUtc", "toUtc" }` → sinh Trip và group idempotent theo `defaultGroupCount`; rule cũ thiếu `defaultGroupCount` không sinh Trip và trả `warnings`.
+
+### 8.1. Lấy snapshot chia đoàn
+
+`GET /trips/{tripId}/grouping` · **Auth:** Staff/Admin/Guide
+
+- Staff/Admin nhận mọi group và mục `unassignedBookings`.
+- Guide nhận group được gán cho chính họ, kể cả `Draft`; không nhận group hoặc booking ngoài phạm vi.
+- Booking hủy chỉ còn trong audit, không xuất hiện trong response.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thông tin chia đoàn thành công",
+  "data": {
+    "tripId": "00000000-0000-0000-0000-000000000000",
+    "tripStatus": "ClosedForBooking",
+    "groupingStatus": "Draft",
+    "totalSlots": 30,
+    "groupMaxParticipants": 12,
+    "overflowSlots": 2,
+    "standardCapacity": 24,
+    "operationalCapacity": 28,
+    "assignedParticipants": 20,
+    "unassignedParticipants": 3,
+    "rowVersion": 7,
+    "providedItemsNeedsRecalc": false,
+    "canPublish": false,
+    "canPublish": false,
+    "publishBlockers": [
+      {
+        "code": "UNASSIGNED_PARTICIPANTS",
+        "message": "Còn 3 người chưa được xếp nhóm"
+      }
+    ],
+    "groups": [
+      {
+        "tripGroupId": "11111111-1111-1111-1111-111111111111",
+        "groupName": "Nhóm 1",
+        "status": "Draft",
+        "guide": {
+          "userId": "22222222-2222-2222-2222-222222222222",
+          "fullName": "Trần Minh Guide"
+        },
+        "maxParticipants": 12,
+        "overflowSlots": 2,
+        "participantCount": 11,
+        "remainingStandardSlots": 1,
+        "remainingOverflowSlots": 2,
+        "isOverflowing": false,
+        "bookings": [
+          {
+            "bookingOrderId": "33333333-3333-3333-3333-333333333333",
+            "orderCode": "RT-20261031-001",
+            "participantCount": 3,
+            "isSplit": false,
+            "participants": [
+              {
+                "participantId": "44444444-4444-4444-4444-444444444444",
+                "fullName": "Nguyễn Văn A"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "unassignedBookings": [
+      {
+        "bookingOrderId": "55555555-5555-5555-5555-555555555555",
+        "orderCode": "RT-20261031-002",
+        "participantCount": 3,
+        "participants": [
+          {
+            "participantId": "66666666-6666-6666-6666-666666666666",
+            "fullName": "Lê Văn B"
+          }
+        ]
+      }
+    ]
+  },
+  "errors": null,
+  "timestamp": "..."
+}
+```
+
+FE dùng `publishBlockers[].code` để khóa nút **Chốt**, không tự suy luận chỉ từ số đếm.
+
+### 8.2. Gán hoặc bỏ guide
+
+`PUT /trips/{tripId}/groups/{groupId}/guide` · **Auth:** Staff/Admin
+
+```json
+{
+  "guideUserId": "22222222-2222-2222-2222-222222222222",
+  "expectedTripRowVersion": 7
+}
+```
+
+Gửi `guideUserId: null` để bỏ guide khi group còn `Draft`. Một guide chỉ phụ trách một group trong cùng Trip và không được có Trip khác giao thời gian. Thành công trả `200` với `data` là snapshot mục 8.1 mới nhất.
+
+### 8.3. Chuyển nguyên booking
+
+`PUT /trips/{tripId}/bookings/{bookingOrderId}/group` · **Auth:** Staff/Admin
+
+```json
+{
+  "targetGroupId": "11111111-1111-1111-1111-111111111111",
+  "expectedTripRowVersion": 8
+}
+```
+
+- Chuyển mọi participant hợp lệ của booking sang cùng group.
+- Staff được dùng overflow, nhưng tổng người không vượt `maxParticipants + overflowSlots`.
+- Chỉ áp dụng khi group còn `Draft`. Thành công trả snapshot mới nhất.
+
+### 8.4. Tách booking
+
+`POST /trips/{tripId}/bookings/{bookingOrderId}/split` · **Auth:** Staff/Admin
+
+```json
+{
+  "reason": "Không còn group nào đủ chỗ cho toàn bộ booking",
+  "expectedTripRowVersion": 9,
+  "assignments": [
+    {
+      "tripGroupId": "11111111-1111-1111-1111-111111111111",
+      "participantIds": ["44444444-4444-4444-4444-444444444444"]
+    },
+    {
+      "tripGroupId": "77777777-7777-7777-7777-777777777777",
+      "participantIds": ["88888888-8888-8888-8888-888888888888"]
+    }
+  ]
+}
+```
+
+`reason` bắt buộc. Mỗi participant hợp lệ của booking phải xuất hiện đúng một lần; mọi group phải thuộc cùng Trip và còn trong giới hạn gồm overflow. Thành công trả snapshot mới nhất.
+
+### 8.4b. Tính lại nhu cầu đồ cấp chuyến
+
+`POST /trips/{tripId}/grouping/recalculate-provided-items` · **Auth:** Staff/Admin
+
+Khi thay đổi số group, chuyển/tách booking hoặc hủy booking, BE đặt `providedItemsNeedsRecalc = true` và thêm blocker `EQUIPMENT_REQUIREMENTS_STALE` vào `publishBlockers`. Staff gọi endpoint này để tính lại nhu cầu đồ cấp chuyến (`PER_GROUP` theo số group có người đi và `PER_PARTICIPANT` theo tổng số participant hợp lệ) và xóa cờ stale.
+
+**Response `200 OK`** trả `RecalculateTripProvidedItemsResponse` gồm `{ tripId, groupCount, activeGroupCount, activeParticipantCount, providedItemsNeedsRecalc: false, rowVersion, items: [{ productVariantId, sku, variantName, scope, quantityPerUnit, requiredQuantity }] }`. Snapshot mục 8.1 cũng trả mảng `providedItems` hiện hành.
+
+### 8.5. Chốt group
+
+`POST /trips/{tripId}/grouping/publish` · **Auth:** Staff/Admin
+
+```json
+{
+  "expectedTripRowVersion": 10
+}
+```
+
+Chỉ thành công khi:
+
+- Trip là `ClosedForBooking` và không còn hold thanh toán hợp lệ.
+- Không còn participant hợp lệ chưa xếp.
+- Mọi group có người đều có guide.
+- Nhu cầu đồ cấp chuyến đã được cập nhật.
+
+Thành công đổi group sang `Published` và trả snapshot mới nhất. Group `Published` không nhận auto-assign, chuyển hoặc tách bằng API thường.
+
+### 8.6. Khách xem group của booking
+
+`GET /trip-bookings/{orderId}/grouping` · **Auth:** User
+
+Trước khi chốt, API trả `200` với `groupingStatus = "Pending"` và `groups = []`. Sau khi chốt:
+
+- Chủ Order thấy participant thuộc chính booking của họ, có thể nằm ở nhiều group nếu Staff đã tách.
+- Người đi cùng đã liên kết chỉ thấy participant gắn với chính tài khoản họ.
+- Không trả participant của booking khác.
+
+**API bổ sung cho màn danh sách của Guide (`8.6b`):**
+
+- `GET /guide/trip-groups` · **Auth:** Guide (`TourGuide` / `Guide`) → danh sách tất cả group (cả `Draft` và `Published`) đang được gán cho guide đăng nhập.
+- `GET /guide/trip-groups/{groupId}` · **Auth:** Guide → chi tiết 1 group được giao kèm danh sách participant hợp lệ (bị đổi guide trả `404`).
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy nhóm chuyến đi thành công",
+  "data": {
+    "tripId": "00000000-0000-0000-0000-000000000000",
+    "groupingStatus": "Published",
+    "groups": [
+      {
+        "tripGroupId": "11111111-1111-1111-1111-111111111111",
+        "groupName": "Nhóm 1",
+        "guide": {
+          "userId": "22222222-2222-2222-2222-222222222222",
+          "fullName": "Trần Minh Guide"
+        },
+        "participants": [
+          {
+            "participantId": "44444444-4444-4444-4444-444444444444",
+            "fullName": "Nguyễn Văn A"
+          }
+        ]
+      }
+    ]
+  },
+  "errors": null,
+  "timestamp": "..."
+}
+```
+
+### 8.7. Lỗi nghiệp vụ của TripGroup
+
+| `errors.code` | HTTP | Khi nào | Hành vi FE |
+|---|---|---|---|
+| `TRIP_GROUP_COUNT_LOCKED` | 409 | Sửa số group sau khi Trip đã `Open` | Tải lại Trip; chuyển form sang chỉ đọc |
+| `TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT` | 409 | Mở bán khi tổng sức chứa gồm overflow nhỏ hơn `totalSlots` | Hiển thị blocker trên form Trip |
+| `GROUP_CAPACITY_EXCEEDED` | 409 | Chuyển/tách làm group vượt cả overflow | Giữ nguyên UI; hiển thị sức chứa mới nhất |
+| `GROUP_WRONG_TRIP` | 400 | Group hoặc participant không thuộc Trip | Tải lại snapshot; báo dữ liệu không hợp lệ |
+| `GUIDE_SCHEDULE_CONFLICT` | 409 | Guide trùng group hoặc trùng thời gian Trip | Giữ modal; yêu cầu chọn guide khác |
+| `TRIP_GROUPING_LOCKED` | 409 | Sửa group đã `Published` | Tải lại snapshot; khóa thao tác |
+| `TRIP_NOT_CLOSED_FOR_BOOKING` | 409 | Chốt khi Trip chưa đóng bán | Hiển thị trong `publishBlockers` |
+| `ACTIVE_PAYMENT_HOLDS` | 409 | Chốt khi còn hold hợp lệ | Hiển thị trong `publishBlockers` |
+| `UNASSIGNED_PARTICIPANTS` | 409 | Chốt khi còn người chưa xếp | Cuộn/focus tới mục **Chưa xếp** |
+| `GROUP_GUIDE_REQUIRED` | 409 | Group có người nhưng chưa có guide | Đánh dấu group thiếu guide |
+| `EQUIPMENT_REQUIREMENTS_STALE` | 409 | Đồ cấp chưa được tính lại | Liên kết tới checklist chuẩn bị |
+| `CONCURRENCY_CONFLICT` | 409 | `expectedTripRowVersion` cũ | Tải snapshot mới; không tự gửi lại mutation |
+
+---
+
+## 9. Admin Catalog
+
+### 9.1. Danh sách Tour vận hành
+
+`GET /admin/tours` · **Auth:** Admin / Staff
+
+Query: `pageNumber`, `pageSize`, `search`, `status` (`Draft`, `Published`, `Archived`), `categoryId`, `locationId`.
+Mặc định chỉ trả phiên bản mới nhất của mỗi `tourFamilyId`. Dữ liệu `Active` cũ được trả thành `Published`; `Expired` được trả thành `Archived`.
+
+```json
+{
+  "items": [
+    {
+      "tourId": "44444444-5555-6666-7777-888888888888",
+      "tourFamilyId": "44444444-0000-0000-0000-888888888888",
+      "name": "Chinh phục Tà Năng - Phan Dũng",
+      "categoryName": "Trekking Núi cao",
+      "mainLocationName": "Lâm Đồng - Bình Thuận",
+      "durationDays": 3,
+      "durationNights": 2,
+      "basePrice": 3200000,
+      "version": 2,
+      "isItineraryLocked": true,
+      "status": "Published",
+      "primaryImageUrl": "https://cdn.example.com/tours/cover.jpg",
+      "upcomingTripsCount": 5
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 10,
+  "totalItems": 1,
+  "totalPages": 1,
+  "hasPrevious": false,
+  "hasNext": false
+}
+```
+
+### 9.2. Danh sách sản phẩm vận hành
+
+`GET /admin/products` · **Auth:** Admin / Staff
+
+Query: `pageNumber`, `pageSize`, `search` (tên hoặc SKU), `status` (`Active`, `Inactive`), `categoryId`.
+`availableAssetsCount` chỉ đếm asset chưa xóa có `assetStatus = Available`.
+
+```json
+{
+  "items": [
+    {
+      "productId": "99990000-1111-2222-3333-444455556666",
+      "name": "Lều cắm trại chống nước 4 người",
+      "categoryName": "Lều trại",
+      "primaryImageUrl": "https://cdn.example.com/products/tent.jpg",
+      "variantsCount": 3,
+      "totalAssetsCount": 20,
+      "availableAssetsCount": 14,
+      "status": "Active",
+      "createdAt": "2026-04-10T00:00:00Z"
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 10,
+  "totalItems": 1,
+  "totalPages": 1,
+  "hasPrevious": false,
+  "hasNext": false
+}
+```
+
+---
+
 ## Phụ lục: Enum
 
 Enum được serialize dạng **string**.
@@ -1042,6 +1519,8 @@ Enum được serialize dạng **string**.
 | `OrderType` | `Rental`, `TripBooking` | Loại đơn: thuê thiết bị / booking chuyến đi |
 | `OrderStatus` | `Draft`, `PendingPayment`, `Confirmed`, `InFulfillment`, `Completed`, `Expired`, `Cancelled` | Trạng thái đơn. Đơn thuê mới tạo là `PendingPayment` |
 | `OrderPaymentStatus` | `Unpaid`, `Paid`, `PartiallyRefunded`, `Refunded`, `NeedsReconciliation` | Trạng thái thanh toán của đơn (tách riêng với `status`) |
+| `TripGroupStatus` | `Draft`, `Published` | Group nháp nội bộ / đã chốt cho khách |
+| `GroupingStatus` | `Draft`, `Published`, `Pending` | Snapshot Staff/Guide dùng `Draft`/`Published`; response khách dùng `Pending` trước khi chốt |
 | `AssignmentStatus` | `Reserved`, `Issued`, `Returned`, `Cancelled`, `LostOrException` | Trạng thái phân bổ tài sản cho dòng thuê. Khách chỉ thấy `Issued`, `Returned`, `LostOrException` |
 | `RentalItemType` | `Variant`, `Bundle` | Loại dòng trong giỏ / đơn thuê (`itemType`) |
 | `TODO` | `TODO` | TODO |
@@ -1077,7 +1556,7 @@ Lỗi nghiệp vụ trả thêm key `code` trong `errors` (mảng 1 phần tử)
 }
 ```
 
-FE xử lý theo `errors.code`, không so khớp `message`. Lỗi validation theo field (400) chỉ có key theo field, không có `code`. Các mã dưới đây được dùng bởi `/bundles`, `/rental-availability`, `/rental-orders*`.
+FE xử lý theo `errors.code`, không so khớp `message`. Lỗi validation theo field (400) chỉ có key theo field, không có `code`. Các mã dưới đây được dùng bởi `/bundles`, `/rental-availability`, `/rental-orders*`; lỗi TripGroup nằm tại [mục 8.7](#87-lỗi-nghiệp-vụ-của-tripgroup).
 
 | `errors.code` | HTTP | Endpoint | Khi nào |
 |---|---|---|---|
@@ -1160,6 +1639,9 @@ Copy khối dưới đây khi thêm API mới:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-10-31 | Antigravity | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping`, `/trip-bookings/{orderId}/cancel`, `/tours/{id}/group-settings`, `/tours/{id}/recurrence-rules`, `/trips*`, `/guide/trip-groups*` | Hoàn thiện triển khai BE cho Chia TripGroup (Section 7): migration DB, tự xếp sau webhook SePay, quản trị cấu hình group/lịch lặp, snapshot Staff/Guide, gán guide chống trùng lịch, chuyển/tách booking, tính lại đồ cấp chuyến, chốt group, hủy booking giữ lịch sử và lọc hiển thị theo quyền |
+| 2026-10-31 | Codex | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping` | Thêm contract dự kiến cho FE: cấu hình số group, snapshot Staff/Guide, gán guide, chuyển/tách booking, chốt và Customer xem group Published theo quyền |
+| 2026-10-30 | — | `/auth/verify-email`, `/auth/resend-verification-email`, `/users/me/orders`, `/trip-bookings*` | Chuyển đặt chuyến nhóm sang gán theo email (`contactPhone`, `buyerParticipates` đặt giùm, `email`/`phone` tuỳ chọn, tự động gán `linkedUserId` khi webhook SePay hoặc xác thực email, sửa participant `PUT /{orderId}/participants/{participantId}`, link chỉ đọc `preview` kèm `participantNames` & `activities` đến `tripEndAt`; gỡ `claim`, `participant-invitations` và `DELETE .../link`) |
 | 2026-10-27 | — | `/bundles*`, `/rental-availability`, `/rental-orders*`, `/users/me/orders` | Thêm danh sách / chi tiết combo, kiểm tra khả dụng, báo giá, tạo (Idempotency-Key trên `orders.idempotency_key`) và xem đơn thuê, đơn hàng của tôi; thêm enum `OrderType`, `OrderStatus`, `OrderPaymentStatus`, `AssignmentStatus`, `RentalItemType` và bảng mã lỗi nghiệp vụ `errors.code` |
 | 2026-10-26 | Codex | `/trip-bookings/*` | Thêm tạo booking nhóm, xem theo quyền, tạo và nhận lời mời participant |
 | 2026-10-06 | — | — | Khởi tạo skeleton |

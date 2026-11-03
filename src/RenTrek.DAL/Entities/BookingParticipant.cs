@@ -10,7 +10,7 @@ public sealed class BookingParticipant
     public Guid? LinkedUserId { get; set; }
     public Guid? TripGroupId { get; set; }
     public string FullName { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string? Phone { get; set; }
     public string Status { get; set; } = string.Empty;
     public Guid TripId { get; set; }
@@ -23,7 +23,6 @@ public sealed class BookingParticipant
 
     public TripBookingOrder BookingOrder { get; set; } = null!;
     public Account? LinkedUser { get; set; }
-    public ICollection<ParticipantInvitation> Invitations { get; set; } = [];
     public ICollection<ActivityAttendance> ActivityAttendances { get; set; } = [];
     public ICollection<ParticipantPostRead> ParticipantPostReads { get; set; } = [];
     public Review? Review { get; set; }
