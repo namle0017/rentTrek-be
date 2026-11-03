@@ -25,6 +25,7 @@ public sealed class TripConfiguration : IEntityTypeConfiguration<Trip>
         builder.Property(x => x.PricePerPerson).HasColumnName("price_per_person").HasPrecision(18, 0);
         builder.Property(x => x.MinParticipants).HasColumnName("min_participants");
         builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
+        builder.Property(x => x.ProvidedItemsNeedsRecalc).HasColumnName("provided_items_needs_recalc").HasDefaultValue(false);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted");

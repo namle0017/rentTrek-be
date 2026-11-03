@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -46,5 +46,6 @@ public class TripGroupConfiguration : IEntityTypeConfiguration<TripGroup>
             .HasForeignKey(d => d.TripId)
             .OnDelete(DeleteBehavior.ClientSetNull)
             .HasConstraintName("trip_groups_trip_id_fkey");
+        builder.HasQueryFilter(e => !e.IsDeleted);
     }
 }
