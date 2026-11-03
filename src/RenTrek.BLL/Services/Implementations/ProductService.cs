@@ -1,6 +1,7 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminCatalog.Requests;
 using RenTrek.BLL.DTOs.AdminCatalog.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
@@ -66,6 +67,50 @@ public class ProductService : IProductService
 
         return await sortedProducts.ThenBy(product => product.Id).ToPagedResponseAsync(request, cancellationToken);
     }
+
+    public async Task<AdminProductDetailResponse> GetAdminProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => await _unitOfWork.Repository<Product>().Query()
+            .Where(product => product.Id == id && !product.IsDeleted)
+            .Select(product => new AdminProductDetailResponse
+            {
+                ProductId = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                CategoryName = product.Category.Name,
+                Status = product.Status == CatalogStatus.Active ? "Active" : "Inactive",
+                CreatedAt = product.CreatedAt,
+                UpdatedAt = product.UpdatedAt,
+                Variants = product.Variants
+                    .Where(variant => !variant.IsDeleted)
+                    .OrderBy(variant => variant.Sku)
+                    .Select(variant => new AdminProductVariantResponse
+                    {
+                        VariantId = variant.Id,
+                        Sku = variant.Sku,
+                        Name = variant.Name,
+                        Size = variant.Size,
+                        Color = variant.Color,
+                        Status = variant.Status == CatalogStatus.Active ? "Active" : "Inactive",
+                        ImageUrls = variant.Images
+                            .Where(image => !image.IsDeleted)
+                            .OrderByDescending(image => image.IsPrimary)
+                            .ThenBy(image => image.DisplayOrder)
+                            .Select(image => image.ImageUrl)
+                            .ToList(),
+                        PriceTiers = variant.RentalPriceTiers
+                            .Where(tier => !tier.IsDeleted)
+                            .OrderBy(tier => tier.MinDays)
+                            .Select(tier => new AdminPriceTierResponse(tier.MinDays, tier.MaxDays, tier.DailyPrice))
+                            .ToList(),
+                        TotalAssetsCount = variant.EquipmentAssets.Count(asset => !asset.IsDeleted),
+                        AvailableAssetsCount = variant.EquipmentAssets
+                            .Count(asset => !asset.IsDeleted && asset.AssetStatus == EquipmentAssetStatuses.Available)
+                    })
+                    .ToList()
+            })
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy sản phẩm");
 
     public async Task<ProductDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => await PublicProducts.Where(product => product.Id == id)

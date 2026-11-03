@@ -21,4 +21,14 @@ public sealed class AdminProductsController(IProductService productService) : Co
         var result = await productService.GetAdminProductsAsync(request, cancellationToken);
         return Ok(ApiResponse<PagedResponse<AdminProductListItemResponse>>.Ok(result, "Lấy danh sách sản phẩm vận hành thành công"));
     }
+
+    /// <summary>Chi tiết sản phẩm cho vận hành (gồm cả sản phẩm / biến thể tạm ngưng).</summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminProductDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await productService.GetAdminProductByIdAsync(id, cancellationToken);
+        return Ok(ApiResponse<AdminProductDetailResponse>.Ok(result, "Lấy chi tiết sản phẩm thành công"));
+    }
 }
