@@ -25,6 +25,9 @@ public static class DependencyInjection
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
+        services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
+        services.Configure<RefundSettings>(options =>
+            options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty);
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
@@ -32,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtHelper, JwtHelper>();
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IRefundDataProtector, RefundDataProtector>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
@@ -39,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
+        services.AddScoped<IRefundCaseService, RefundCaseService>();
+        services.AddScoped<IRefundVerificationService, RefundVerificationService>();
+        services.AddScoped<ITripGroupService, TripGroupService>();
         services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
         services.AddScoped<IProductBundleService, ProductBundleService>();
         services.AddScoped<IPromotionService, PromotionService>();

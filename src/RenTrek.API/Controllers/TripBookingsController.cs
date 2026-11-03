@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
+using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -13,7 +14,9 @@ namespace RenTrek.API.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/trip-bookings")]
-public sealed class TripBookingsController(ITripBookingService tripBookingService) : ControllerBase
+public sealed class TripBookingsController(
+    ITripBookingService tripBookingService,
+    ITripGroupService tripGroupService) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
@@ -34,43 +37,63 @@ public sealed class TripBookingsController(ITripBookingService tripBookingServic
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Lấy booking thành công"));
     }
 
-    [HttpPost("{orderId:guid}/participant-invitations")]
-    public async Task<IActionResult> GenerateParticipantInvitations(
+    [HttpPut("{orderId:guid}/participants/{participantId:guid}")]
+    public async Task<IActionResult> UpdateParticipant(
         Guid orderId,
+        Guid participantId,
+        [FromBody] UpdateBookingParticipantRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await tripBookingService.GenerateParticipantInvitationsAsync(orderId, cancellationToken);
-        return Ok(ApiResponse<GroupInvitationResponse>.Ok(
-            result,
-            "Đã tạo và gửi lời mời participant"));
+        var result = await tripBookingService.UpdateParticipantAsync(orderId, participantId, request, cancellationToken);
+        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Cập nhật thông tin người tham gia thành công"));
     }
 
-    /// <summary>Trang link mời: công khai, chỉ trả thông tin chuyến đi và số người còn chờ.</summary>
-    [HttpGet("{orderId:guid}/participant-invitations")]
+    [HttpGet("{orderId:guid}/cancellation-preview")]
+    public async Task<IActionResult> GetCancellationPreview(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.GetCancellationPreviewAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<CancellationPreviewResponse>.Ok(result, "Lấy thông tin hủy booking thành công"));
+    }
+
+    [HttpPost("{orderId:guid}/cancel")]
+    public async Task<IActionResult> Cancel(
+        Guid orderId,
+        [FromBody] CancelTripBookingRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.CancelAsync(orderId, request, cancellationToken);
+        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Hủy booking chuyến đi thành công"));
+    }
+
+    [HttpGet("{orderId:guid}/grouping")]
+    public async Task<IActionResult> GetGrouping(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripGroupService.GetCustomerGroupingAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<CustomerTripGroupingResponse>.Ok(result, "Lấy nhóm chuyến đi thành công"));
+    }
+
+    [HttpGet("{orderId:guid}/invite-link")]
+    public async Task<IActionResult> GetInviteLink(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.GetInviteLinkAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<InviteLinkResponse>.Ok(result, "Lấy link chuyến đi thành công"));
+    }
+
+    [HttpPost("{orderId:guid}/invite-link/rotate")]
+    public async Task<IActionResult> RotateInviteLink(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.RotateInviteLinkAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<InviteLinkResponse>.Ok(result, "Đã đổi link chuyến đi"));
+    }
+
+    /// <summary>Trang xem chuyến công khai cần token; dùng POST để token không nằm trên URL.</summary>
+    [HttpPost("participant-invitations/preview")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetInvitationPreview(Guid orderId, CancellationToken cancellationToken)
-    {
-        var result = await tripBookingService.GetInvitationPreviewAsync(orderId, cancellationToken);
-        return Ok(ApiResponse<InvitationPreviewResponse>.Ok(result, "Lấy lời mời thành công"));
-    }
-
-    /// <summary>Nhập mã nhóm trước khi đăng nhập: chỉ kiểm tra mã, sai vẫn bị tính lượt. Liên kết thật ở claim.</summary>
-    [HttpPost("participant-invitations/verify")]
-    [AllowAnonymous]
-    public async Task<IActionResult> VerifyParticipantInvitationCode(
-        [FromBody] ClaimParticipantInvitationRequest request,
+    public async Task<IActionResult> GetInvitationPreview(
+        [FromBody] InvitationPreviewRequest request,
         CancellationToken cancellationToken)
     {
-        await tripBookingService.VerifyParticipantInvitationCodeAsync(request.OrderId, request.Code, cancellationToken);
-        return Ok(ApiResponse<object?>.Ok(null, "Mã xác nhận hợp lệ"));
-    }
-
-    [HttpPost("participant-invitations/claim")]
-    public async Task<IActionResult> ClaimParticipantInvitation(
-        [FromBody] ClaimParticipantInvitationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var result = await tripBookingService.ClaimParticipantInvitationAsync(request.OrderId, request.Code, cancellationToken);
-        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Liên kết participant thành công"));
+        var result = await tripBookingService.GetInvitationPreviewAsync(request.OrderId, request.Token, cancellationToken);
+        return Ok(ApiResponse<InvitationPreviewResponse>.Ok(result, "Lấy thông tin chuyến đi thành công"));
     }
 }

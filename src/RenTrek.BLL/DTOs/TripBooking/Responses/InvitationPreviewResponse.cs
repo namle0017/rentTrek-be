@@ -1,7 +1,7 @@
 namespace RenTrek.BLL.DTOs.TripBooking.Responses;
 
 /// <summary>
-/// Thông tin công khai của link mời vào nhóm: chuyến đi, số người còn chờ và trạng thái khóa mã.
+/// Thông tin chỉ đọc của link xem chuyến: tour, danh sách họ tên và lịch hoạt động.
 /// </summary>
 public sealed class InvitationPreviewResponse
 {
@@ -10,7 +10,7 @@ public sealed class InvitationPreviewResponse
     public DateTimeOffset TripStartAt { get; set; }
     public DateTimeOffset TripEndAt { get; set; }
     public string BuyerName { get; set; } = string.Empty;
-    public int PendingCount { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
-    public bool IsLocked { get; set; }
+    public IReadOnlyList<string> ParticipantNames { get; set; } = [];
+    public IReadOnlyList<TripActivityPreviewResponse> Activities { get; set; } = [];
 }

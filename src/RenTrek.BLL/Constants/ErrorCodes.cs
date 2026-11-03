@@ -1,7 +1,7 @@
 namespace RenTrek.BLL.Constants;
 
 /// <summary>
-/// Mã lỗi nghiệp vụ trả trong errors.code[0] của ApiResponse (contract 03.1 phụ lục B và các mã bổ sung cho luồng thanh toán / hoàn tiền).
+/// Mã lỗi nghiệp vụ trả trong errors.code[0] của ApiResponse (contract 03.1 phụ lục B, mục 8.7 TripGroup và các mã bổ sung cho luồng thanh toán / hoàn tiền).
 /// </summary>
 public static class ErrorCodes
 {
@@ -32,4 +32,30 @@ public static class ErrorCodes
     public const string OrderNotReconcilable = "ORDER_NOT_RECONCILABLE";
     public const string PaymentProviderError = "PAYMENT_PROVIDER_ERROR";
     public const string Forbidden = "FORBIDDEN";
+
+    // TripGroup (03-API-CONTRACT.md §8.7)
+    public const string TripGroupCountLocked = "TRIP_GROUP_COUNT_LOCKED";
+    public const string TripOperationalCapacityInsufficient = "TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT";
+    public const string GroupCapacityExceeded = "GROUP_CAPACITY_EXCEEDED";
+    public const string GroupWrongTrip = "GROUP_WRONG_TRIP";
+    public const string GuideScheduleConflict = "GUIDE_SCHEDULE_CONFLICT";
+    public const string TripGroupingLocked = "TRIP_GROUPING_LOCKED";
+    public const string TripNotClosedForBooking = "TRIP_NOT_CLOSED_FOR_BOOKING";
+    public const string ActivePaymentHolds = "ACTIVE_PAYMENT_HOLDS";
+    public const string UnassignedParticipants = "UNASSIGNED_PARTICIPANTS";
+    public const string GroupGuideRequired = "GROUP_GUIDE_REQUIRED";
+    public const string EquipmentRequirementsStale = "EQUIPMENT_REQUIREMENTS_STALE";
+    public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
+
+    // Hoàn tiền thủ công (05-MANUAL-REFUND-WORKFLOW.md §12)
+    public const string RefundCaseNotFound = "REFUND_CASE_NOT_FOUND";
+    public const string RefundCaseNotRejectable = "REFUND_CASE_NOT_REJECTABLE";
+    public const string RefundCaseNotCompletable = "REFUND_CASE_NOT_COMPLETABLE";
+    public const string RefundExportEmpty = "REFUND_EXPORT_EMPTY";
+    public const string RefundTransactionDuplicated = "REFUND_TRANSACTION_DUPLICATED";
+    public const string RefundVerificationRequired = "REFUND_VERIFICATION_REQUIRED";
+    public const string RefundVerificationInvalid = "REFUND_VERIFICATION_INVALID";
+    public const string RefundVerificationExpired = "REFUND_VERIFICATION_EXPIRED";
+    public const string RefundSensitiveDataPurged = "REFUND_SENSITIVE_DATA_PURGED";
+    public const string TooManyRequests = "TOO_MANY_REQUESTS";
 }

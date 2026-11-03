@@ -26,6 +26,7 @@ public class Tour : BaseEntity
     public decimal BasePrice { get; set; }
     public decimal EquipmentDeposit { get; set; } = 500000m; // Tiền cọc thiết bị (Figma ghi 500.000đ hoàn 100%)
     public int InspectionRate { get; set; } = 96;           // Đồ kiểm định 96%
+    public int? GroupMaxParticipants { get; set; }
     public string Status { get; set; } = "Active";          // Active (Đang mở), Expired (Hết hạn)
 
     // Navigations

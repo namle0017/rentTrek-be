@@ -34,6 +34,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(x => new { x.CustomerUserId, x.IdempotencyKey })
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");
+        builder.HasOne(x => x.CustomerUser).WithMany(x => x.Orders).HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }
