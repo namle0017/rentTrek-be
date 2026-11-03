@@ -108,6 +108,7 @@ public class UserService : IUserService
             Phone = user.Phone,
             Role = user.Role?.RoleName ?? "Customer",
             Status = user.Status,
+            EmailConfirmed = user.EmailConfirmedAt is not null,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
