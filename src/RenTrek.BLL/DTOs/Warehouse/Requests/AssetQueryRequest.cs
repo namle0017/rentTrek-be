@@ -6,4 +6,5 @@ public class AssetQueryRequest : PagingRequest
 {
     public Guid? ProductVariantId { get; set; }
     public string? AssetStatus { get; set; }
+    public string? Status { get; set; }
 }
