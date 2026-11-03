@@ -32,6 +32,7 @@ public interface IUnitOfWork : IDisposable
     IPromotionRepository Promotions { get; }
     IPromotionTierRepository PromotionTiers { get; }
     IRefreshTokenRepository RefreshTokens { get; }
+    IRefundCaseRepository RefundCases { get; }
     IRefundPolicyRepository RefundPolicies { get; }
     IRefundPolicyRuleRepository RefundPolicyRules { get; }
     IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots { get; }

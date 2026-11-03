@@ -25,6 +25,12 @@ public static class DependencyInjection
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
+        services.AddOptions<RefundSettings>()
+            .Bind(configuration.GetSection("Refund"))
+            .Configure(options => options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty)
+            .Validate(options => options.HasValidEncryptionKey(), "RefundDataEncryptionKey phải là chuỗi Base64 của 32 byte")
+            .Validate(options => options.PayoutRetentionDays is >= 1 and <= 3650, "Refund:PayoutRetentionDays phải từ 1 đến 3650")
+            .ValidateOnStart();
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
@@ -32,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtHelper, JwtHelper>();
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IRefundDataProtector, RefundDataProtector>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
@@ -39,6 +46,8 @@ public static class DependencyInjection
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
+        services.AddScoped<IRefundCaseService, RefundCaseService>();
+        services.AddScoped<IRefundVerificationService, RefundVerificationService>();
         services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
         services.AddScoped<IProductBundleService, ProductBundleService>();
         services.AddScoped<IPromotionService, PromotionService>();

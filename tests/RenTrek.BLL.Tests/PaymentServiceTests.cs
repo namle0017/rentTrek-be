@@ -104,6 +104,23 @@ public sealed class PaymentServiceTests
         Assert.Equal("NeedsReconciliation", fixture.Order.PaymentStatus);
     }
 
+    [Fact]
+    public async Task Webhook_FlagsReconciliationWhenPaymentArrivesAfterCancellation()
+    {
+        var fixture = CreateFixture();
+        var transferContent = await CreatePaymentAsync(fixture);
+        fixture.Order.Status = "Cancelled";
+        fixture.Order.PaymentStatus = "Unpaid";
+        fixture.Repository.Payments.Single().Status = "Cancelled";
+
+        await fixture.Service.HandleSePayWebhookAsync($"Apikey {ApiKey}", Webhook(8, transferContent, 1_000_000m));
+
+        Assert.Equal("Cancelled", fixture.Order.Status);
+        Assert.Equal("NeedsReconciliation", fixture.Order.PaymentStatus);
+        Assert.Contains(fixture.Repository.Payments, payment => payment.ProviderTransactionId == "SEPAY:8");
+        Assert.True(fixture.Repository.LockAcquired);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Apikey wrong-key")]
@@ -243,6 +260,7 @@ public sealed class PaymentServiceTests
         public IProfileRepository Profiles => throw new NotSupportedException();
         public IPromotionRepository Promotions => throw new NotSupportedException();
         public IPromotionTierRepository PromotionTiers => throw new NotSupportedException();
+        public IRefundCaseRepository RefundCases => throw new NotSupportedException();
         public IRefundPolicyRepository RefundPolicies => throw new NotSupportedException();
         public IRefundPolicyRuleRepository RefundPolicyRules => throw new NotSupportedException();
         public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => throw new NotSupportedException();

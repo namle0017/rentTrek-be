@@ -621,6 +621,7 @@ public sealed class TripBookingServiceTests
         public IProfileRepository Profiles => throw new NotSupportedException();
         public IPromotionRepository Promotions => throw new NotSupportedException();
         public IPromotionTierRepository PromotionTiers => throw new NotSupportedException();
+        public IRefundCaseRepository RefundCases => throw new NotSupportedException();
         public IRefundPolicyRepository RefundPolicies => throw new NotSupportedException();
         public IRefundPolicyRuleRepository RefundPolicyRules => throw new NotSupportedException();
         public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => throw new NotSupportedException();
