@@ -28,6 +28,7 @@ public class UpdateAssetStatusRequestValidator : AbstractValidator<UpdateAssetSt
     private static readonly string[] ValidStatuses =
     [
         EquipmentAssetStatuses.Available,
+        EquipmentAssetStatuses.Good,
         EquipmentAssetStatuses.Maintenance,
         EquipmentAssetStatuses.Damaged,
         EquipmentAssetStatuses.Lost,
@@ -36,13 +37,12 @@ public class UpdateAssetStatusRequestValidator : AbstractValidator<UpdateAssetSt
 
     public UpdateAssetStatusRequestValidator()
     {
-        RuleFor(x => x.NewStatus)
+        RuleFor(x => !string.IsNullOrWhiteSpace(x.NewStatus) ? x.NewStatus : x.AssetStatus)
             .NotEmpty().WithMessage("Trạng thái mới không được để trống.")
-            .Must(s => ValidStatuses.Contains(s))
+            .Must(s => string.IsNullOrEmpty(s) || ValidStatuses.Contains(s))
             .WithMessage($"Trạng thái phải là một trong các giá trị: {string.Join(", ", ValidStatuses)}.");
 
         RuleFor(x => x.ConditionNote)
-            .NotEmpty().WithMessage("Ghi chú lý do cập nhật tình trạng không được để trống.")
             .MaximumLength(500).WithMessage("Ghi chú tình trạng tối đa 500 ký tự.");
     }
 }

@@ -24,10 +24,11 @@ public class AssetService : IAssetService
 
     public async Task<PagedResponse<AssetResponse>> GetPagedAssetsAsync(AssetQueryRequest request, CancellationToken cancellationToken = default)
     {
+        var status = !string.IsNullOrWhiteSpace(request.AssetStatus) ? request.AssetStatus : request.Status;
         var (items, totalCount) = await _unitOfWork.EquipmentAssets.GetPagedAssetsAsync(
             request.Search,
             request.ProductVariantId,
-            request.AssetStatus,
+            status,
             request.PageNumber,
             request.PageSize,
             request.SortBy,
@@ -58,10 +59,13 @@ public class AssetService : IAssetService
 
         // Parse starting sequence
         int startSeq = 1;
-        var match = Regex.Match(baseCode.Substring(prefix.Length), @"\d+");
-        if (match.Success && int.TryParse(match.Value, out var seq))
+        if (baseCode.Length >= prefix.Length)
         {
-            startSeq = seq;
+            var match = Regex.Match(baseCode.Substring(prefix.Length), @"\d+");
+            if (match.Success && int.TryParse(match.Value, out var seq))
+            {
+                startSeq = seq;
+            }
         }
 
         var newAssets = new List<EquipmentAsset>();
@@ -116,8 +120,17 @@ public class AssetService : IAssetService
             throw new NotFoundException($"Không tìm thấy thiết bị với mã '{assetCode}'.");
         }
 
-        asset.AssetStatus = request.NewStatus.Trim();
-        asset.ConditionNote = request.ConditionNote.Trim();
+        var newStatus = !string.IsNullOrWhiteSpace(request.NewStatus) ? request.NewStatus : request.AssetStatus;
+        if (string.IsNullOrWhiteSpace(newStatus))
+        {
+            throw new ValidationException("Trạng thái mới không được để trống.");
+        }
+
+        asset.AssetStatus = newStatus.Trim();
+        if (!string.IsNullOrWhiteSpace(request.ConditionNote))
+        {
+            asset.ConditionNote = request.ConditionNote.Trim();
+        }
         asset.UpdatedAt = DateTime.UtcNow;
 
         _unitOfWork.EquipmentAssets.Update(asset);

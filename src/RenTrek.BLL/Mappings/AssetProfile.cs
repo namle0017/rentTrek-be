@@ -10,6 +10,7 @@ public class AssetProfile : AutoMapper.Profile
     {
         CreateMap<EquipmentAsset, AssetResponse>()
             .ForMember(dest => dest.AssetId, opt => opt.MapFrom(src => src.EquipmentAssetId))
+            .ForMember(dest => dest.ProductVariantId, opt => opt.MapFrom(src => src.ProductVariantId))
             .ForMember(dest => dest.Sku, opt => opt.MapFrom(src => src.ProductVariant.Sku))
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.ProductVariant.Product.Name))
             .ForMember(dest => dest.VariantName, opt => opt.MapFrom(src => src.ProductVariant.Name))
