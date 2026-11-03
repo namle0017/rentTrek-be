@@ -22,6 +22,11 @@ public class RentalOrderDetailRow
     public DateTime RentalEndAt { get; set; }
     public decimal DepositAmount { get; set; }
 
+    // Liên hệ khách (chỉ dùng ở màn vận hành)
+    public string CustomerName { get; set; } = string.Empty;
+    public string CustomerEmail { get; set; } = string.Empty;
+    public string? CustomerPhone { get; set; }
+
     /// <summary>Họ tên nhân viên xử lý; null nếu chưa có.</summary>
     public string? HandledByName { get; set; }
 

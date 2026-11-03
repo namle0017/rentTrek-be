@@ -38,4 +38,5 @@ public class TourDetailResponse
     public List<TourItemResponse> ProvidedItems { get; set; } = [];
     public List<TourItemResponse> PreparationItems { get; set; } = [];
     public List<TripSummaryResponse> AvailableTrips { get; set; } = [];
+    public List<TourRelatedPostResponse> RelatedPosts { get; set; } = [];
 }

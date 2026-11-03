@@ -121,6 +121,8 @@ public class TourRepository : GenericRepository<Tour>, ITourRepository
             .Include(t => t.ProvidedItems)
             .Include(t => t.PreparationItems)
             .Include(t => t.Trips)
+            .Include(t => t.TourPosts)
+                .ThenInclude(tp => tp.Post)
             .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
         if (tour is not null)

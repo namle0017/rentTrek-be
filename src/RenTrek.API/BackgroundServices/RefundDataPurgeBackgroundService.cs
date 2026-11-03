@@ -1,4 +1,4 @@
-using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Implementations;
 
 namespace RenTrek.API.BackgroundServices;
 
@@ -20,7 +20,9 @@ public sealed class RefundDataPurgeBackgroundService(
             try
             {
                 using var scope = scopeFactory.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<IRefundCaseService>().PurgeSensitiveDataAsync(stoppingToken);
+                // Xóa dữ liệu là không hoàn tác → luôn theo giờ thật, không theo đồng hồ giả lập (Development)
+                var refundCases = ActivatorUtilities.CreateInstance<RefundCaseService>(scope.ServiceProvider, TimeProvider.System);
+                await refundCases.PurgeSensitiveDataAsync(stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using DotNetEnv;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RenTrek.API.BackgroundServices;
 using RenTrek.API.Common;
 using RenTrek.API.Extensions;
@@ -12,6 +13,7 @@ using RenTrek.API.Middlewares;
 using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
@@ -25,6 +27,15 @@ var builder = WebApplication.CreateBuilder(args);
 // ── Layers ──────────────────────────────────────────────
 builder.Services.AddDataAccessLayer(builder.Configuration);
 builder.Services.AddBusinessLayer(builder.Configuration);
+
+// Development: đồng hồ giả lập để test luồng theo thời gian (trước / trong / sau chuyến, trả đồ trễ).
+// Điều khiển qua /api/v1/dev/clock; môi trường khác vẫn dùng TimeProvider.System.
+if (builder.Environment.IsDevelopment())
+{
+    var simulatedClock = new SimulatedTimeProvider();
+    builder.Services.AddSingleton(simulatedClock);
+    builder.Services.Replace(ServiceDescriptor.Singleton<TimeProvider>(simulatedClock));
+}
 
 // ── Presentation ────────────────────────────────────────
 builder.Services
