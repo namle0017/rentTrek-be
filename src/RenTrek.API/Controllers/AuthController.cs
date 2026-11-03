@@ -15,10 +15,12 @@ namespace RenTrek.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ICurrentUserService currentUserService)
     {
         _authService = authService;
+        _currentUserService = currentUserService;
     }
 
     [HttpPost("register")]
@@ -52,5 +54,21 @@ public class AuthController : ControllerBase
     {
         await _authService.LogoutAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đăng xuất thành công"));
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.VerifyEmailAsync(request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Xác thực email thành công"));
+    }
+
+    [HttpPost("resend-verification-email")]
+    [Authorize]
+    public async Task<IActionResult> ResendVerificationEmail(CancellationToken cancellationToken)
+    {
+        await _authService.ResendVerificationEmailAsync(_currentUserService.RequiredUserId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
     }
 }
