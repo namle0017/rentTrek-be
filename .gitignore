@@ -517,3 +517,6 @@ logs/
 *.log
 uploads/
 
+
+docs/RenTrekk Design System*
+
