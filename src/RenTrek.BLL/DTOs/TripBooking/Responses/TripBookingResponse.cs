@@ -1,3 +1,5 @@
+using RenTrek.BLL.DTOs.Refund.Responses;
+
 namespace RenTrek.BLL.DTOs.TripBooking.Responses;
 
 /// <summary>
@@ -20,4 +22,7 @@ public sealed class TripBookingResponse
     public DateTimeOffset? HoldExpiresAt { get; set; }
     public bool CanManage { get; set; }
     public IReadOnlyList<BookingParticipantResponse> Participants { get; set; } = [];
+
+    /// <summary>Hồ sơ hoàn tiền của đơn, chỉ có với người đặt.</summary>
+    public RefundCaseSummaryResponse? RefundCase { get; set; }
 }

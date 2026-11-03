@@ -26,6 +26,10 @@ services:
         sync: false
       - key: Email__FrontendBaseUrl
         sync: false
+      - key: Invite__SigningKey
+        generateValue: true
+      - key: RefundDataEncryptionKey
+        sync: false
       - key: Jwt__SecretKey
         generateValue: true
       - key: Jwt__Issuer

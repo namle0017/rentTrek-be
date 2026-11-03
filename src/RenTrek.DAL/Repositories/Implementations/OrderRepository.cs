@@ -34,9 +34,9 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
                 OrderCode = o.OrderCode,
                 OrderType = o.OrderType,
                 Status = o.Status,
-                PaymentStatus = o.PaymentStatus,
-                TotalAmount = o.TotalAmount,
-                HoldExpiresAt = o.HoldExpiresAt,
+                PaymentStatus = o.CustomerUserId == customerUserId ? o.PaymentStatus : string.Empty,
+                TotalAmount = o.CustomerUserId == customerUserId ? o.TotalAmount : 0m,
+                HoldExpiresAt = o.CustomerUserId == customerUserId ? o.HoldExpiresAt : null,
                 CreatedAt = o.CreatedAt,
                 RentalStartAt = o.RentalOrder != null ? o.RentalOrder.RentalStartAt : null,
                 RentalEndAt = o.RentalOrder != null ? o.RentalOrder.RentalEndAt : null,
@@ -81,7 +81,15 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
     {
         // Bỏ query filter để đơn lịch sử vẫn đọc được tên sản phẩm / chuyến đã bị xoá mềm; tự lọc đơn chưa xoá
         var query = _dbSet.IgnoreQueryFilters().AsNoTracking()
-            .Where(o => o.CustomerUserId == customerUserId && !o.IsDeleted);
+            .Where(o => !o.IsDeleted &&
+                        (o.CustomerUserId == customerUserId ||
+                         (o.TripBookingOrder != null &&
+                          o.TripBookingOrder.Participants.Any(p =>
+                              !p.IsDeleted &&
+                              p.LinkedUserId == customerUserId &&
+                              p.LinkedUser != null &&
+                              !p.LinkedUser.IsDeleted &&
+                              p.LinkedUser.Status == "Active" && p.LinkedUser.EmailConfirmedAt != null))));
 
         if (!string.IsNullOrWhiteSpace(filter.OrderType))
         {

@@ -14,9 +14,9 @@ public sealed class TripBookingOrder
     public string? SplitReason { get; set; }
     public Guid? SplitApprovedByUserId { get; set; }
     public DateTimeOffset? SplitAt { get; set; }
+    public int InviteVersion { get; set; }
 
     public Order Order { get; set; } = null!;
     public Trip Trip { get; set; } = null!;
     public ICollection<BookingParticipant> Participants { get; set; } = [];
-    public ICollection<ParticipantInvitation> Invitations { get; set; } = [];
 }

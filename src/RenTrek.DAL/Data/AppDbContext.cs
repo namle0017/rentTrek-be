@@ -41,6 +41,8 @@ public class AppDbContext : DbContext
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<PromotionTier> PromotionTiers => Set<PromotionTier>();
+    public DbSet<RefundActionChallenge> RefundActionChallenges => Set<RefundActionChallenge>();
+    public DbSet<RefundCase> RefundCases => Set<RefundCase>();
     public DbSet<RefundPolicy> RefundPolicies => Set<RefundPolicy>();
     public DbSet<RefundPolicyRule> RefundPolicyRules => Set<RefundPolicyRule>();
     public DbSet<RentalBundleItemSnapshot> RentalBundleItemSnapshots => Set<RentalBundleItemSnapshot>();
@@ -62,7 +64,6 @@ public class AppDbContext : DbContext
     public DbSet<TripBookingOrder> TripBookingOrders => Set<TripBookingOrder>();
     public DbSet<BookingParticipant> BookingParticipants => Set<BookingParticipant>();
     public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<ParticipantInvitation> ParticipantInvitations => Set<ParticipantInvitation>();
 
     // Tour DbSets
     public DbSet<Tour> Tours => Set<Tour>();
