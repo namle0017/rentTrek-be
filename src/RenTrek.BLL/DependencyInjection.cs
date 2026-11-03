@@ -6,6 +6,8 @@ using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Warehouse.Implementations;
+using RenTrek.BLL.Services.Warehouse.Interfaces;
 
 namespace RenTrek.BLL;
 
@@ -41,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IRentalOrderService, RentalOrderService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IAssetService, AssetService>();
 
         return services;
     }
