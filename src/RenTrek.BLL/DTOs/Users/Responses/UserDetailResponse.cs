@@ -11,6 +11,7 @@ public class UserDetailResponse
     public string? Phone { get; set; }
     public string Role { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public bool EmailConfirmed { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
