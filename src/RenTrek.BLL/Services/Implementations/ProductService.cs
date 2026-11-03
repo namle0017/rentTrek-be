@@ -1,6 +1,8 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
+using RenTrek.BLL.DTOs.AdminCatalog.Requests;
+using RenTrek.BLL.DTOs.AdminCatalog.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Product.Requests;
 using RenTrek.BLL.DTOs.Product.Responses;
@@ -31,6 +33,12 @@ public class ProductService : IProductService
         .Where(product => product.Status == CatalogStatus.Active && product.Category.Status == "Active"
             && product.Variants.Any(variant => variant.Status == CatalogStatus.Active
                 && variant.RentalPriceTiers.Any()));
+
+    public Task<PagedResponse<AdminProductListItemResponse>> GetAdminProductsAsync(
+        AdminProductQueryRequest request,
+        CancellationToken cancellationToken = default)
+        => AdminCatalogQuery.BuildProducts(_unitOfWork.Repository<Product>().Query(), request)
+            .ToPagedResponseAsync(request, cancellationToken);
 
     public async Task<PagedResponse<ProductResponse>> GetAllAsync(ProductQueryRequest request, CancellationToken cancellationToken = default)
     {
