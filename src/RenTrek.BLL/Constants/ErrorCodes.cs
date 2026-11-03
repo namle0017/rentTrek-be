@@ -32,4 +32,15 @@ public static class ErrorCodes
     public const string OrderNotReconcilable = "ORDER_NOT_RECONCILABLE";
     public const string PaymentProviderError = "PAYMENT_PROVIDER_ERROR";
     public const string Forbidden = "FORBIDDEN";
+    public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
+    public const string RefundCaseNotFound = "REFUND_CASE_NOT_FOUND";
+    public const string RefundCaseNotRejectable = "REFUND_CASE_NOT_REJECTABLE";
+    public const string RefundCaseNotCompletable = "REFUND_CASE_NOT_COMPLETABLE";
+    public const string RefundExportEmpty = "REFUND_EXPORT_EMPTY";
+    public const string RefundTransactionDuplicated = "REFUND_TRANSACTION_DUPLICATED";
+    public const string RefundVerificationRequired = "REFUND_VERIFICATION_REQUIRED";
+    public const string RefundVerificationInvalid = "REFUND_VERIFICATION_INVALID";
+    public const string RefundVerificationExpired = "REFUND_VERIFICATION_EXPIRED";
+    public const string RefundSensitiveDataPurged = "REFUND_SENSITIVE_DATA_PURGED";
+    public const string TooManyRequests = "TOO_MANY_REQUESTS";
 }

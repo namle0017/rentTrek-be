@@ -1,12 +1,17 @@
+using System.Security.Claims;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using DotNetEnv;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using RenTrek.API.BackgroundServices;
 using RenTrek.API.Common;
 using RenTrek.API.Extensions;
 using RenTrek.API.Filters;
 using RenTrek.API.Middlewares;
 using RenTrek.API.Identity;
 using RenTrek.BLL;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 
@@ -53,6 +58,22 @@ builder.Services.AddCors(options =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, cancellationToken) => new ValueTask(context.HttpContext.Response.WriteAsJsonAsync(
+        ApiResponse<object>.Fail(
+            "Bạn thao tác quá nhanh, vui lòng thử lại sau",
+            StatusCodes.Status429TooManyRequests,
+            new Dictionary<string, string[]> { ["code"] = [ErrorCodes.TooManyRequests] }),
+        cancellationToken));
+    options.AddPolicy(RateLimitPolicies.RefundSensitive, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+});
+
+builder.Services.AddHostedService<RefundDataPurgeBackgroundService>();
+
 // Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
 builder.Services.AddHealthChecks();
 
@@ -71,6 +92,7 @@ app.UseHttpsRedirection();
 app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapHealthChecks("/health");
 

@@ -93,6 +93,15 @@
 | 7.2 | Rental Orders | `POST` | `/rental-orders/quote` | User | Báo giá đơn thuê | 🟨 In progress |
 | 7.3 | Rental Orders | `POST` | `/rental-orders` | Customer | Tạo đơn thuê và giữ chỗ (Idempotency-Key) | 🟨 In progress |
 | 7.4 | Rental Orders | `GET` | `/rental-orders/{orderId}` | Customer | Chi tiết đơn thuê của tôi | 🟨 In progress |
+| 8.1 | Refund | `GET` | `/trip-bookings/{orderId}/cancellation-preview` | Customer | Xem mức hoàn trước khi hủy | ✅ Done |
+| 8.2 | Refund | `POST` | `/trip-bookings/{orderId}/cancel` | Customer | Hủy booking và mở hồ sơ hoàn | ✅ Done |
+| 8.3 | Refund | `GET` | `/refund-cases/{refundCaseId}` | Owner | Theo dõi hồ sơ hoàn | ✅ Done |
+| 8.4 | Refund | `GET` | `/admin/refund-cases` | Admin | Hàng đợi hoàn tiền | ✅ Done |
+| 8.5 | Refund | `POST` | `/admin/refund-cases/export/verification-codes` | Admin | Gửi OTP xuất Excel | ✅ Done |
+| 8.6 | Refund | `POST` | `/admin/refund-cases/export` | Admin | Xuất Excel cho kế toán | ✅ Done |
+| 8.7 | Refund | `POST` | `/admin/refund-cases/{id}/reject` | Admin | Từ chối hồ sơ | ✅ Done |
+| 8.8 | Refund | `POST` | `/admin/refund-cases/{id}/complete` | Admin | Xác nhận đã hoàn | ✅ Done |
+| 8.9 | Refund | `POST` | `/admin/refund-cases/{id}/mark-failed` | Admin | Ghi nhận chuyển khoản lỗi | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
@@ -1032,6 +1041,95 @@ Quy tắc hiển thị:
 
 ---
 
+## 8. Manual Refund
+
+Luồng chi tiết, trạng thái, bảo mật dữ liệu ngân hàng và vận hành xem [`05-MANUAL-REFUND-WORKFLOW.md`](05-MANUAL-REFUND-WORKFLOW.md).
+
+### 8.1 Xem trước và hủy booking
+
+`GET /api/v1/trip-bookings/{orderId}/cancellation-preview` tính lại theo chính sách gắn với đơn và thời điểm hiện tại. Response gồm `canCancel`, `blockedReason`, `refundPolicy`, `appliedCase`, `paidAmount`, `estimatedRefundAmount`, `processingMethod` và `consentVersion`.
+
+`POST /api/v1/trip-bookings/{orderId}/cancel` nhận:
+
+```json
+{
+  "reason": "Thay đổi kế hoạch",
+  "expectedRefundAmount": 500000,
+  "bankAccount": {
+    "bankCode": "VCB",
+    "accountNumber": "0123456789",
+    "accountHolder": "NGUYEN VAN A"
+  },
+  "consentVersion": "refund-bank-data-v1",
+  "consentAccepted": true
+}
+```
+
+- `reason`: không quá 500 ký tự.
+- `expectedRefundAmount`: phải khớp preview; lệch trả `409 REFUND_AMOUNT_CHANGED`.
+- Khi số tiền hoàn lớn hơn `0`: bắt buộc `bankAccount`, `consentAccepted = true` và đúng `consentVersion`.
+- `bankCode`: mã trong danh sách ngân hàng được hỗ trợ; `accountNumber`: 6–20 chữ số; `accountHolder`: 2–100 ký tự.
+- Response là booking đã cập nhật, kèm `refundCase` ở dạng đã che số tài khoản.
+
+### 8.2 Khách theo dõi hồ sơ
+
+`GET /api/v1/refund-cases/{refundCaseId}` chỉ cho chủ đơn xem. Response gồm `refundCaseId`, `orderId`, `orderCode`, `amount`, `status`, `bankCode`, `maskedAccount`, `timeline` và `completedAt`. API không trả số tài khoản đầy đủ.
+
+### 8.3 Admin xử lý hồ sơ
+
+`GET /api/v1/admin/refund-cases` hỗ trợ query `status`, `fromDate`, `toDate`, `pageNumber` và `pageSize`. `status` nhận `Requested`, `Approved`, `Completed`, `Rejected`, `Failed`.
+
+`POST /api/v1/admin/refund-cases/export/verification-codes` gửi OTP tới email Admin đã xác minh. Response chỉ có `challengeId` và `expiresAt`.
+
+`POST /api/v1/admin/refund-cases/export` nhận:
+
+```json
+{
+  "challengeId": "00000000-0000-0000-0000-000000000000",
+  "verificationCode": "123456",
+  "reExport": false,
+  "fromDate": null,
+  "toDate": null
+}
+```
+
+Mỗi lượt export cần OTP mới. File Excel mới chứa số tài khoản đầy đủ. `reExport = true` dùng khi cần xuất lại hồ sơ đã gửi kế toán.
+
+`POST /api/v1/admin/refund-cases/{id}/reject` và `/mark-failed` nhận:
+
+```json
+{ "reason": "Lý do dài ít nhất 5 ký tự", "expectedRowVersion": 1 }
+```
+
+`POST /api/v1/admin/refund-cases/{id}/complete` nhận:
+
+```json
+{ "providerTransactionId": "BANK-20261103-001", "expectedRowVersion": 1 }
+```
+
+- `providerTransactionId`: bắt buộc, tối đa 255 ký tự, không được trùng.
+- `expectedRowVersion`: giá trị mới nhất từ queue/summary; sai trả `409 CONCURRENCY_CONFLICT`.
+- `complete` và `mark-failed` chỉ nhận hồ sơ đã export.
+- Admin không được xử lý hồ sơ của chính mình.
+
+### 8.4 Lỗi nghiệp vụ chính
+
+| HTTP | `errors.code` | Khi nào |
+|---|---|---|
+| 400 | `REFUND_VERIFICATION_REQUIRED` | Thiếu OTP hoặc challenge |
+| 400 | `REFUND_VERIFICATION_INVALID` | OTP sai hoặc đã dùng |
+| 400 | `REFUND_VERIFICATION_EXPIRED` | OTP hết hạn |
+| 404 | `REFUND_CASE_NOT_FOUND` | Không tìm thấy hồ sơ hoặc không có quyền xem |
+| 409 | `REFUND_AMOUNT_CHANGED` | Số tiền hủy khác preview mới nhất |
+| 409 | `CONCURRENCY_CONFLICT` | Hồ sơ đã bị người khác cập nhật |
+| 409 | `REFUND_EXPORT_EMPTY` | Không có hồ sơ phù hợp để export |
+| 409 | `REFUND_TRANSACTION_DUPLICATED` | Mã giao dịch ngân hàng đã tồn tại |
+| 409 | `ORDER_NOT_RECONCILABLE` | Đơn đang chờ đối soát nên chưa thể hoàn tất hồ sơ |
+| 409 | `REFUND_SENSITIVE_DATA_PURGED` | Dữ liệu ngân hàng đã hết hạn lưu trữ |
+| 429 | `TOO_MANY_REQUESTS` | Vượt giới hạn gửi OTP hoặc thao tác nhạy cảm |
+
+---
+
 ## Phụ lục: Enum
 
 Enum được serialize dạng **string**.
@@ -1160,6 +1258,7 @@ Copy khối dưới đây khi thêm API mới:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-03 | Tín | `/trip-bookings/*/cancel`, `/refund-cases/*`, `/admin/refund-cases/*` | Thêm luồng hoàn tiền thủ công, OTP xuất Excel và bảo vệ dữ liệu ngân hàng |
 | 2026-10-27 | — | `/bundles*`, `/rental-availability`, `/rental-orders*`, `/users/me/orders` | Thêm danh sách / chi tiết combo, kiểm tra khả dụng, báo giá, tạo (Idempotency-Key trên `orders.idempotency_key`) và xem đơn thuê, đơn hàng của tôi; thêm enum `OrderType`, `OrderStatus`, `OrderPaymentStatus`, `AssignmentStatus`, `RentalItemType` và bảng mã lỗi nghiệp vụ `errors.code` |
 | 2026-10-26 | Codex | `/trip-bookings/*` | Thêm tạo booking nhóm, xem theo quyền, tạo và nhận lời mời participant |
 | 2026-10-06 | — | — | Khởi tạo skeleton |

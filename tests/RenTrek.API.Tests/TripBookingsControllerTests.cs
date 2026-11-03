@@ -98,5 +98,16 @@ public sealed class TripBookingsControllerTests
             Guid orderId,
             CancellationToken cancellationToken = default)
             => Task.FromResult(CreateResult);
+
+        public Task<CancellationPreviewResponse> GetCancellationPreviewAsync(
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new CancellationPreviewResponse { CanCancel = true });
+
+        public Task<TripBookingResponse> CancelAsync(
+            Guid orderId,
+            CancelTripBookingRequest? request = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(CreateResult);
     }
 }
