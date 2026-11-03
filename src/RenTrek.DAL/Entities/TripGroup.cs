@@ -1,10 +1,10 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
 public class TripGroup
 {
     public Guid TripGroupId { get; set; }
     public Guid TripId { get; set; }
-    public Guid GuideUserId { get; set; }
+    public Guid? GuideUserId { get; set; }
     public string GroupName { get; set; } = null!;
     public int MaxParticipants { get; set; }
     public string Status { get; set; } = null!;
@@ -13,6 +13,6 @@ public class TripGroup
     public bool IsDeleted { get; set; }
 
     public ICollection<BookingParticipant> BookingParticipants { get; set; } = new List<BookingParticipant>();
-    public Account GuideUser { get; set; } = null!;
+    public Account? GuideUser { get; set; }
     public Trip Trip { get; set; } = null!;
 }
