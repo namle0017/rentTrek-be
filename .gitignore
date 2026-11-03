@@ -517,3 +517,6 @@ logs/
 *.log
 uploads/
 
+
+# Understand-Anything tool output
+.ua/
