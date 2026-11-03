@@ -1,8 +1,11 @@
 using AutoMapper;
+using RenTrek.BLL.DTOs.AdminCatalog.Requests;
+using RenTrek.BLL.DTOs.AdminCatalog.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Tour.Requests;
 using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
@@ -22,6 +25,15 @@ public class TourService : ITourService
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
+
+    public Task<PagedResponse<AdminTourListItemResponse>> GetAdminToursAsync(
+        AdminTourQueryRequest query,
+        CancellationToken cancellationToken = default)
+        => AdminCatalogQuery.BuildTours(
+                _unitOfWork.Repository<RenTrek.DAL.Entities.Tour>().Query(),
+                query,
+                DateTimeOffset.UtcNow)
+            .ToPagedResponseAsync(query, cancellationToken);
 
     public async Task<PagedResponse<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
     {

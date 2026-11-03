@@ -5,28 +5,19 @@ namespace RenTrek.BLL.Services.Interfaces;
 
 public interface ITripBookingService
 {
-    Task<TripBookingResponse> CreateAsync(
-        CreateTripBookingRequest request,
-        string idempotencyKey,
-        CancellationToken cancellationToken = default);
-
     Task<TripBookingResponse> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
-
-    Task<GroupInvitationResponse> GenerateParticipantInvitationsAsync(
+    Task<TripBookingResponse> CreateAsync(CreateTripBookingRequest request, string idempotencyKey, CancellationToken cancellationToken = default);
+    Task<TripBookingResponse> UpdateParticipantAsync(
         Guid orderId,
+        Guid participantId,
+        UpdateBookingParticipantRequest request,
         CancellationToken cancellationToken = default);
-
-    Task<InvitationPreviewResponse> GetInvitationPreviewAsync(
+    Task<CancellationPreviewResponse> GetCancellationPreviewAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<TripBookingResponse> CancelAsync(
         Guid orderId,
+        CancelTripBookingRequest? request = null,
         CancellationToken cancellationToken = default);
-
-    Task VerifyParticipantInvitationCodeAsync(
-        Guid orderId,
-        string code,
-        CancellationToken cancellationToken = default);
-
-    Task<TripBookingResponse> ClaimParticipantInvitationAsync(
-        Guid orderId,
-        string code,
-        CancellationToken cancellationToken = default);
+    Task<InviteLinkResponse> GetInviteLinkAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<InviteLinkResponse> RotateInviteLinkAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<InvitationPreviewResponse> GetInvitationPreviewAsync(Guid orderId, string token, CancellationToken cancellationToken = default);
 }
