@@ -17,4 +17,6 @@ public interface IAssetService
     Task<IReadOnlyList<AssetAssignmentHistoryResponse>> GetAssetHistoryAsync(string assetCode, CancellationToken cancellationToken = default);
 
     Task<AssetGanttResponse> GetGanttScheduleAsync(AssetGanttQueryRequest request, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AssetVariantOptionResponse>> GetProductVariantsAsync(CancellationToken cancellationToken = default);
 }
