@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.BLL.Options;
 using System.Text;
-using RenTrek.API.Controllers.Admin;
+using RenTrek.API.Controllers;
 using RenTrek.BLL.Tests;
 
 namespace RenTrek.API.Tests;
@@ -31,31 +31,34 @@ public sealed class AdminHttpTests
         using var anonymous = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         using var customer = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         await LoginAsync(customer, database.CustomerId);
-        var controllers = typeof(AdminOrdersController).Assembly.GetTypes().Where(x => x.Namespace == "RenTrek.API.Controllers.Admin" && typeof(ControllerBase).IsAssignableFrom(x));
+        var controllers = typeof(AdminOrdersController).Assembly.GetTypes().Where(x => x.Namespace == "RenTrek.API.Controllers" && x.Name.StartsWith("Admin", StringComparison.Ordinal) && typeof(ControllerBase).IsAssignableFrom(x));
         var count = 0;
         foreach (var controller in controllers)
         {
             var root = controller.GetCustomAttribute<RouteAttribute>()!.Template;
             foreach (var method in controller.GetMethods())
-            foreach (var route in method.GetCustomAttributes<HttpMethodAttribute>())
-            {
-                var path = root + (string.IsNullOrEmpty(route.Template) ? "" : "/" + route.Template);
-                path = System.Text.RegularExpressions.Regex.Replace(path, @"\{[^}]+:guid\}", Guid.NewGuid().ToString());
-                path = System.Text.RegularExpressions.Regex.Replace(path, @"\{[^}]+\}", "missing-test");
-                foreach (var verb in route.HttpMethods)
+                foreach (var route in method.GetCustomAttributes<HttpMethodAttribute>())
                 {
-                    using var unauthorizedRequest = new HttpRequestMessage(new HttpMethod(verb), path) { Content = JsonContent.Create(new { }) };
-                    using var unauthorized = await anonymous.SendAsync(unauthorizedRequest);
-                    Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
-                    Assert.False((await unauthorized.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("success").GetBoolean());
-                    using var forbiddenRequest = new HttpRequestMessage(new HttpMethod(verb), path) { Content = JsonContent.Create(new { }) };
-                    using var forbidden = await customer.SendAsync(forbiddenRequest);
-                    Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
-                    count++;
+                    var path = root + (string.IsNullOrEmpty(route.Template) ? "" : "/" + route.Template);
+                    path = System.Text.RegularExpressions.Regex.Replace(path, @"\{[^}]+:guid\}", Guid.NewGuid().ToString());
+                    path = System.Text.RegularExpressions.Regex.Replace(path, @"\{[^}]+\}", "missing-test");
+                    // Endpoint [Consumes] (upload) trả 415 trước auth nếu gửi JSON.
+                    var multipart = method.GetCustomAttribute<ConsumesAttribute>() is not null;
+                    HttpContent Body() => multipart ? new MultipartFormDataContent { { new StringContent("x"), "x" } } : JsonContent.Create(new { });
+                    foreach (var verb in route.HttpMethods)
+                    {
+                        using var unauthorizedRequest = new HttpRequestMessage(new HttpMethod(verb), path) { Content = Body() };
+                        using var unauthorized = await anonymous.SendAsync(unauthorizedRequest);
+                        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+                        Assert.False((await unauthorized.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("success").GetBoolean());
+                        using var forbiddenRequest = new HttpRequestMessage(new HttpMethod(verb), path) { Content = Body() };
+                        using var forbidden = await customer.SendAsync(forbiddenRequest);
+                        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+                        count++;
+                    }
                 }
-            }
         }
-        Assert.Equal(63, count);
+        Assert.Equal(108, count);
     }
 
     [AdminPostgresFact]
@@ -115,14 +118,20 @@ public sealed class AdminHttpTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            // UseSetting thay vì ConfigureAppConfiguration: Program đọc Jwt ngay khi build, trước khi config của factory được áp.
+            foreach (var (key, value) in new Dictionary<string, string>
             {
                 ["ConnectionStrings:DefaultConnection"] = connectionString,
                 ["Jwt:SecretKey"] = "disposable-admin-http-tests-only-key-at-least-32-characters",
-                ["Jwt:Issuer"] = "rentrek-tests", ["Jwt:Audience"] = "rentrek-tests",
-                ["Jwt:AccessTokenExpirationMinutes"] = "15", ["Jwt:RefreshTokenExpirationDays"] = "7",
-                ["Seed:Tours"] = "false", ["Logging:LogLevel:Default"] = "None"
-            }));
+                ["Jwt:Issuer"] = "rentrek-tests",
+                ["Jwt:Audience"] = "rentrek-tests",
+                ["Jwt:AccessTokenExpirationMinutes"] = "15",
+                ["Jwt:RefreshTokenExpirationDays"] = "7",
+                ["RefundDataEncryptionKey"] = Convert.ToBase64String(new byte[32]),
+                ["Seed:Tours"] = "false",
+                ["Logging:LogLevel:Default"] = "None"
+            })
+                builder.UseSetting(key, value);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DbContextOptions<AppDbContext>>();

@@ -1,3 +1,4 @@
+using RenTrek.BLL.Constants;
 using FluentValidation;
 using RenTrek.BLL.DTOs.Guide.Requests;
 
@@ -8,7 +9,7 @@ namespace RenTrek.BLL.Validators.Guide;
 /// </summary>
 public sealed class GuideBatchAttendanceRequestValidator : AbstractValidator<GuideBatchAttendanceRequest>
 {
-    private static readonly string[] AllowedStatuses = ["Present", "Absent", "Late", "Excused"];
+    private static readonly string[] AllowedStatuses = [AttendanceStatuses.Present, AttendanceStatuses.Absent, AttendanceStatuses.Late, AttendanceStatuses.Excused];
 
     public GuideBatchAttendanceRequestValidator()
     {

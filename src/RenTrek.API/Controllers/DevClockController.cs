@@ -2,17 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.DevClock.Requests;
+using RenTrek.BLL.DTOs.DevClock.Responses;
 using RenTrek.BLL.Helpers.Implementations;
 
 namespace RenTrek.API.Controllers;
-
-public sealed record DevClockResponse(bool IsSimulated, DateTimeOffset Now, DateTimeOffset RealNow, long OffsetSeconds);
-
-public sealed class SetDevClockRequest
-{
-    /// <summary>Thời điểm muốn hệ thống coi là "bây giờ" (ISO 8601).</summary>
-    public DateTimeOffset Now { get; set; }
-}
 
 /// <summary>
 /// Đồng hồ giả lập cho Development: tua "giờ hiện tại" của server để test luồng gần / trong / sau chuyến

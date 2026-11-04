@@ -18,17 +18,19 @@ public sealed class AdminRecurrenceRulesController(
     IAdminRecurrenceRuleService recurrenceRuleService) : ControllerBase
 {
     [HttpGet("tours/{tourId:guid}/recurrence-rules")]
-    public async Task<IActionResult> GetByTour(
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RecurrenceRuleResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByTourAsync(
         Guid tourId,
         CancellationToken cancellationToken)
     {
         var result = await recurrenceRuleService.GetRulesByTourAsync(tourId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<RecurrenceRuleResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<IReadOnlyList<RecurrenceRuleResponse>>.Ok(result, "Lấy danh sách lịch lặp thành công"));
     }
 
     [HttpPost("tours/{tourId:guid}/recurrence-rules")]
+    [ProducesResponseType(typeof(ApiResponse<RecurrenceRuleResponse>), StatusCodes.Status201Created)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Create(
+    public async Task<IActionResult> CreateAsync(
         Guid tourId,
         [FromBody] CreateRecurrenceRuleRequest request,
         CancellationToken cancellationToken)
@@ -40,8 +42,9 @@ public sealed class AdminRecurrenceRulesController(
     }
 
     [HttpPut("recurrence-rules/{ruleId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<RecurrenceRuleResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Update(
+    public async Task<IActionResult> UpdateAsync(
         Guid ruleId,
         [FromBody] UpdateRecurrenceRuleRequest request,
         CancellationToken cancellationToken)
@@ -51,8 +54,9 @@ public sealed class AdminRecurrenceRulesController(
     }
 
     [HttpDelete("recurrence-rules/{ruleId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Delete(
+    public async Task<IActionResult> DeleteAsync(
         Guid ruleId,
         CancellationToken cancellationToken)
     {
@@ -61,18 +65,20 @@ public sealed class AdminRecurrenceRulesController(
     }
 
     [HttpPost("recurrence-rules/{ruleId:guid}/preview")]
-    public async Task<IActionResult> Preview(
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RecurrencePreviewItemResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PreviewAsync(
         Guid ruleId,
         [FromBody] PreviewRecurrenceTripsRequest? request,
         CancellationToken cancellationToken)
     {
         var result = await recurrenceRuleService.PreviewTripsAsync(ruleId, request, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<RecurrencePreviewItemResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<IReadOnlyList<RecurrencePreviewItemResponse>>.Ok(result, "Xem trước lịch khởi hành thành công"));
     }
 
     [HttpPost("recurrence-rules/{ruleId:guid}/generate")]
+    [ProducesResponseType(typeof(ApiResponse<GenerateRecurrenceTripsResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Generate(
+    public async Task<IActionResult> GenerateAsync(
         Guid ruleId,
         [FromBody] GenerateRecurrenceTripsRequest? request,
         CancellationToken cancellationToken)

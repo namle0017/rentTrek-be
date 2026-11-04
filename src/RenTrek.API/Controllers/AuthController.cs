@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.DTOs.Auth.Responses;
@@ -24,8 +25,10 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> RegisterAsync([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.RegisterAsync(request, cancellationToken);
         return StatusCode(StatusCodes.Status201Created,
@@ -33,64 +36,77 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> LoginAsync([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.LoginAsync(request, cancellationToken);
         return Ok(ApiResponse<AuthResponse>.Ok(result, "Đăng nhập thành công"));
     }
 
     [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> RefreshTokenAsync([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.RefreshTokenAsync(request, cancellationToken);
         return Ok(ApiResponse<AuthResponse>.Ok(result, "Làm mới phiên đăng nhập thành công"));
     }
 
     [HttpPost("logout")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> LogoutAsync([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
         await _authService.LogoutAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đăng xuất thành công"));
     }
 
     [HttpPost("verify-email")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> VerifyEmailAsync([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
     {
         await _authService.VerifyEmailAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Xác thực email thành công"));
     }
 
     [HttpPost("resend-verification-email")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> ResendVerificationEmail(CancellationToken cancellationToken)
+    public async Task<IActionResult> ResendVerificationEmailAsync(CancellationToken cancellationToken)
     {
         await _authService.ResendVerificationEmailAsync(_currentUserService.RequiredUserId, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
     }
 
     [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> ForgotPasswordAsync([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
         await _authService.ForgotPasswordAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Nếu email tồn tại trong hệ thống, mã xác thực OTP đã được gửi thành công"));
     }
 
     [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> ResetPasswordAsync([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
     {
         await _authService.ResetPasswordAsync(request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới"));
     }
 
     [HttpPost("google")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> GoogleLoginAsync([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.GoogleLoginAsync(request, cancellationToken);
         return Ok(ApiResponse<AuthResponse>.Ok(result, "Đăng nhập Google thành công"));

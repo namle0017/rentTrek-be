@@ -20,12 +20,12 @@ namespace RenTrek.API.Controllers;
 public class ToursController : ControllerBase
 {
     private readonly ITourService _tourService;
-    private readonly ITripGroupService _tripGroupService;
+    private readonly ITripRecurrenceService _tripRecurrenceService;
 
-    public ToursController(ITourService tourService, ITripGroupService tripGroupService)
+    public ToursController(ITourService tourService, ITripRecurrenceService tripRecurrenceService)
     {
         _tourService = tourService;
-        _tripGroupService = tripGroupService;
+        _tripRecurrenceService = tripRecurrenceService;
     }
 
     /// <summary>
@@ -34,7 +34,7 @@ public class ToursController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<TourResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ApiResponse<PagedResponse<TourResponse>>>> GetTours(
+    public async Task<ActionResult<ApiResponse<PagedResponse<TourResponse>>>> GetToursAsync(
         [FromQuery] TourQueryRequest query,
         CancellationToken cancellationToken)
     {
@@ -48,7 +48,7 @@ public class ToursController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TourDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<TourDetailResponse>>> GetTourById(
+    public async Task<ActionResult<ApiResponse<TourDetailResponse>>> GetTourByIdAsync(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
@@ -60,13 +60,14 @@ public class ToursController : ControllerBase
     /// Admin cập nhật sức chứa nhóm chuẩn (GroupMaxParticipants) cho phiên bản Tour.
     /// </summary>
     [HttpPut("{id:guid}/group-settings")]
+    [ProducesResponseType(typeof(ApiResponse<TourGroupSettingsResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> UpdateGroupSettings(
+    public async Task<IActionResult> UpdateGroupSettingsAsync(
         [FromRoute] Guid id,
         [FromBody] UpdateTourGroupSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _tripGroupService.UpdateTourGroupSettingsAsync(id, request, cancellationToken);
+        var result = await _tripRecurrenceService.UpdateTourGroupSettingsAsync(id, request, cancellationToken);
         return Ok(ApiResponse<TourGroupSettingsResponse>.Ok(result, "Cập nhật sức chứa nhóm của tour thành công"));
     }
 
@@ -74,13 +75,14 @@ public class ToursController : ControllerBase
     /// Admin tạo quy tắc lịch lặp khởi hành cho Tour (bắt buộc DefaultGroupCount dương).
     /// </summary>
     [HttpPost("{id:guid}/recurrence-rules")]
+    [ProducesResponseType(typeof(ApiResponse<TourRecurrenceRuleResponse>), StatusCodes.Status201Created)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> CreateRecurrenceRule(
+    public async Task<IActionResult> CreateRecurrenceRuleAsync(
         [FromRoute] Guid id,
         [FromBody] CreateTourRecurrenceRuleRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _tripGroupService.CreateRecurrenceRuleAsync(id, request, cancellationToken);
+        var result = await _tripRecurrenceService.CreateRecurrenceRuleAsync(id, request, cancellationToken);
         return StatusCode(
             StatusCodes.Status201Created,
             ApiResponse<TourRecurrenceRuleResponse>.Ok(result, "Tạo quy tắc lịch lặp thành công", StatusCodes.Status201Created));
@@ -90,12 +92,13 @@ public class ToursController : ControllerBase
     /// Lấy danh sách quy tắc lịch lặp của Tour.
     /// </summary>
     [HttpGet("{id:guid}/recurrence-rules")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<TourRecurrenceRuleResponse>>), StatusCodes.Status200OK)]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
-    public async Task<IActionResult> GetRecurrenceRules(
+    public async Task<IActionResult> GetRecurrenceRulesAsync(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await _tripGroupService.GetRecurrenceRulesAsync(id, cancellationToken);
+        var result = await _tripRecurrenceService.GetRecurrenceRulesAsync(id, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<TourRecurrenceRuleResponse>>.Ok(result, "Lấy danh sách quy tắc lịch lặp thành công"));
     }
 }

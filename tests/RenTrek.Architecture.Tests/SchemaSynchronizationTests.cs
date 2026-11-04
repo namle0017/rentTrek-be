@@ -80,13 +80,19 @@ public sealed class SchemaSynchronizationTests
         var order = new Order { OrderId = Guid.NewGuid() };
         var completed = new RefundCase
         {
-            RefundCaseId = Guid.NewGuid(), Order = order, OrderId = order.OrderId,
-            RefundPaymentId = Guid.NewGuid(), Status = "Completed"
+            RefundCaseId = Guid.NewGuid(),
+            Order = order,
+            OrderId = order.OrderId,
+            RefundPaymentId = Guid.NewGuid(),
+            Status = "Completed"
         };
         var pending = new RefundCase
         {
-            RefundCaseId = Guid.NewGuid(), Order = order, OrderId = order.OrderId,
-            RefundPaymentId = Guid.NewGuid(), Status = "PendingApproval"
+            RefundCaseId = Guid.NewGuid(),
+            Order = order,
+            OrderId = order.OrderId,
+            RefundPaymentId = Guid.NewGuid(),
+            Status = "PendingApproval"
         };
 
         context.AttachRange(completed, pending);

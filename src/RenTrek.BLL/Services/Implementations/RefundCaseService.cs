@@ -40,14 +40,14 @@ public sealed class RefundCaseService(
     private static readonly string[] AdminOnly = [RoleNames.Admin];
     private TimeSpan PayoutRetention => TimeSpan.FromDays(refundOptions?.Value.PayoutRetentionDays ?? 30);
 
-    public async Task<RefundQuoteResult> QuoteAsync(Order order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    public async Task<RefundQuoteResult> QuoteAsync(RefundOrderInput order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         var policy = await unitOfWork.RefundCases.GetPolicyWithRulesAsync(order.RefundPolicyId, cancellationToken);
         var paidAmount = order.PaymentStatus == OrderPaymentStatuses.Paid
             ? await unitOfWork.TripBookings.GetSucceededPaymentTotalAsync(order.OrderId, cancellationToken)
             : 0m;
 
-        var hoursBefore = (order.TripBookingOrder.Trip.StartAt - utcNow).TotalHours;
+        var hoursBefore = (order.TripStartAt - utcNow).TotalHours;
         var rule = policy?.RefundPolicyRules
             .Where(x => x.MinHoursBefore <= hoursBefore)
             .MaxBy(x => x.MinHoursBefore);
@@ -65,7 +65,7 @@ public sealed class RefundCaseService(
     }
 
     public async Task<RefundCaseSummaryResponse> OpenForCancellationAsync(
-        Order order,
+        RefundOrderInput order,
         RefundQuoteResult quote,
         RefundBankAccountRequest bankAccount,
         string consentVersion,
@@ -145,7 +145,7 @@ public sealed class RefundCaseService(
             throw new ForbiddenException("Email của Admin chưa được xác minh");
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);
-        RefundActionChallenge challenge;
+        RefundChallengeResponse challenge;
         string code;
         try
         {
@@ -166,7 +166,7 @@ public sealed class RefundCaseService(
             "Mã xác thực hoàn tiền RenTrekk",
             $"<p>Mã xác thực của bạn là <strong>{code}</strong>. Mã có hiệu lực trong 5 phút.</p>",
             cancellationToken);
-        return new RefundChallengeResponse { ChallengeId = challenge.ChallengeId, ExpiresAt = challenge.ExpiresAt };
+        return challenge;
     }
 
     public async Task<RefundExportFileResponse> ExportAsync(RefundExportRequest request, CancellationToken cancellationToken = default)

@@ -9,20 +9,20 @@ namespace RenTrek.Architecture.Tests;
 
 public sealed class LayerDependencyTests
 {
-    private static readonly Assembly _api = typeof(API.Common.ApiResponse<>).Assembly;
-    private static readonly Assembly _bll = typeof(BLL.DependencyInjection).Assembly;
-    private static readonly Assembly _dal = typeof(AppDbContext).Assembly;
+    private static readonly Assembly Api = typeof(API.Common.ApiResponse<>).Assembly;
+    private static readonly Assembly Bll = typeof(BLL.DependencyInjection).Assembly;
+    private static readonly Assembly Dal = typeof(AppDbContext).Assembly;
 
     [Fact]
     public void ApiTypesDoNotDependOnDalExceptGlobalProgramCompositionRoot()
     {
         // Program is in the global namespace. All named API namespaces, including
         // identity/filter/extension helpers and controller method bodies, are checked by IL.
-        AssertSuccessful(Types.InAssembly(_api).That().ResideInNamespaceStartingWith("RenTrek.API")
+        AssertSuccessful(Types.InAssembly(Api).That().ResideInNamespaceStartingWith("RenTrek.API")
             .ShouldNot().HaveDependencyOn("RenTrek.DAL").GetResult());
         // Inspect the complete metadata table too: lambda/async state-machine
         // references must not disappear when a type-based library skips generated types.
-        using var module = ModuleDefinition.ReadModule(_api.Location);
+        using var module = ModuleDefinition.ReadModule(Api.Location);
         var violations = module.GetTypeReferences()
             .Where(type => type.Namespace.StartsWith("RenTrek.DAL", StringComparison.Ordinal)
                 && type.FullName != "RenTrek.DAL.DependencyInjection")
@@ -34,7 +34,7 @@ public sealed class LayerDependencyTests
     public void BllDoesNotDependOnPresentationOrDirectDataAccess()
     {
         // EF IQueryable async extensions are explicitly allowed by conventions §6.8.
-        AssertSuccessful(Types.InAssembly(_bll).ShouldNot().HaveDependencyOnAny(
+        AssertSuccessful(Types.InAssembly(Bll).ShouldNot().HaveDependencyOnAny(
             "RenTrek.API", "Microsoft.AspNetCore", "RenTrek.DAL.Data",
             "RenTrek.DAL.Repositories.Implementations", "RenTrek.DAL.UnitOfWorks.UnitOfWork").GetResult());
     }
@@ -42,7 +42,7 @@ public sealed class LayerDependencyTests
     [Fact]
     public void DalDoesNotDependOnUpperLayers()
     {
-        AssertSuccessful(Types.InAssembly(_dal).ShouldNot().HaveDependencyOnAny(
+        AssertSuccessful(Types.InAssembly(Dal).ShouldNot().HaveDependencyOnAny(
             "RenTrek.API", "RenTrek.BLL", "Microsoft.AspNetCore").GetResult());
     }
 
@@ -68,15 +68,15 @@ public sealed class LayerDependencyTests
     [Fact]
     public void ControllersAndServicesInjectInterfacesAcrossLayers()
     {
-        var controllers = _api.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.API.Controllers"));
-        var services = _bll.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.BLL.Services.Implementations"));
+        var controllers = Api.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.API.Controllers"));
+        var services = Bll.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.BLL.Services.Implementations"));
         var violations = new List<string>();
         foreach (var type in controllers.Concat(services).Where(type => type.IsClass && !type.IsNested))
         {
             foreach (var parameter in type.GetConstructors().SelectMany(ctor => ctor.GetParameters()))
             {
                 var dependency = parameter.ParameterType;
-                if ((dependency.Assembly == _bll || dependency.Assembly == _dal) && !dependency.IsInterface)
+                if ((dependency.Assembly == Bll || dependency.Assembly == Dal) && !dependency.IsInterface)
                     violations.Add($"{type.FullName}: inject interface instead of {dependency.FullName}");
                 if (services.Contains(type) && IsInNamespace(dependency.Namespace, "RenTrek.DAL.Repositories.Interfaces"))
                     violations.Add($"{type.FullName}: inject IUnitOfWork instead of repository ({dependency.Name})");
@@ -88,8 +88,8 @@ public sealed class LayerDependencyTests
     [Fact]
     public void ServiceContractsAndHttpDtosDoNotExposeEntities()
     {
-        var contracts = _bll.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.BLL.Services.Interfaces"));
-        var dtos = _bll.GetTypes().Where(type => type.Namespace?.StartsWith("RenTrek.BLL.DTOs.", StringComparison.Ordinal) == true
+        var contracts = Bll.GetTypes().Where(type => IsInNamespace(type.Namespace, "RenTrek.BLL.Services.Interfaces"));
+        var dtos = Bll.GetTypes().Where(type => type.Namespace?.StartsWith("RenTrek.BLL.DTOs.", StringComparison.Ordinal) == true
             && !type.Namespace.EndsWith(".Internal", StringComparison.Ordinal));
         var violations = contracts.SelectMany(type => type.GetMethods())
             .Where(method => ContainsEntity(method.ReturnType))
@@ -107,7 +107,7 @@ public sealed class LayerDependencyTests
     [Fact]
     public void AsyncMethodsUseAsyncSuffixAndNeverAsyncVoid()
     {
-        var methods = new[] { _api, _bll, _dal }.SelectMany(assembly => assembly.GetTypes())
+        var methods = new[] { Api, Bll, Dal }.SelectMany(assembly => assembly.GetTypes())
             .Where(type => !type.IsDefined(typeof(CompilerGeneratedAttribute), false))
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             .Where(method => !method.IsSpecialName && !method.IsDefined(typeof(CompilerGeneratedAttribute), false));

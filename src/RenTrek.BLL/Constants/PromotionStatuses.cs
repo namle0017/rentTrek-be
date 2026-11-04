@@ -6,4 +6,5 @@ namespace RenTrek.BLL.Constants;
 public static class PromotionStatuses
 {
     public const string Active = "Active";
+    public const string Draft = "Draft";
 }

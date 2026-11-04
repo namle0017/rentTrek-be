@@ -13,19 +13,21 @@ namespace RenTrek.API.Controllers;
 [ApiController]
 [Authorize(Roles = $"{RoleNames.Guide},{RoleNames.TourGuide}")]
 [Route("api/v1/guide/trip-groups")]
-public sealed class GuideTripGroupsController(ITripGroupService tripGroupService) : ControllerBase
+public sealed class GuideTripGroupsController(ITripGroupViewService tripGroupViewService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAssignedGroups(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<GuideTripGroupResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAssignedGroupsAsync(CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.GetGuideGroupsAsync(cancellationToken);
+        var result = await tripGroupViewService.GetGuideGroupsAsync(cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<GuideTripGroupResponse>>.Ok(result, "Lấy danh sách group được phân công thành công"));
     }
 
     [HttpGet("{groupId:guid}")]
-    public async Task<IActionResult> GetAssignedGroupById(Guid groupId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<GuideTripGroupResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAssignedGroupByIdAsync(Guid groupId, CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.GetGuideGroupByIdAsync(groupId, cancellationToken);
+        var result = await tripGroupViewService.GetGuideGroupByIdAsync(groupId, cancellationToken);
         return Ok(ApiResponse<GuideTripGroupResponse>.Ok(result, "Lấy chi tiết group được phân công thành công"));
     }
 }

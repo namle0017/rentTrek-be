@@ -18,17 +18,19 @@ public sealed class AdminTripAttendancesController(
     IAdminTripAttendanceService attendanceService) : ControllerBase
 {
     [HttpGet("attendance-matrix")]
-    public async Task<IActionResult> GetAttendanceMatrix(
+    [ProducesResponseType(typeof(ApiResponse<TripAttendanceMatrixResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAttendanceMatrixAsync(
         Guid tripId,
         [FromQuery] Guid? groupId,
         CancellationToken cancellationToken)
     {
         var result = await attendanceService.GetAttendanceMatrixAsync(tripId, groupId, cancellationToken);
-        return Ok(ApiResponse<TripAttendanceMatrixResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<TripAttendanceMatrixResponse>.Ok(result, "Lấy bảng điểm danh thành công"));
     }
 
     [HttpPut("attendances")]
-    public async Task<IActionResult> UpdateAttendances(
+    [ProducesResponseType(typeof(ApiResponse<UpdateTripAttendancesResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateAttendancesAsync(
         Guid tripId,
         [FromBody] UpdateTripAttendancesRequest request,
         CancellationToken cancellationToken)
@@ -38,12 +40,13 @@ public sealed class AdminTripAttendancesController(
     }
 
     [HttpGet("attendances/history")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AttendanceAuditHistoryItemResponse>>), StatusCodes.Status200OK)]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
-    public async Task<IActionResult> GetAttendanceHistory(
+    public async Task<IActionResult> GetAttendanceHistoryAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await attendanceService.GetAttendanceHistoryAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<AttendanceAuditHistoryItemResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<IReadOnlyList<AttendanceAuditHistoryItemResponse>>.Ok(result, "Lấy lịch sử điểm danh thành công"));
     }
 }

@@ -12,4 +12,5 @@ public interface IProductService
     Task<PagedResponse<ProductResponse>> GetAllAsync(ProductQueryRequest request, CancellationToken cancellationToken = default);
     Task<ProductDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProductCategoryResponse>> GetCategoriesAsync(CancellationToken cancellationToken = default);
-    Task<AdminProductDetailResponse> GetAdminProductByIdAsync(Guid id, CancellationToken cancellationToken = default);}
+    Task<AdminProductDetailResponse> GetAdminProductByIdAsync(Guid id, CancellationToken cancellationToken = default);
+}

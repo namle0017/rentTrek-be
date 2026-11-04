@@ -45,7 +45,7 @@ public sealed class TripOperationsAndGuideControllersTests
         var controller = new AdminTripsController(new StubAdminTripService());
         var tripId = Guid.NewGuid();
 
-        var action = await controller.GetManifest(tripId, "csv", CancellationToken.None);
+        var action = await controller.GetManifestAsync(tripId, "csv", CancellationToken.None);
 
         var fileResult = Assert.IsType<FileContentResult>(action);
         Assert.Equal("text/csv; charset=utf-8", fileResult.ContentType);
@@ -59,7 +59,7 @@ public sealed class TripOperationsAndGuideControllersTests
         var tripId = Guid.NewGuid();
         var activityId = Guid.NewGuid();
 
-        var action = await controller.SubmitBatchAttendance(
+        var action = await controller.SubmitBatchAttendanceAsync(
             tripId,
             new GuideBatchAttendanceRequest
             {

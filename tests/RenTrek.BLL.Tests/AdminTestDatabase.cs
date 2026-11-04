@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using RenTrek.BLL.Helpers.Implementations;
-using RenTrek.BLL.Services.Admin;
+using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Entities;
@@ -33,8 +33,17 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
     }
 
     public AppDbContext Context() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(ConnectionString).Options);
-    public AdminService Service(AppDbContext context, Guid? actorId = null, string role = "Admin")
-        => new(new UnitOfWork(context), new Actor(actorId ?? AdminId, role), new PasswordHasher(), new Clock(Now));
+    public AdminServices Service(AppDbContext context, Guid? actorId = null, string role = "Admin")
+    {
+        var (uow, actor, clock) = (new UnitOfWork(context), new Actor(actorId ?? AdminId, role), new Clock(Now));
+        return new(new(uow, actor, new PasswordHasher(), clock), new(uow, actor, clock), new(uow, actor, clock),
+            new(uow, actor, clock), new(uow, actor, clock), new(uow, actor, clock));
+    }
+
+    public sealed record AdminServices(AdminUserService Users, AdminMasterDataService MasterData, AdminOrderService Orders,
+        AdminPromotionService Promotions, AdminGovernanceService Governance, AdminReportService Reports);
+    public RentalFulfillmentService Fulfillment(AppDbContext context, TimeProvider clock, Guid? actorId = null, string role = "Admin")
+        => new(new UnitOfWork(context), new Actor(actorId ?? AdminId, role), clock);
 
     public async Task InitializeAsync()
     {
@@ -50,33 +59,103 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
             context.Accounts.Add(new Account { UserId = id, Role = roles.Single(x => x.RoleName == role), Email = id + "@test.invalid", FullName = role + " Test", PasswordHash = new PasswordHasher().Hash("TestPassword123!"), CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime });
         var category = new Category { Name = "Trekking", CategoryType = "TOUR" };
         var location = new Location { Name = "Bidoup", Address = "Lâm Đồng" };
-        var tour = new Tour { Name = "Bidoup Test", Category = category, MainLocation = location };
-        var policy = new RefundPolicy { RefundPolicyId = PolicyId, Name = "Test policy", CreatedByUserId = AdminId,
-            PolicyFamilyId = Guid.NewGuid(), Version = 1, PolicyType = "Tour", Status = "Active", EffectiveFrom = Now.UtcDateTime.AddYears(-1), CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime };
+        var tour = new Tour { Name = "Bidoup Test", Category = category, MainLocation = location, CreatedByUserId = AdminId };
+        var policy = new RefundPolicy
+        {
+            RefundPolicyId = PolicyId,
+            Name = "Test policy",
+            CreatedByUserId = AdminId,
+            PolicyFamilyId = Guid.NewGuid(),
+            Version = 1,
+            PolicyType = "Tour",
+            Status = "Active",
+            EffectiveFrom = Now.UtcDateTime.AddYears(-1),
+            CreatedAt = Now.UtcDateTime,
+            UpdatedAt = Now.UtcDateTime
+        };
         context.RefundPolicies.Add(policy); context.Tours.Add(tour);
-        context.Trips.Add(new Trip { TripId = TripId, Tour = tour, RefundPolicy = policy, ManagedByUserId = StaffId,
-            StartAt = Now.AddDays(2), EndAt = Now.AddDays(3), TotalSlots = 10, MinParticipants = 3, Status = "Open", CreatedAt = Now, UpdatedAt = Now });
+        context.Trips.Add(new Trip
+        {
+            TripId = TripId,
+            Tour = tour,
+            RefundPolicy = policy,
+            ManagedByUserId = StaffId,
+            StartAt = Now.AddDays(2),
+            EndAt = Now.AddDays(3),
+            TotalSlots = 10,
+            MinParticipants = 3,
+            Status = "Open",
+            CreatedAt = Now,
+            UpdatedAt = Now
+        });
         await context.SaveChangesAsync();
-        context.Orders.Add(new Order { OrderId = Guid.NewGuid(), OrderCode = "TOUR-TEST", CustomerUserId = CustomerId, OrderType = "Tour", TotalAmount = 1000000,
-            SubtotalAmount = 1000000, Status = "PendingPayment", PaymentStatus = "Unpaid", CreatedAt = Now, UpdatedAt = Now,
-            HoldExpiresAt = Now.AddMinutes(15), RefundPolicyId = PolicyId, TripBookingOrder = new TripBookingOrder { TripId = TripId, ParticipantCount = 1, GroupingPreference = "Together" } });
+        context.Orders.Add(new Order
+        {
+            OrderId = Guid.NewGuid(),
+            OrderCode = "TOUR-TEST",
+            CustomerUserId = CustomerId,
+            OrderType = "TripBooking",
+            TotalAmount = 1000000,
+            SubtotalAmount = 1000000,
+            Status = "PendingPayment",
+            PaymentStatus = "Unpaid",
+            CreatedAt = Now,
+            UpdatedAt = Now,
+            HoldExpiresAt = Now.AddMinutes(15),
+            RefundPolicyId = PolicyId,
+            TripBookingOrder = new TripBookingOrder { TripId = TripId, ParticipantCount = 1, GroupingPreference = "Together" }
+        });
         var product = new Product { Name = "Lều Test", CategoryId = category.Id, CreatedByUserId = AdminId };
         var variant = new ProductVariant { Id = VariantId, Product = product, Sku = "TENT-TEST", Name = "Lều 2 người" };
         context.ProductVariants.Add(variant);
-        context.Orders.Add(new Order { OrderId = Guid.NewGuid(), OrderCode = "RENT-TEST", CustomerUserId = CustomerId, OrderType = "Rental", TotalAmount = 200000,
-            SubtotalAmount = 200000, Status = "Confirmed", PaymentStatus = "Paid", CreatedAt = Now, UpdatedAt = Now, RefundPolicyId = PolicyId,
-            RentalOrder = new RentalOrder { RentalStartAt = Now.UtcDateTime.AddDays(-2), RentalEndAt = Now.UtcDateTime.AddDays(-1),
-                RentalOrderItems = [new RentalOrderItem { RentalOrderItemId = Guid.NewGuid(), ProductVariant = variant, Quantity = 1, BillableDays = 1, DailyPrice = 200000, LineAmount = 200000 }] } });
+        context.Orders.Add(new Order
+        {
+            OrderId = Guid.NewGuid(),
+            OrderCode = "RENT-TEST",
+            CustomerUserId = CustomerId,
+            OrderType = "Rental",
+            TotalAmount = 200000,
+            SubtotalAmount = 200000,
+            Status = "Confirmed",
+            PaymentStatus = "Paid",
+            CreatedAt = Now,
+            UpdatedAt = Now,
+            RefundPolicyId = PolicyId,
+            RentalOrder = new RentalOrder
+            {
+                RentalStartAt = Now.UtcDateTime.AddDays(-2),
+                RentalEndAt = Now.UtcDateTime.AddDays(-1),
+                RentalOrderItems = [new RentalOrderItem { RentalOrderItemId = Guid.NewGuid(), ProductVariant = variant, Quantity = 1, BillableDays = 1, DailyPrice = 200000, LineAmount = 200000 }]
+            }
+        });
         await context.SaveChangesAsync();
         var tourOrder = await context.Orders.SingleAsync(x => x.OrderCode == "TOUR-TEST");
-        context.BookingParticipants.Add(new BookingParticipant { ParticipantId = ParticipantId, BookingOrderId = tourOrder.OrderId, TripId = TripId,
-            FullName = "Khách Test", Email = "guest@test.invalid", Status = "Active", CreatedAt = Now, UpdatedAt = Now });
+        context.BookingParticipants.Add(new BookingParticipant
+        {
+            ParticipantId = ParticipantId,
+            BookingOrderId = tourOrder.OrderId,
+            TripId = TripId,
+            FullName = "Khách Test",
+            Email = "guest@test.invalid",
+            Status = "Active",
+            CreatedAt = Now,
+            UpdatedAt = Now
+        });
         context.Reviews.Add(new Review { ReviewId = ReviewId, ParticipantId = ParticipantId, Rating = 4, Comment = "Nội dung gốc", CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime });
         context.SystemConfigurations.Add(new SystemConfiguration { ConfigurationId = Guid.NewGuid(), ConfigKey = "orders.holdExpiresMinutes", ConfigValue = "15", ValueType = "int", UpdatedByUserId = AdminId, CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime });
         var rentalItem = await context.RentalOrderItems.SingleAsync();
         var asset = new EquipmentAsset { EquipmentAssetId = Guid.NewGuid(), ProductVariantId = VariantId, AssetCode = "TENT-001", AssetStatus = "Available", CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime };
-        context.AssetAssignments.Add(new AssetAssignment { AssetAssignmentId = Guid.NewGuid(), EquipmentAsset = asset, RentalOrderItemId = rentalItem.RentalOrderItemId,
-            Status = "Reserved", AssignedAt = Now.UtcDateTime.AddDays(-2), ReservedFrom = Now.UtcDateTime.AddDays(-2), ReservedUntil = Now.UtcDateTime.AddDays(-1), CreatedAt = Now.UtcDateTime });
+        context.AssetAssignments.Add(new AssetAssignment
+        {
+            AssetAssignmentId = Guid.NewGuid(),
+            EquipmentAsset = asset,
+            RentalOrderItemId = rentalItem.RentalOrderItemId,
+            Status = "Reserved",
+            AssignedAt = Now.UtcDateTime.AddDays(-2),
+            ReservedFrom = Now.UtcDateTime.AddDays(-2),
+            ReservedUntil = Now.UtcDateTime.AddDays(-1),
+            CreatedAt = Now.UtcDateTime
+        });
         await context.SaveChangesAsync();
     }
 

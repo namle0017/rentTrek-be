@@ -1,3 +1,4 @@
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
 using RenTrek.BLL.Exceptions;
@@ -179,7 +180,7 @@ public sealed class AdminRecurrenceRuleService(
                 TotalSlots = rule.DefaultTotalSlots,
                 MinParticipants = minParticipants,
                 PricePerPerson = rule.DefaultPrice > 0 ? rule.DefaultPrice : rule.Tour.BasePrice,
-                Status = "Draft",
+                Status = TripStatuses.Draft,
                 RowVersion = 1,
                 CreatedAt = utcNow,
                 UpdatedAt = utcNow
@@ -198,7 +199,7 @@ public sealed class AdminRecurrenceRuleService(
                     TourProvidedItemId = tourProvided.Id,
                     ProductVariantId = tourProvided.ProductVariantId!.Value,
                     RequiredQuantity = Math.Max(1, reqQty),
-                    Status = "Missing",
+                    Status = TripProvidedItemStatuses.Missing,
                     CreatedAt = utcNow.UtcDateTime
                 });
             }

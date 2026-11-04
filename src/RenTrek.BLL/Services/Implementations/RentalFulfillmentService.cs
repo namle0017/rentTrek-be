@@ -19,6 +19,11 @@ namespace RenTrek.BLL.Services.Implementations;
 /// Mọi mốc thời gian lấy từ TimeProvider nên test được bằng đồng hồ giả lập ở Development.
 /// Quyết toán cọc chỉ tính số (PRD §8.7); việc chuyển tiền hoàn / thu thêm chưa có luồng tự động.
 /// </summary>
+/// <remarks>
+/// Gộp luồng trùng (2026-11-05, Tri Tin refactor, commit 89892ac): bỏ /admin/management/rental-orders*
+/// (AdminRentalOrdersController trong Controllers/Admin + AdminService.Orders, do TIGER.ER viết, commit 6cf600b) và
+/// FulfillmentService / RentalHandoverController / RentalChargesController theo orderCode (do vietbach17 viết, commit 88a8961).
+/// </remarks>
 public sealed class RentalFulfillmentService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
@@ -368,9 +373,19 @@ public sealed class RentalFulfillmentService(
             var order = await unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
 
+            // PRD §3.2 "G": đơn đã có Staff khác nhận thì chỉ người đó hoặc Admin được thao tác (Claim tự trả Conflict riêng).
+            if (auditAction != "RentalClaim"
+                && !RentalFulfillmentRules.CanClaim(order.RentalOrder!.HandledByUserId, actorId, IsAdmin))
+                throw new ForbiddenException("Đơn thuê đang do nhân viên khác phụ trách");
+
             var now = timeProvider.GetUtcNow();
+            var existingCharges = order.RentalOrder!.RentalCharges.ToHashSet();
             var details = apply(order, now.UtcDateTime, actorId);
             order.UpdatedAt = now;
+
+            // Khóa có HasDefaultValueSql: phí mới gán sẵn Id mà chỉ add qua navigation thì EF tưởng bản ghi cũ (UPDATE 0 dòng).
+            foreach (var charge in order.RentalOrder.RentalCharges.Where(c => !existingCharges.Contains(c)))
+                await unitOfWork.RentalCharges.AddAsync(charge, cancellationToken);
 
             await unitOfWork.AuditLogs.AddAsync(new AuditLog
             {

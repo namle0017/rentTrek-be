@@ -1,11 +1,11 @@
-using RenTrek.DAL.Entities;
+using RenTrek.BLL.DTOs.Refund.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 
 public interface IRefundVerificationService
 {
     /// <summary>Phát hành OTP mới và vô hiệu mã cũ. Trả challenge cùng mã thô để caller gửi email sau khi commit.</summary>
-    Task<(RefundActionChallenge Challenge, string Code)> IssueAsync(
+    Task<(RefundChallengeResponse Challenge, string Code)> IssueAsync(
         Guid adminUserId,
         CancellationToken cancellationToken = default);
 

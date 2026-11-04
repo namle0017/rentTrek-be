@@ -7,7 +7,7 @@ public sealed class MarkdownHelperTests
     [Fact]
     public void ToPlainText_StripsMarkdownSyntax()
     {
-        const string markdown = """
+        const string Markdown = """
             ## Chuẩn bị hành lý
             Mang **áo mưa** và _giày_ chống trượt.
             ![Đỉnh Fansipan](https://cdn.example/img.jpg)
@@ -17,7 +17,7 @@ public sealed class MarkdownHelperTests
 
         Assert.Equal(
             "Mang áo mưa và giày chống trượt. Xem bản đồ trước khi đi. Không đi một mình.",
-            MarkdownHelper.ToPlainText(markdown));
+            MarkdownHelper.ToPlainText(Markdown));
     }
 
     [Fact]

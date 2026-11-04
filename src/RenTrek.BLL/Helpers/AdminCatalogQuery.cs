@@ -37,9 +37,9 @@ public static class AdminCatalogQuery
         {
             query = request.Status.Trim().ToLowerInvariant() switch
             {
-                "published" => query.Where(tour => tour.Status == "Published" || tour.Status == "Active"),
-                "archived" => query.Where(tour => tour.Status == "Archived" || tour.Status == "Expired"),
-                "draft" => query.Where(tour => tour.Status == "Draft"),
+                "published" => query.Where(tour => tour.Status == TourStatuses.Published || tour.Status == TourStatuses.Active),
+                "archived" => query.Where(tour => tour.Status == TourStatuses.Archived || tour.Status == TourStatuses.Expired),
+                "draft" => query.Where(tour => tour.Status == TourStatuses.Draft),
                 _ => query.Where(_ => false)
             };
         }
@@ -59,7 +59,7 @@ public static class AdminCatalogQuery
                 BasePrice = tour.BasePrice,
                 Version = tour.Version,
                 IsItineraryLocked = tour.ItineraryLockedAt.HasValue,
-                Status = tour.Status == "Active" ? "Published" : tour.Status == "Expired" ? "Archived" : tour.Status,
+                Status = tour.Status == TourStatuses.Active ? "Published" : tour.Status == TourStatuses.Expired ? "Archived" : tour.Status,
                 PrimaryImageUrl = tour.Images
                     .OrderByDescending(image => image.IsPrimary)
                     .ThenBy(image => image.DisplayOrder)

@@ -1,15 +1,23 @@
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
+using static RenTrek.BLL.Helpers.TripGroupRules;
 
 namespace RenTrek.BLL.Services.Implementations;
 
 /// <summary>
 /// Thực hiện nghiệp vụ chia nhóm chuyến đi dạng Kanban, tự động ghép nhóm và duyệt tách đoàn (Màn O12).
 /// </summary>
+/// <remarks>
+/// Logic gốc: Wee (commit 57dee34 "feat(trip-ops)"). Trùng nghiệp vụ với TripGroupingService (/trips/{tripId}/grouping).
+/// Gộp (2026-11-05, Tri Tin refactor): hai luồng giữ nguyên route và response cho FE, nhưng dùng chung quy tắc trong
+/// TripGroupRules: chỉ sửa group Draft (EnsureDraftGroup) và guide phải là tài khoản Guide đang hoạt động (IsValidActiveGuideAccount).
+/// Mọi thao tác ghi chạy trong transaction + khóa trip, ghi audit và bật ProvidedItemsNeedsRecalc như TripGroupingService.
+/// </remarks>
 public sealed class AdminTripGroupService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
@@ -66,53 +74,36 @@ public sealed class AdminTripGroupService(
         CreateTripGroupRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.GroupName))
-            throw new BadRequestException("Tên nhóm là bắt buộc", "VALIDATION_ERROR");
-
-        if (request.MaxParticipants < 1)
-            throw new BadRequestException("Sĩ số tối đa của nhóm phải lớn hơn hoặc bằng 1", "VALIDATION_ERROR");
-
-        var trip = await unitOfWork.TripGroups.GetTripAsync(tripId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy chuyến đi");
-
+        ValidateGroupRequest(request.GroupName, request.MaxParticipants);
         var groupName = request.GroupName.Trim();
-        var exists = await unitOfWork.TripGroups.GroupNameExistsInTripAsync(tripId, groupName, null, cancellationToken);
-        if (exists)
-            throw new ConflictException($"Tên nhóm '{groupName}' đã tồn tại trong chuyến đi này", "GROUP_NAME_ALREADY_EXISTS");
+        KanbanGroupColumnResponse? result = null;
 
-        Account? guide = null;
-        var hasOverlap = false;
-        if (request.GuideUserId.HasValue && request.GuideUserId.Value != Guid.Empty)
+        await InTripLockAsync(tripId, async (trip, utcNow) =>
         {
-            guide = await unitOfWork.TripGroups.GetGuideWithRoleAndProfileAsync(request.GuideUserId.Value, cancellationToken)
-                ?? throw new NotFoundException("Không tìm thấy tài khoản Hướng dẫn viên");
+            if (await unitOfWork.TripGroups.GroupNameExistsInTripAsync(tripId, groupName, null, cancellationToken))
+                throw new ConflictException($"Tên nhóm '{groupName}' đã tồn tại trong chuyến đi này", "GROUP_NAME_ALREADY_EXISTS");
 
-            hasOverlap = await unitOfWork.TripGroups.HasOverlappingGuideAssignmentAsync(
-                guide.UserId,
-                trip.TripId,
-                trip.StartAt,
-                trip.EndAt,
-                cancellationToken);
-        }
+            var (guide, hasOverlap) = await ResolveGuideAsync(request.GuideUserId, trip, cancellationToken);
+            var group = new TripGroup
+            {
+                TripGroupId = Guid.NewGuid(),
+                TripId = tripId,
+                GuideUserId = guide?.UserId,
+                GuideUser = guide,
+                GroupName = groupName,
+                MaxParticipants = request.MaxParticipants,
+                Status = TripGroupStatuses.Draft,
+                CreatedAt = utcNow.UtcDateTime,
+                UpdatedAt = utcNow.UtcDateTime
+            };
 
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        var group = new TripGroup
-        {
-            TripGroupId = Guid.NewGuid(),
-            TripId = tripId,
-            GuideUserId = guide?.UserId ?? Guid.Empty,
-            GuideUser = guide!,
-            GroupName = groupName,
-            MaxParticipants = request.MaxParticipants,
-            Status = "Open",
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+            await unitOfWork.TripGroups.AddAsync(group, cancellationToken);
+            await MarkChangedAsync(trip, "KanbanCreateGroup", "TripGroup", group.TripGroupId,
+                new { tripId, groupName, request.MaxParticipants, guideUserId = group.GuideUserId }, utcNow, cancellationToken);
+            result = MapGroupColumn(group, hasOverlap);
+        }, cancellationToken);
 
-        await unitOfWork.TripGroups.AddAsync(group, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return MapGroupColumn(group, hasOverlap);
+        return result!;
     }
 
     public async Task<KanbanGroupColumnResponse> UpdateGroupAsync(
@@ -121,122 +112,112 @@ public sealed class AdminTripGroupService(
         UpdateTripGroupRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.GroupName))
-            throw new BadRequestException("Tên nhóm là bắt buộc", "VALIDATION_ERROR");
-
-        if (request.MaxParticipants < 1)
-            throw new BadRequestException("Sĩ số tối đa của nhóm phải lớn hơn hoặc bằng 1", "VALIDATION_ERROR");
-
-        var trip = await unitOfWork.TripGroups.GetTripAsync(tripId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy chuyến đi");
-
-        var group = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, groupId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy nhóm trong chuyến đi");
-
+        ValidateGroupRequest(request.GroupName, request.MaxParticipants);
         var groupName = request.GroupName.Trim();
-        var exists = await unitOfWork.TripGroups.GroupNameExistsInTripAsync(tripId, groupName, groupId, cancellationToken);
-        if (exists)
-            throw new ConflictException($"Tên nhóm '{groupName}' đã tồn tại trong chuyến đi này", "GROUP_NAME_ALREADY_EXISTS");
+        KanbanGroupColumnResponse? result = null;
 
-        var currentCount = group.BookingParticipants.Count(p => !p.IsDeleted && p.Status != "Cancelled");
-        if (request.MaxParticipants < currentCount)
+        await InTripLockAsync(tripId, async (trip, utcNow) =>
         {
-            throw new ConflictException(
-                $"Không thể giảm sĩ số tối đa ({request.MaxParticipants}) xuống thấp hơn số khách hiện có trong nhóm ({currentCount})",
-                "MAX_PARTICIPANTS_BELOW_CURRENT");
-        }
+            var group = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, groupId, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy nhóm trong chuyến đi");
+            EnsureDraftGroup(group, "Nhóm đã chốt (Published), không được sửa");
 
-        Account? guide = null;
-        var hasOverlap = false;
-        if (request.GuideUserId.HasValue && request.GuideUserId.Value != Guid.Empty)
-        {
-            guide = await unitOfWork.TripGroups.GetGuideWithRoleAndProfileAsync(request.GuideUserId.Value, cancellationToken)
-                ?? throw new NotFoundException("Không tìm thấy tài khoản Hướng dẫn viên");
+            if (await unitOfWork.TripGroups.GroupNameExistsInTripAsync(tripId, groupName, groupId, cancellationToken))
+                throw new ConflictException($"Tên nhóm '{groupName}' đã tồn tại trong chuyến đi này", "GROUP_NAME_ALREADY_EXISTS");
 
-            hasOverlap = await unitOfWork.TripGroups.HasOverlappingGuideAssignmentAsync(
-                guide.UserId,
-                trip.TripId,
-                trip.StartAt,
-                trip.EndAt,
-                cancellationToken);
-        }
+            var currentCount = group.BookingParticipants.Count(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled);
+            if (request.MaxParticipants < currentCount)
+            {
+                throw new ConflictException(
+                    $"Không thể giảm sĩ số tối đa ({request.MaxParticipants}) xuống thấp hơn số khách hiện có trong nhóm ({currentCount})",
+                    "MAX_PARTICIPANTS_BELOW_CURRENT");
+            }
 
-        group.GroupName = groupName;
-        group.MaxParticipants = request.MaxParticipants;
-        if (guide is not null)
-        {
-            group.GuideUserId = guide.UserId;
-            group.GuideUser = guide;
-        }
-        group.UpdatedAt = timeProvider.GetUtcNow().UtcDateTime;
+            var (guide, hasOverlap) = await ResolveGuideAsync(request.GuideUserId, trip, cancellationToken);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            group.GroupName = groupName;
+            group.MaxParticipants = request.MaxParticipants;
+            if (guide is not null)
+            {
+                group.GuideUserId = guide.UserId;
+                group.GuideUser = guide;
+            }
+            group.UpdatedAt = utcNow.UtcDateTime;
 
-        return MapGroupColumn(group, hasOverlap);
+            await MarkChangedAsync(trip, "KanbanUpdateGroup", "TripGroup", groupId,
+                new { tripId, groupName, request.MaxParticipants, guideUserId = group.GuideUserId }, utcNow, cancellationToken);
+            result = MapGroupColumn(group, hasOverlap);
+        }, cancellationToken);
+
+        return result!;
     }
 
-    public async Task DeleteGroupAsync(
+    public Task DeleteGroupAsync(
         Guid tripId,
         Guid groupId,
         CancellationToken cancellationToken = default)
-    {
-        var group = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, groupId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy nhóm trong chuyến đi");
-
-        var utcNow = timeProvider.GetUtcNow();
-        foreach (var participant in group.BookingParticipants)
+        => InTripLockAsync(tripId, async (trip, utcNow) =>
         {
-            participant.TripGroupId = null;
-            participant.UpdatedAt = utcNow;
-        }
+            var group = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, groupId, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy nhóm trong chuyến đi");
+            EnsureDraftGroup(group, "Nhóm đã chốt (Published), không được xóa");
 
-        group.IsDeleted = true;
-        group.Status = "Dissolved";
-        group.UpdatedAt = utcNow.UtcDateTime;
+            foreach (var participant in group.BookingParticipants)
+            {
+                participant.TripGroupId = null;
+                participant.UpdatedAt = utcNow;
+            }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-    }
+            group.IsDeleted = true;
+            group.Status = TripGroupStatuses.Dissolved;
+            group.UpdatedAt = utcNow.UtcDateTime;
+
+            await MarkChangedAsync(trip, "KanbanDeleteGroup", "TripGroup", groupId,
+                new { tripId, unassignedCount = group.BookingParticipants.Count }, utcNow, cancellationToken);
+        }, cancellationToken);
 
     public async Task<KanbanGroupsBoardResponse> AssignParticipantGroupAsync(
         Guid tripId,
         AssignParticipantGroupRequest request,
         CancellationToken cancellationToken = default)
     {
-        var participant = await unitOfWork.TripGroups.GetParticipantForUpdateAsync(
-            tripId,
-            request.ParticipantId,
-            cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy hành khách trong chuyến đi");
-
-        var utcNow = timeProvider.GetUtcNow();
-
-        if (!request.TargetGroupId.HasValue || request.TargetGroupId.Value == Guid.Empty)
+        await InTripLockAsync(tripId, async (trip, utcNow) =>
         {
-            participant.TripGroupId = null;
+            var participant = await unitOfWork.TripGroups.GetParticipantForUpdateAsync(tripId, request.ParticipantId, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy hành khách trong chuyến đi");
+
+            var sourceGroupId = participant.TripGroupId;
+            if (sourceGroupId is Guid sourceId &&
+                await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, sourceId, cancellationToken) is { } sourceGroup)
+                EnsureDraftGroup(sourceGroup, "Hành khách đang thuộc nhóm đã chốt (Published), không được chuyển");
+
+            Guid? targetGroupId = request.TargetGroupId is { } id && id != Guid.Empty ? id : null;
+            if (sourceGroupId == targetGroupId)
+                return;
+
+            if (targetGroupId is Guid targetId)
+            {
+                var targetGroup = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, targetId, cancellationToken)
+                    ?? throw new NotFoundException("Không tìm thấy nhóm đích trong chuyến đi");
+                EnsureDraftGroup(targetGroup, "Nhóm đích đã chốt (Published), không được thêm hành khách");
+
+                // Đếm trong lúc giữ khóa trip nên hai thao tác đồng thời không cùng lọt vào chỗ cuối (BR-10).
+                var currentCount = await unitOfWork.TripGroups.GetGroupParticipantCountAsync(targetId, cancellationToken);
+                if (currentCount >= targetGroup.MaxParticipants)
+                {
+                    throw new ConflictException(
+                        $"Nhóm '{targetGroup.GroupName}' đã đầy sĩ số ({currentCount}/{targetGroup.MaxParticipants})",
+                        ErrorCodes.GroupCapacityExceeded);
+                }
+            }
+
+            participant.TripGroupId = targetGroupId;
             participant.UpdatedAt = utcNow;
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-            return await GetGroupsBoardAsync(tripId, cancellationToken);
-        }
 
-        var targetGroupId = request.TargetGroupId.Value;
-        if (participant.TripGroupId == targetGroupId)
-            return await GetGroupsBoardAsync(tripId, cancellationToken);
+            await MarkChangedAsync(trip, "KanbanMoveParticipant", "BookingParticipant", participant.ParticipantId,
+                new { tripId, sourceGroupId, targetGroupId }, utcNow, cancellationToken);
+        }, cancellationToken);
 
-        var targetGroup = await unitOfWork.TripGroups.GetGroupForUpdateAsync(tripId, targetGroupId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy nhóm đích trong chuyến đi");
-
-        var currentCount = await unitOfWork.TripGroups.GetGroupParticipantCountAsync(targetGroupId, cancellationToken);
-        if (currentCount >= targetGroup.MaxParticipants)
-        {
-            throw new ConflictException(
-                $"Nhóm '{targetGroup.GroupName}' đã đầy sĩ số ({currentCount}/{targetGroup.MaxParticipants})",
-                "GROUP_CAPACITY_EXCEEDED");
-        }
-
-        participant.TripGroupId = targetGroupId;
-        participant.UpdatedAt = utcNow;
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
         return await GetGroupsBoardAsync(tripId, cancellationToken);
     }
 
@@ -244,75 +225,68 @@ public sealed class AdminTripGroupService(
         Guid tripId,
         CancellationToken cancellationToken = default)
     {
-        _ = await unitOfWork.TripGroups.GetTripAsync(tripId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy chuyến đi");
-
-        var groups = await unitOfWork.TripGroups.GetGroupsForUpdateByTripAsync(tripId, cancellationToken);
-        var participants = await unitOfWork.TripGroups.GetActiveParticipantsForUpdateByTripAsync(tripId, cancellationToken);
-
-        var unassigned = participants.Where(p => p.TripGroupId is null).ToList();
-        if (unassigned.Count == 0 || groups.Count == 0)
-        {
-            var currentBoard = await GetGroupsBoardAsync(tripId, cancellationToken);
-            return new AutoGroupResultResponse
-            {
-                AssignedCount = 0,
-                RemainingUnassignedCount = unassigned.Count,
-                Board = currentBoard
-            };
-        }
-
-        var groupCapacities = groups.ToDictionary(
-            g => g.TripGroupId,
-            g => Math.Max(0, g.MaxParticipants - g.BookingParticipants.Count(p => !p.IsDeleted && p.Status != "Cancelled")));
-
-        var parties = unassigned
-            .GroupBy(p => p.BookingOrderId)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.First().BookingOrder.Order.CreatedAt)
-            .ToList();
-
-        var utcNow = timeProvider.GetUtcNow();
         var assignedCount = 0;
 
-        foreach (var party in parties)
+        await InTripLockAsync(tripId, async (trip, utcNow) =>
         {
-            var members = party.ToList();
-            var bookingOrder = members[0].BookingOrder;
+            var groups = (await unitOfWork.TripGroups.GetGroupsForUpdateByTripAsync(tripId, cancellationToken))
+                .Where(g => string.Equals(g.Status, TripGroupStatuses.Draft, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var participants = await unitOfWork.TripGroups.GetActiveParticipantsForUpdateByTripAsync(tripId, cancellationToken);
 
-            // 1. Ưu tiên tìm nhóm còn đủ chỗ cho cả đoàn trong cùng đơn đặt (First-Fit Decreasing)
-            var fittingGroup = groups.FirstOrDefault(g => groupCapacities[g.TripGroupId] >= members.Count);
-            if (fittingGroup is not null)
+            var unassigned = participants.Where(p => p.TripGroupId is null).ToList();
+            if (unassigned.Count == 0 || groups.Count == 0)
+                return;
+
+            var groupCapacities = groups.ToDictionary(
+                g => g.TripGroupId,
+                g => Math.Max(0, g.MaxParticipants - g.BookingParticipants.Count(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled)));
+
+            var parties = unassigned
+                .GroupBy(p => p.BookingOrderId)
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.First().BookingOrder.Order.CreatedAt)
+                .ToList();
+
+            foreach (var party in parties)
             {
-                foreach (var member in members)
+                var members = party.ToList();
+                var bookingOrder = members[0].BookingOrder;
+
+                // 1. Ưu tiên tìm nhóm còn đủ chỗ cho cả đoàn trong cùng đơn đặt (First-Fit Decreasing)
+                var fittingGroup = groups.FirstOrDefault(g => groupCapacities[g.TripGroupId] >= members.Count);
+                if (fittingGroup is not null)
                 {
-                    member.TripGroupId = fittingGroup.TripGroupId;
-                    member.UpdatedAt = utcNow;
-                    assignedCount++;
+                    foreach (var member in members)
+                    {
+                        member.TripGroupId = fittingGroup.TripGroupId;
+                        member.UpdatedAt = utcNow;
+                        assignedCount++;
+                    }
+                    groupCapacities[fittingGroup.TripGroupId] -= members.Count;
+                    continue;
                 }
-                groupCapacities[fittingGroup.TripGroupId] -= members.Count;
-                continue;
+
+                // 2. Nếu đơn đã được duyệt tách đoàn (IsSplit = true), cho phép chia lẻ vào các nhóm còn chỗ trống
+                if (bookingOrder.IsSplit)
+                {
+                    foreach (var member in members)
+                    {
+                        var availableGroup = groups.FirstOrDefault(g => groupCapacities[g.TripGroupId] > 0);
+                        if (availableGroup is null)
+                            break;
+
+                        member.TripGroupId = availableGroup.TripGroupId;
+                        member.UpdatedAt = utcNow;
+                        groupCapacities[availableGroup.TripGroupId]--;
+                        assignedCount++;
+                    }
+                }
             }
 
-            // 2. Nếu đơn đã được duyệt tách đoàn (IsSplit = true), cho phép chia lẻ vào các nhóm còn chỗ trống
-            if (bookingOrder.IsSplit)
-            {
-                foreach (var member in members)
-                {
-                    var availableGroup = groups.FirstOrDefault(g => groupCapacities[g.TripGroupId] > 0);
-                    if (availableGroup is null)
-                        break;
-
-                    member.TripGroupId = availableGroup.TripGroupId;
-                    member.UpdatedAt = utcNow;
-                    groupCapacities[availableGroup.TripGroupId]--;
-                    assignedCount++;
-                }
-            }
-        }
-
-        if (assignedCount > 0)
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            if (assignedCount > 0)
+                await MarkChangedAsync(trip, "KanbanAutoGroup", "Trip", tripId, new { assignedCount }, utcNow, cancellationToken);
+        }, cancellationToken);
 
         var updatedBoard = await GetGroupsBoardAsync(tripId, cancellationToken);
         return new AutoGroupResultResponse
@@ -331,6 +305,9 @@ public sealed class AdminTripGroupService(
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
             throw new BadRequestException("Bắt buộc nhập lý do tách đoàn", "VALIDATION_ERROR");
+
+        EnsureManagesTrip(currentUser, await unitOfWork.TripGroups.GetTripAsync(tripId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy chuyến đi"));
 
         var booking = await unitOfWork.TripGroups.GetBookingOrderForUpdateAsync(tripId, bookingId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy đơn đặt chỗ trong chuyến đi này");
@@ -367,10 +344,80 @@ public sealed class AdminTripGroupService(
         };
     }
 
+    /// <summary>
+    /// Chạy thao tác ghi trong transaction, giữ cùng khóa trip với TripGroupingService để không vượt sĩ số khi thao tác đồng thời (BR-10).
+    /// </summary>
+    private async Task InTripLockAsync(Guid tripId, Func<Trip, DateTimeOffset, Task> work, CancellationToken cancellationToken)
+    {
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.TripGroups.AcquireTripLockAsync(tripId, cancellationToken);
+            var trip = await unitOfWork.TripBookings.GetTripForUpdateAsync(tripId, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+            EnsureManagesTrip(currentUser, trip);
+
+            await work(trip, timeProvider.GetUtcNow());
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Ghi audit (FR-D06), đánh dấu cần tính lại đồ cấp (FR-I01) và tăng RowVersion để snapshot bên luồng grouping biết dữ liệu đã đổi.
+    /// </summary>
+    private Task MarkChangedAsync(
+        Trip trip,
+        string action,
+        string entityType,
+        Guid entityId,
+        object details,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken)
+    {
+        trip.ProvidedItemsNeedsRecalc = true;
+        trip.UpdatedAt = utcNow;
+        trip.RowVersion++;
+        return AddAuditLogAsync(unitOfWork, currentUser.UserId, action, entityType, entityId, details, utcNow, cancellationToken);
+    }
+
+    private static void ValidateGroupRequest(string? groupName, int maxParticipants)
+    {
+        if (string.IsNullOrWhiteSpace(groupName))
+            throw new BadRequestException("Tên nhóm là bắt buộc", "VALIDATION_ERROR");
+
+        if (maxParticipants < 1)
+            throw new BadRequestException("Sĩ số tối đa của nhóm phải lớn hơn hoặc bằng 1", "VALIDATION_ERROR");
+    }
+
+    private async Task<(Account? Guide, bool HasOverlap)> ResolveGuideAsync(
+        Guid? guideUserId,
+        Trip trip,
+        CancellationToken cancellationToken)
+    {
+        if (guideUserId is not { } id || id == Guid.Empty)
+            return (null, false);
+
+        var guide = await unitOfWork.TripGroups.GetGuideWithRoleAndProfileAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy tài khoản Hướng dẫn viên");
+        if (!IsValidActiveGuideAccount(guide))
+            throw new BadRequestException("Tài khoản được chọn không phải hướng dẫn viên đang hoạt động", ErrorCodes.ValidationError);
+
+        // Kanban chỉ cảnh báo trùng lịch, không chặn.
+        var hasOverlap = await unitOfWork.TripGroups.HasOverlappingGuideAssignmentAsync(
+            guide.UserId, trip.TripId, trip.StartAt, trip.EndAt, cancellationToken);
+        return (guide, hasOverlap);
+    }
+
     private static KanbanGroupColumnResponse MapGroupColumn(TripGroup group, bool hasOverlap)
     {
         var activeParticipants = group.BookingParticipants
-            .Where(p => !p.IsDeleted && p.Status != "Cancelled")
+            .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled)
             .OrderBy(p => p.BookingOrder?.Order?.OrderCode)
             .ThenBy(p => p.FullName)
             .Select(p => new KanbanGroupParticipantItemResponse

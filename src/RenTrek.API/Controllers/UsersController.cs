@@ -30,8 +30,9 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("me")]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailResponse>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> GetCurrentUser(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetCurrentUserAsync(CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -40,8 +41,9 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("me")]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailResponse>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> UpdateCurrentUser([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateCurrentUserAsync([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -50,9 +52,10 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("me/avatar")]
+    [ProducesResponseType(typeof(ApiResponse<UserAvatarResponse>), StatusCodes.Status200OK)]
     [Authorize]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadAvatar(IFormFile file, CancellationToken cancellationToken)
+    public async Task<IActionResult> UploadAvatarAsync(IFormFile file, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -65,12 +68,13 @@ public class UsersController : ControllerBase
         var avatarUrl = await _userService.UploadAvatarAsync(
             userId, stream, file.FileName, file.ContentType, file.Length, cancellationToken);
 
-        return Ok(ApiResponse<object>.Ok(new { avatarUrl }, "Tải lên ảnh đại diện thành công"));
+        return Ok(ApiResponse<UserAvatarResponse>.Ok(new UserAvatarResponse(avatarUrl), "Tải lên ảnh đại diện thành công"));
     }
 
     [HttpPut("me/password")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> ChangePasswordAsync([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -79,8 +83,9 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("me/orders")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<MyOrderResponse>>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> GetMyOrders([FromQuery] MyOrderQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMyOrdersAsync([FromQuery] MyOrderQueryRequest request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 

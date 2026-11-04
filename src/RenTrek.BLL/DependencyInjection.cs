@@ -1,13 +1,12 @@
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
-using RenTrek.BLL.Services.Warehouse.Implementations;
-using RenTrek.BLL.Services.Warehouse.Interfaces;
 
 namespace RenTrek.BLL;
 
@@ -36,6 +35,7 @@ public static class DependencyInjection
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
         services.Configure<SupabaseStorageSettings>(configuration.GetSection(SupabaseStorageSettings.SectionName));
+        services.Configure<GoogleAuthSettings>(configuration.GetSection(GoogleAuthSettings.SectionName));
         services.AddOptions<RefundSettings>()
             .Bind(configuration.GetSection("Refund"))
             .Configure(options => options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty)
@@ -50,22 +50,31 @@ public static class DependencyInjection
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddSingleton<IRefundDataProtector, RefundDataProtector>();
+        services.AddScoped<IAuthAttemptLimiter, AuthAttemptLimiter>();
 
         // Services
         // Phiên đăng nhập luôn theo giờ thật: tua đồng hồ giả lập không làm hết hạn token
         services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, FileStorageService>();
-        services.AddScoped<RenTrek.BLL.Services.Admin.IAdminService, RenTrek.BLL.Services.Admin.AdminService>();
-        services.AddScoped<RenTrek.BLL.Services.Admin.IAdminSessionService, RenTrek.BLL.Services.Admin.AdminSessionService>();
-        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
+        services.AddScoped<IAdminMasterDataService, AdminMasterDataService>();
+        services.AddScoped<IAdminOrderService, AdminOrderService>();
+        services.AddScoped<IAdminPromotionService, AdminPromotionService>();
+        services.AddScoped<IAdminGovernanceService, AdminGovernanceService>();
+        services.AddScoped<IAdminReportService, AdminReportService>();
+        services.AddScoped<IAdminSessionService, AdminSessionService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
         services.AddScoped<IRefundCaseService, RefundCaseService>();
         services.AddScoped<IRefundVerificationService, RefundVerificationService>();
-        services.AddScoped<ITripGroupService, TripGroupService>();
+        services.AddScoped<ITripRecurrenceService, TripRecurrenceService>();
+        services.AddScoped<ITripService, TripService>();
+        services.AddScoped<ITripGroupingService, TripGroupingService>();
+        services.AddScoped<ITripGroupPublishService, TripGroupPublishService>();
+        services.AddScoped<ITripGroupViewService, TripGroupViewService>();
         services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
         services.AddScoped<IProductBundleService, ProductBundleService>();
         services.AddScoped<IPromotionService, PromotionService>();

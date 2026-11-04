@@ -98,6 +98,44 @@ public sealed class TripOperationsAndGuideServicesTests
     }
 
     [Fact]
+    public async Task AdminTrip_Update_StaffCannotHandTripToAnotherManager()
+    {
+        var staffId = Guid.NewGuid();
+        var tripId = Guid.NewGuid();
+        var uow = new TestUnitOfWork();
+        uow.TripRepo.Trip = new Trip
+        {
+            TripId = tripId,
+            TourId = Guid.NewGuid(),
+            RefundPolicyId = Guid.NewGuid(),
+            ManagedByUserId = staffId,
+            StartAt = FixedNow.AddDays(10),
+            EndAt = FixedNow.AddDays(12),
+            TotalSlots = 20,
+            MinParticipants = 10,
+            PricePerPerson = 3_000_000m,
+            Status = "Open",
+            RowVersion = 2
+        };
+        var service = new AdminTripService(uow, new TestCurrentUserService(staffId, "Staff"), new TestTimeProvider(FixedNow));
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateAsync(
+            tripId,
+            new UpdateAdminTripRequest
+            {
+                StartAt = FixedNow.AddDays(10),
+                EndAt = FixedNow.AddDays(12),
+                TotalSlots = 20,
+                MinParticipants = 10,
+                PricePerPerson = 3_000_000m,
+                RowVersion = 2,
+                ManagedByUserId = Guid.NewGuid()
+            }));
+        Assert.Equal("TRIP_NOT_ASSIGNED", ex.ErrorCode);
+        Assert.Equal(staffId, uow.TripRepo.Trip.ManagedByUserId);
+    }
+
+    [Fact]
     public async Task AdminTrip_Update_EnforcesRowVersionAndSoldSlotsInvariants()
     {
         var tripId = Guid.NewGuid();
@@ -318,8 +356,8 @@ public sealed class TripOperationsAndGuideServicesTests
         uow.GroupRepo.Booking = booking;
         uow.GroupRepo.Groups.AddRange(
         [
-            new TripGroup { TripGroupId = group1Id, TripId = tripId, GroupName = "Nhóm 1", MaxParticipants = 2 },
-            new TripGroup { TripGroupId = group2Id, TripId = tripId, GroupName = "Nhóm 2", MaxParticipants = 2 }
+            new TripGroup { TripGroupId = group1Id, TripId = tripId, GroupName = "Nhóm 1", MaxParticipants = 2, Status = "Draft" },
+            new TripGroup { TripGroupId = group2Id, TripId = tripId, GroupName = "Nhóm 2", MaxParticipants = 2, Status = "Draft" }
         ]);
         uow.GroupRepo.Participants.AddRange(participants);
 
@@ -344,6 +382,24 @@ public sealed class TripOperationsAndGuideServicesTests
         var secondAttempt = await service.AutoGroupAsync(tripId);
         Assert.Equal(3, secondAttempt.AssignedCount);
         Assert.Equal(0, secondAttempt.RemainingUnassignedCount);
+    }
+
+    [Fact]
+    public async Task KanbanCreateGroup_OnlyAcceptsActiveGuideAccount()
+    {
+        var tripId = Guid.NewGuid();
+        var customer = new Account { UserId = Guid.NewGuid(), Status = "Active", Role = new Role { RoleName = "Customer" } };
+        var guide = new Account { UserId = Guid.NewGuid(), Status = "Active", Role = new Role { RoleName = "Guide" } };
+        var uow = new TestUnitOfWork();
+        uow.GroupRepo.Trip = new Trip { TripId = tripId, StartAt = FixedNow.AddDays(3), EndAt = FixedNow.AddDays(5) };
+        uow.GroupRepo.Accounts.AddRange([customer, guide]);
+        var service = new AdminTripGroupService(uow, new TestCurrentUserService(Guid.NewGuid(), "Admin"), new TestTimeProvider(FixedNow));
+
+        await Assert.ThrowsAsync<BadRequestException>(() => service.CreateGroupAsync(
+            tripId, new CreateTripGroupRequest { GroupName = "Nhóm A", GuideUserId = customer.UserId }));
+
+        var created = await service.CreateGroupAsync(tripId, new CreateTripGroupRequest { GroupName = "Nhóm B", GuideUserId = guide.UserId });
+        Assert.Equal("Nhóm B", created.GroupName);
     }
 
     [Fact]
@@ -529,7 +585,7 @@ public sealed class TripOperationsAndGuideServicesTests
         public ITourRepository Tours => throw new NotSupportedException();
         public IAppliedPromotionRepository AppliedPromotions => throw new NotSupportedException();
         public IAssetAssignmentRepository AssetAssignments => throw new NotSupportedException();
-        public IAuditLogRepository AuditLogs => throw new NotSupportedException();
+        public IAuditLogRepository AuditLogs => TestProxy.Create<IAuditLogRepository>();
         public ICategoryRepository Categories => throw new NotSupportedException();
         public IEquipmentAssetRepository EquipmentAssets => throw new NotSupportedException();
         public ILocationRepository Locations => throw new NotSupportedException();
@@ -565,7 +621,7 @@ public sealed class TripOperationsAndGuideServicesTests
         public ITourPostRepository TourPosts => throw new NotSupportedException();
         public ITourPreparationItemRepository TourPreparationItems => throw new NotSupportedException();
         public ITourProvidedItemRepository TourProvidedItems => throw new NotSupportedException();
-        public ITripBookingRepository TripBookings => throw new NotSupportedException();
+        public ITripBookingRepository TripBookings => TestProxy.Create<ITripBookingRepository>(("GetTripForUpdateAsync", _ => Task.FromResult(GroupRepo.Trip)));
         public ITripBookingOrderRepository TripBookingOrders => throw new NotSupportedException();
         public ITripProvidedItemRepository TripProvidedItems => throw new NotSupportedException();
         public IUserExternalLoginRepository UserExternalLogins => throw new NotSupportedException();
@@ -672,7 +728,7 @@ public sealed class TripOperationsAndGuideServicesTests
     {
         Task ITripGroupRepository.AcquireGuideLockAsync(Guid guideUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task ITripGroupRepository.AcquireRecurrenceRuleLockAsync(Guid recurrenceRuleId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        Task ITripGroupRepository.AcquireTripLockAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripGroupRepository.AcquireTripLockAsync(Guid tripId, CancellationToken cancellationToken) => Task.CompletedTask;
         Task<Account?> ITripGroupRepository.GetAccountWithRoleAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task<IReadOnlyList<TourRecurrenceRule>> ITripGroupRepository.GetActiveRecurrenceRulesAsync(Guid? tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task<Guid?> ITripGroupRepository.GetActiveTourRefundPolicyIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -708,7 +764,9 @@ public sealed class TripOperationsAndGuideServicesTests
             => Task.FromResult(Groups.FirstOrDefault(g => g.TripGroupId == groupId));
         public Task<bool> GroupNameExistsInTripAsync(Guid tripId, string groupName, Guid? excludeGroupId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(Groups.Any(g => g.GroupName.Equals(groupName, StringComparison.OrdinalIgnoreCase) && g.TripGroupId != excludeGroupId));
-        public Task<Account?> GetGuideWithRoleAndProfileAsync(Guid guideUserId, CancellationToken cancellationToken = default) => Task.FromResult<Account?>(null);
+        public List<Account> Accounts { get; } = [];
+        public Task<Account?> GetGuideWithRoleAndProfileAsync(Guid guideUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Accounts.FirstOrDefault(a => a.UserId == guideUserId));
         public Task<bool> HasOverlappingGuideAssignmentAsync(Guid guideUserId, Guid currentTripId, DateTimeOffset startAt, DateTimeOffset endAt, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
         public Task<IReadOnlyList<BookingParticipant>> GetActiveParticipantsWithOrderByTripAsync(Guid tripId, CancellationToken cancellationToken = default)

@@ -68,15 +68,15 @@ public class FileStorageService : IFileStorageService
 
         try
         {
-            if (url.StartsWith(LocalPrefix))
+            if (url.StartsWith(LocalPrefix, StringComparison.Ordinal))
             {
                 var uploadsRoot = Path.GetFullPath(Path.Combine(WwwRoot, "uploads")) + Path.DirectorySeparatorChar;
                 var fullPath = Path.GetFullPath(Path.Combine(WwwRoot, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
-                if (fullPath.StartsWith(uploadsRoot) && File.Exists(fullPath)) File.Delete(fullPath);
+                if (fullPath.StartsWith(uploadsRoot, StringComparison.Ordinal) && File.Exists(fullPath)) File.Delete(fullPath);
                 return;
             }
 
-            if (_supabase.IsConfigured && url.StartsWith(PublicBaseUrl))
+            if (_supabase.IsConfigured && url.StartsWith(PublicBaseUrl, StringComparison.Ordinal))
             {
                 using var request = SupabaseRequest(HttpMethod.Delete, url[PublicBaseUrl.Length..]);
                 using var _ = await Http.SendAsync(request, cancellationToken);
