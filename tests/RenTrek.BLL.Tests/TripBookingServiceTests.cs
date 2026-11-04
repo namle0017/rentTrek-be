@@ -597,6 +597,7 @@ public sealed class TripBookingServiceTests
 
     private sealed class FakeUnitOfWork(ITripBookingRepository repository) : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         public ITripBookingRepository TripBookings { get; } = repository;
         public IAccountRepository Accounts => throw new NotSupportedException();
         public IRoleRepository Roles => throw new NotSupportedException();

@@ -10,6 +10,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 /// </summary>
 public class UnitOfWork : IUnitOfWork
 {
+    public IAdminOperationRepository AdminOperations => new AdminOperationRepository(_context);
     private readonly AppDbContext _context;
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;

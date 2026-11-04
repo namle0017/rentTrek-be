@@ -55,6 +55,9 @@ public static class DependencyInjection
         services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, FileStorageService>();
+        services.AddScoped<RenTrek.BLL.Services.Admin.IAdminService, RenTrek.BLL.Services.Admin.AdminService>();
+        services.AddScoped<RenTrek.BLL.Services.Admin.IAdminSessionService, RenTrek.BLL.Services.Admin.AdminSessionService>();
+        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();

@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.23" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
@@ -18,6 +19,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\RenTrek.BLL.Tests\AdminTestDatabase.cs" Link="Shared\AdminTestDatabase.cs" />
+    <Compile Include="..\RenTrek.BLL.Tests\AdminPostgresFactAttribute.cs" Link="Shared\AdminPostgresFactAttribute.cs" />
   </ItemGroup>
 
   <ItemGroup>
