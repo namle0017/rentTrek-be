@@ -56,6 +56,18 @@ public class AssetsController : ControllerBase
     }
 
     /// <summary>
+    /// 14.7. Lấy danh sách các biến thể sản phẩm đang hoạt động để chọn nhanh khi tạo thiết bị kho.
+    /// </summary>
+    [HttpGet("variants")]
+    [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AssetVariantOptionResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetProductVariantsAsync(CancellationToken cancellationToken)
+    {
+        var result = await _assetService.GetProductVariantsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AssetVariantOptionResponse>>.Ok(result, "Lấy danh sách biến thể thành công"));
+    }
+
+    /// <summary>
     /// 14.6. Lấy dữ liệu biểu đồ Gantt phân bổ thiết bị theo dòng thời gian (Màn O21).
     /// </summary>
     [HttpGet("schedule-gantt")]
