@@ -30,4 +30,42 @@ public interface IEquipmentAssetRepository : IGenericRepository<EquipmentAsset>
     /// để tránh deadlock. BẮT BUỘC gọi trong transaction đã mở; khoá tự nhả khi commit / rollback.
     /// </summary>
     Task AcquireVariantLocksAsync(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy danh sách thiết bị phân trang kèm thông tin variant, product và assignment hiện tại (Màn O20).
+    /// </summary>
+    Task<(IReadOnlyList<EquipmentAsset> Items, int TotalCount)> GetPagedAssetsAsync(
+        string? search,
+        Guid? productVariantId,
+        string? assetStatus,
+        int pageNumber,
+        int pageSize,
+        string sortBy,
+        bool isDescending,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy chi tiết thiết bị theo mã asset_code kèm variant, assignments và charges.
+    /// </summary>
+    Task<EquipmentAsset?> GetByCodeWithDetailsAsync(string assetCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy chi tiết thiết bị theo Guid Id kèm variant, assignments và charges.
+    /// </summary>
+    Task<EquipmentAsset?> GetByIdWithDetailsAsync(Guid assetId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tìm mã tiếp theo theo prefix (tự động tăng số thứ tự 4 chữ số, vd: TENT-4P-0001).
+    /// </summary>
+    Task<string> GenerateNextAssetCodeAsync(string prefix, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy danh sách thiết bị và các phân bổ phục vụ biểu đồ Gantt trong khoảng [from, to] (Màn O21).
+    /// </summary>
+    Task<IReadOnlyList<EquipmentAsset>> GetAssetsForGanttAsync(
+        DateTime from,
+        DateTime to,
+        Guid? categoryId,
+        Guid? productVariantId,
+        CancellationToken cancellationToken = default);
 }
