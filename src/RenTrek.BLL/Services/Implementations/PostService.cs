@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
@@ -165,10 +166,9 @@ public class PostService : IPostService
                 Status = p.Status,
                 PublishedAt = p.PublishedAt,
                 AuthorName = p.CreatedByUser.FullName,
-                TagNames = p.PostTags
+                TagIds = p.PostTags
                     .Where(pt => !pt.Tag.IsDeleted)
-                    .OrderBy(pt => pt.Tag.Name)
-                    .Select(pt => pt.Tag.Name)
+                    .Select(pt => pt.TagId)
                     .ToList(),
                 SoftSkillIds = p.PostSoftSkills.Select(ps => ps.SoftSkillId).ToList(),
                 Tours = p.TourPosts
@@ -190,12 +190,14 @@ public class PostService : IPostService
         {
             PostId = Guid.NewGuid(),
             CreatedByUserId = _currentUser.RequiredUserId,
+            Status = PostStatuses.Draft,
             CreatedAt = now,
             UpdatedAt = now
         };
 
         await ApplyRequestAsync(post, request, now, cancellationToken);
         await _unitOfWork.Posts.AddAsync(post, cancellationToken);
+        await AuditAsync("Create", post.PostId, new { after = request }, now, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await GetAdminPostByIdAsync(post.PostId, cancellationToken);
@@ -216,28 +218,85 @@ public class PostService : IPostService
         EnsureCanEdit(post);
 
         var now = DateTime.UtcNow;
+        var before = new { post.Title, post.Slug, post.PostType, post.Content };
         await ApplyRequestAsync(post, request, now, cancellationToken);
         post.UpdatedAt = now;
+        await AuditAsync("Update", post.PostId, new { before, after = request }, now, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await GetAdminPostByIdAsync(post.PostId, cancellationToken);
     }
 
+    public Task<AdminPostDetailResponse> PublishAsync(Guid postId, CancellationToken cancellationToken = default)
+        => SetStatusAsync(postId, PostStatuses.Published, cancellationToken);
+
+    public Task<AdminPostDetailResponse> ArchiveAsync(Guid postId, CancellationToken cancellationToken = default)
+        => SetStatusAsync(postId, PostStatuses.Archived, cancellationToken);
+
+    /// <summary>Chỉ Admin (chặn ở controller); Staff dùng archive để ẩn bài.</summary>
     public async Task DeleteAsync(Guid postId, CancellationToken cancellationToken = default)
     {
-        var post = await _unitOfWork.Posts.QueryTracking()
-            .FirstOrDefaultAsync(p => p.PostId == postId && !p.IsDeleted, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy bài viết.");
-
-        EnsureCanEdit(post);
+        var post = await FindTrackedAsync(postId, cancellationToken);
 
         // Soft delete: giữ slug và lịch sử đọc (BR-05)
         post.IsDeleted = true;
         post.UpdatedAt = DateTime.UtcNow;
+        await AuditAsync("Delete", post.PostId, new { before = post.Status }, post.UpdatedAt, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<PostReadAnalyticsResponse> GetReadAnalyticsAsync(Guid postId, CancellationToken cancellationToken = default)
+    {
+        if (!await _unitOfWork.Posts.AnyAsync(p => p.PostId == postId && !p.IsDeleted, cancellationToken))
+            throw new NotFoundException("Không tìm thấy bài viết.");
+
+        var tourIds = _unitOfWork.TourPosts.Query().Where(tp => tp.PostId == postId).Select(tp => tp.TourId);
+        var participants = _unitOfWork.BookingParticipants.Query()
+            .Where(bp => !bp.IsDeleted && bp.Status != "Cancelled" && tourIds.Contains(bp.Trip.TourId));
+        var total = await participants.CountAsync(cancellationToken);
+        var read = await participants.CountAsync(bp => bp.ParticipantPostReads.Any(r => r.PostId == postId), cancellationToken);
+
+        return new PostReadAnalyticsResponse(postId, total, read, total == 0 ? 0 : Math.Round(100m * read / total, 2));
+    }
+
     // ---------- Nội bộ ----------
+
+    private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
+
+    private async Task<AdminPostDetailResponse> SetStatusAsync(Guid postId, string status, CancellationToken cancellationToken)
+    {
+        var post = await FindTrackedAsync(postId, cancellationToken);
+        EnsureCanEdit(post);
+
+        var before = post.Status;
+        var now = DateTime.UtcNow;
+        post.Status = status;
+        if (status == PostStatuses.Published)
+            post.PublishedAt ??= now;
+        post.UpdatedAt = now;
+        await AuditAsync("Update", post.PostId, new { before, after = status }, now, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return await GetAdminPostByIdAsync(post.PostId, cancellationToken);
+    }
+
+    private async Task<PostEntity> FindTrackedAsync(Guid postId, CancellationToken cancellationToken)
+        => await _unitOfWork.Posts.QueryTracking()
+               .FirstOrDefaultAsync(p => p.PostId == postId && !p.IsDeleted, cancellationToken)
+           ?? throw new NotFoundException("Không tìm thấy bài viết.");
+
+    // Ghi cùng SaveChanges với bài viết nên log và dữ liệu luôn khớp
+    private Task AuditAsync(string action, Guid postId, object details, DateTime now, CancellationToken cancellationToken)
+        => _unitOfWork.AuditLogs.AddAsync(new AuditLog
+        {
+            AuditLogId = Guid.NewGuid(),
+            ActorUserId = _currentUser.RequiredUserId,
+            Action = action,
+            EntityType = "Post",
+            EntityId = postId,
+            Details = JsonSerializer.Serialize(details, AuditJson),
+            CreatedAt = now
+        }, cancellationToken);
 
     private bool IsAdmin => _currentUser.Role == RoleNames.Admin;
 
@@ -331,52 +390,31 @@ public class PostService : IPostService
         post.Slug = slug;
         post.PostType = request.PostType;
         post.Content = request.Content.Trim();
-        post.Status = request.Status;
-        if (request.Status == PostStatuses.Published)
-            post.PublishedAt ??= now;
 
-        await SyncTagsAsync(post, request.TagNames, now, cancellationToken);
+        await SyncTagsAsync(post, request.TagIds, now, cancellationToken);
         await SyncSoftSkillsAsync(post, request.SoftSkillIds, now, cancellationToken);
         await SyncToursAsync(post, request.TourIds, now, cancellationToken);
     }
 
-    private async Task SyncTagsAsync(PostEntity post, List<string> tagNames, DateTime now, CancellationToken cancellationToken)
+    private async Task SyncTagsAsync(PostEntity post, List<Guid> tagIds, DateTime now, CancellationToken cancellationToken)
     {
-        var wanted = tagNames
-            .Select(name => name.Trim())
-            .Select(name => (Name: name, Slug: SlugHelper.Slugify(name)))
-            .Where(t => t.Slug.Length > 0)
-            .DistinctBy(t => t.Slug)
-            .ToList();
-        var wantedSlugs = wanted.Select(t => t.Slug).ToList();
+        var wantedIds = tagIds.Distinct().ToList();
+        var existingCount = await _unitOfWork.Tags.Query()
+            .CountAsync(t => wantedIds.Contains(t.TagId) && !t.IsDeleted, cancellationToken);
+        if (existingCount != wantedIds.Count)
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                ["tagIds"] = ["Có tag không tồn tại hoặc đã bị xóa."]
+            });
 
-        var tags = await _unitOfWork.Tags.QueryTracking()
-            .Where(t => wantedSlugs.Contains(t.Slug))
-            .ToListAsync(cancellationToken);
-
-        foreach (var tag in tags.Where(t => t.IsDeleted))
-        {
-            tag.IsDeleted = false;
-            tag.UpdatedAt = now;
-        }
-
-        // Tạo nhanh tag chưa có
-        foreach (var (name, slug) in wanted.Where(w => tags.All(t => t.Slug != w.Slug)))
-        {
-            var tag = new Tag { TagId = Guid.NewGuid(), Name = name, Slug = slug, CreatedAt = now, UpdatedAt = now };
-            await _unitOfWork.Tags.AddAsync(tag, cancellationToken);
-            tags.Add(tag);
-        }
-
-        var wantedTagIds = tags.Select(t => t.TagId).ToHashSet();
-        foreach (var link in post.PostTags.Where(pt => !wantedTagIds.Contains(pt.TagId)).ToList())
+        foreach (var link in post.PostTags.Where(pt => !wantedIds.Contains(pt.TagId)).ToList())
         {
             post.PostTags.Remove(link);
             _unitOfWork.PostTags.Remove(link);
         }
 
-        foreach (var tag in tags.Where(t => post.PostTags.All(pt => pt.TagId != t.TagId)))
-            post.PostTags.Add(new PostTag { PostTagId = Guid.NewGuid(), PostId = post.PostId, TagId = tag.TagId, Tag = tag, CreatedAt = now });
+        foreach (var id in wantedIds.Where(id => post.PostTags.All(pt => pt.TagId != id)))
+            post.PostTags.Add(new PostTag { PostTagId = Guid.NewGuid(), PostId = post.PostId, TagId = id, CreatedAt = now });
     }
 
     private async Task SyncSoftSkillsAsync(PostEntity post, List<Guid> softSkillIds, DateTime now, CancellationToken cancellationToken)

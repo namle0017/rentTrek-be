@@ -75,7 +75,7 @@ public sealed class AdminPostDetailResponse
     public string Status { get; set; } = string.Empty;
     public DateTime? PublishedAt { get; set; }
     public string AuthorName { get; set; } = string.Empty;
-    public IReadOnlyList<string> TagNames { get; set; } = [];
+    public IReadOnlyList<Guid> TagIds { get; set; } = [];
     public IReadOnlyList<Guid> SoftSkillIds { get; set; } = [];
     public IReadOnlyList<PostTourResponse> Tours { get; set; } = [];
     public bool CanEdit { get; set; }

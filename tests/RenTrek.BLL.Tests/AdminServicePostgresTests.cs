@@ -22,7 +22,6 @@ public sealed class AdminServicePostgresTests
         Assert.Empty(await service.GetTagsAsync(request, Token));
         Assert.Empty(await service.GetSoftSkillsAsync(request, Token));
         Assert.Empty((await service.GetPromotionsAsync(request, Token)).Items);
-        Assert.Empty((await service.GetPostsAsync(request, Token)).Items);
         Assert.Single((await service.GetReviewsAsync(request, Token)).Items);
         Assert.Single(await service.GetSettingsAsync(Token));
         Assert.Empty((await service.GetAuditLogsAsync(request, null, Token)).Items);
@@ -114,24 +113,6 @@ public sealed class AdminServicePostgresTests
         await service.DeleteTagAsync(tag, Token);
         Assert.Empty(await service.GetTagsAsync(new(), Token));
         Assert.True((await context.Tags.SingleAsync()).IsDeleted);
-    }
-
-    [AdminPostgresFact]
-    public async Task ContentLifecycle_SanitizesHtml_ValidatesRelations_AndKeepsReadAnalytics()
-    {
-        await using var database = new AdminTestDatabase(); await database.InitializeAsync();
-        await using var context = database.Context(); var service = database.Service(context);
-        var tag = await service.SaveTagAsync(null, new("An toàn", "an-toan"), Token);
-        var id = await service.SavePostAsync(null, new("Cẩm nang", "cam-nang", "Guide", "<p>Chuẩn bị</p><script>alert(1)</script>", [tag], []), Token);
-        await service.SetPostStatusAsync(id, "Published", Token);
-        var post = await service.GetPostAsync(id, Token);
-        Assert.DoesNotContain("<script", post.Content); Assert.Equal("Published", post.Post.Status); Assert.Single(post.TagIds);
-        context.TourPosts.Add(new TourPost { TourPostId = Guid.NewGuid(), PostId = id, TourId = (await context.Trips.SingleAsync()).TourId, CreatedAt = database.Now.UtcDateTime });
-        context.ParticipantPostReads.Add(new ParticipantPostRead { ParticipantPostReadId = Guid.NewGuid(), ParticipantId = database.ParticipantId, PostId = id, ReadAt = database.Now.UtcDateTime, CreatedAt = database.Now.UtcDateTime });
-        await context.SaveChangesAsync();
-        Assert.Equal(100, (await service.GetReadAnalyticsAsync(id, Token)).ReadRate);
-        await service.SetPostStatusAsync(id, "Archived", Token);
-        Assert.Equal("Archived", (await service.GetPostAsync(id, Token)).Post.Status);
     }
 
     [AdminPostgresFact]

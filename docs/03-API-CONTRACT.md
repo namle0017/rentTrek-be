@@ -20,7 +20,7 @@
 ## Route khi tích hợp các phân hệ (2026-11-04)
 
 - API mà frontend hiện dùng giữ nguyên: `/admin/posts` (trình soạn bài viết với `tagNames`, `tourIds`, `status`) và `/admin/rental-orders` (vận hành theo GUID).
-- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/management/posts`; các thao tác list/detail/claim trong mục 15 chuyển sang `/admin/management/rental-orders`. Request, response và phân quyền của nhóm này giữ nguyên.
+- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/posts`; các thao tác list/detail/claim trong mục 15 chuyển sang `/admin/management/rental-orders`. Request, response và phân quyền của nhóm này giữ nguyên.
 - Phí và đóng đơn kho theo mã đơn dùng `/admin/rental-orders/by-code/{orderCode}/charges` và `/admin/rental-orders/by-code/{orderCode}/complete`; các route theo GUID mà frontend dùng giữ nguyên.
 - Tách route để mỗi phương thức HTTP và đường dẫn chỉ có một action, kể cả khi khác tên tham số đường dẫn.
 
@@ -491,14 +491,14 @@ HTTP 500 Internal Server Error
 | **18.5**| Promos | `PATCH`| `/admin/promotions/{promotionId}/status` | Admin | Bật / Tắt / Tạm dừng khuyến mãi | Đổi trạng thái Active, Paused, Expired | ⬜ TODO |
 | **18.6**| Promos | `PUT` | `/admin/promotions/{promotionId}/tiers` | Admin | Cập nhật các bậc giảm giá & quà tặng | Bảng bậc tỷ lệ %, số tiền hoặc quà tặng kèm | ⬜ TODO |
 | **18.7**| Promos | `GET` | `/admin/promotions/{promotionId}/usage` | Staff/Admin | Lịch sử áp dụng khuyến mãi | Màn O31 danh sách đơn hàng đã dùng mã | ⬜ TODO |
-| **19.1**| Posts | `GET` | `/admin/management/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ⬜ TODO |
-| **19.2**| Posts | `POST` | `/admin/management/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ⬜ TODO |
-| **19.3**| Posts | `GET` | `/admin/management/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ⬜ TODO |
-| **19.4**| Posts | `PUT` | `/admin/management/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ⬜ TODO |
-| **19.5**| Posts | `DELETE`| `/admin/management/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ⬜ TODO |
-| **19.6**| Posts | `POST` | `/admin/management/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ⬜ TODO |
-| **19.7**| Posts | `POST` | `/admin/management/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ⬜ TODO |
-| **19.8**| Posts | `GET` | `/admin/management/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ⬜ TODO |
+| **19.1**| Posts | `GET` | `/admin/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ⬜ TODO |
+| **19.2**| Posts | `POST` | `/admin/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ⬜ TODO |
+| **19.3**| Posts | `GET` | `/admin/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ⬜ TODO |
+| **19.4**| Posts | `PUT` | `/admin/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ⬜ TODO |
+| **19.5**| Posts | `DELETE`| `/admin/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ⬜ TODO |
+| **19.6**| Posts | `POST` | `/admin/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ⬜ TODO |
+| **19.7**| Posts | `POST` | `/admin/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ⬜ TODO |
+| **19.8**| Posts | `GET` | `/admin/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ⬜ TODO |
 | **20.1**| Policies| `GET` | `/admin/refund-policies` | Staff/Admin | Danh sách chính sách hoàn tiền | Màn O34 danh sách chính sách Tour & Thuê | ⬜ TODO |
 | **20.2**| Policies| `POST` | `/admin/refund-policies` | Admin | Tạo chính sách hoàn tiền mới | Thiết lập chính sách | ⬜ TODO |
 | **20.3**| Policies| `GET` | `/admin/refund-policies/{policyId}` | Staff/Admin | Chi tiết chính sách & quy tắc | Xem các bậc % hoàn theo mốc thời gian | ⬜ TODO |
@@ -3370,7 +3370,7 @@ HTTP 502 Bad Gateway
 ## 19. Admin: Quản lý Bài viết & Nội dung Hướng dẫn (Màn O32)
 
 ### 19.1. Danh sách bài viết & cẩm nang
-`GET /admin/management/posts` · **Auth:** Staff / Admin
+`GET /admin/posts` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O32 — danh sách các bài viết hướng dẫn trekking, kỹ năng sinh tồn, thông tin địa điểm.
 - **Trường thống kê:** Tác giả, số tour đang gắn bài viết này (`COUNT(tour_posts)`), tổng số lượt khách tham gia tour đã bấm đọc bài viết này (`COUNT(participant_post_reads)`).
@@ -3411,7 +3411,7 @@ HTTP 502 Bad Gateway
 ---
 
 ### 19.2. Tạo bài viết mới (Draft)
-`POST /admin/management/posts` · **Auth:** Staff / Admin
+`POST /admin/posts` · **Auth:** Staff / Admin
 
 **Request body**
 
@@ -3420,45 +3420,46 @@ HTTP 502 Bad Gateway
   "title": "Hướng dẫn chuẩn bị thể lực 4 tuần trước khi đi Bidoup",
   "slug": "chuan-bi-the-luc-truoc-khi-di-bidoup",
   "postType": "Guide",
-  "content": "<p>Nội dung rich text bài viết chi tiết...</p>",
+  "content": "## Tuần 1\nChạy bộ **30 phút** mỗi ngày...\n\n![Bidoup](https://<project>.supabase.co/storage/v1/object/public/uploads/posts/x.jpg)",
   "tagIds": ["11110000-aaaa-bbbb-cccc-111122223333"],
-  "softSkillIds": ["22220000-aaaa-bbbb-cccc-111122223333"]
+  "softSkillIds": ["22220000-aaaa-bbbb-cccc-111122223333"],
+  "tourIds": ["33330000-aaaa-bbbb-cccc-111122223333"]
 }
 ```
 
 ---
 
 ### 19.3. Chi tiết bài viết & trình soạn thảo
-`GET /admin/management/posts/{postId}` · **Auth:** Staff / Admin
+`GET /admin/posts/{postId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Trình soạn thảo rich-text màn O32.
 
 ---
 
 ### 19.4. Sửa bài viết
-`PUT /admin/management/posts/{postId}` · **Auth:** Staff / Admin
+`PUT /admin/posts/{postId}` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.5. Xóa bài viết
-`DELETE /admin/management/posts/{postId}` · **Auth:** Admin
+`DELETE /admin/posts/{postId}` · **Auth:** Admin
 
 ---
 
 ### 19.6. Xuất bản bài viết
-`POST /admin/management/posts/{postId}/publish` · **Auth:** Staff / Admin
+`POST /admin/posts/{postId}/publish` · **Auth:** Staff / Admin
 
 - **Mục đích:** Đổi trạng thái sang `Published`, cập nhật `published_at = now`.
 
 ---
 
 ### 19.7. Lưu trữ bài viết
-`POST /admin/management/posts/{postId}/archive` · **Auth:** Staff / Admin
+`POST /admin/posts/{postId}/archive` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.8. Báo cáo lượt đọc bài viết của khách hàng
-`GET /admin/management/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
+`GET /admin/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
 
 - **Mục đích:** Thống kê tỷ lệ hành khách đã đọc bài viết chuẩn bị trước khi chuyến khởi hành (dựa trên bảng `PARTICIPANT_POST_READS`).
 

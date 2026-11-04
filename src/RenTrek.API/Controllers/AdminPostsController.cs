@@ -43,7 +43,7 @@ public sealed class AdminPostsController(IPostService postService, IFileStorageS
 
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminPostListItemResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] AdminPostQueryRequest query, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync([FromQuery] AdminPostQueryRequest query, CancellationToken cancellationToken)
     {
         var result = await postService.GetAdminPostsAsync(query, cancellationToken);
         return Ok(ApiResponse<PagedResponse<AdminPostListItemResponse>>.Ok(result, "Lấy danh sách bài viết thành công"));
@@ -52,7 +52,7 @@ public sealed class AdminPostsController(IPostService postService, IFileStorageS
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByIdAsync([FromRoute] Guid id, CancellationToken cancellationToken)
     {
         var result = await postService.GetAdminPostByIdAsync(id, cancellationToken);
         return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, "Lấy bài viết thành công"));
@@ -62,12 +62,12 @@ public sealed class AdminPostsController(IPostService postService, IFileStorageS
     [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateAsync([FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
     {
         var result = await postService.CreateAsync(request, cancellationToken);
         return StatusCode(
             StatusCodes.Status201Created,
-            ApiResponse<AdminPostDetailResponse>.Ok(result, MessageFor(result.Status, "Đã tạo"), StatusCodes.Status201Created));
+            ApiResponse<AdminPostDetailResponse>.Ok(result, "Đã tạo bản nháp", StatusCodes.Status201Created));
     }
 
     [HttpPut("{id:guid}")]
@@ -75,21 +75,46 @@ public sealed class AdminPostsController(IPostService postService, IFileStorageS
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateAsync([FromRoute] Guid id, [FromBody] UpsertPostRequest request, CancellationToken cancellationToken)
     {
         var result = await postService.UpdateAsync(id, request, cancellationToken);
-        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, MessageFor(result.Status, "Đã lưu")));
+        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, "Đã lưu bài viết"));
+    }
+
+    [HttpPost("{id:guid}/publish")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> PublishAsync([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await postService.PublishAsync(id, cancellationToken);
+        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, "Đã xuất bản bài viết"));
+    }
+
+    [HttpPost("{id:guid}/archive")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPostDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ArchiveAsync([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await postService.ArchiveAsync(id, cancellationToken);
+        return Ok(ApiResponse<AdminPostDetailResponse>.Ok(result, "Đã lưu trữ bài viết"));
+    }
+
+    [HttpGet("{id:guid}/read-analytics")]
+    [ProducesResponseType(typeof(ApiResponse<PostReadAnalyticsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReadAnalyticsAsync([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var result = await postService.GetReadAnalyticsAsync(id, cancellationToken);
+        return Ok(ApiResponse<PostReadAnalyticsResponse>.Ok(result, "Lấy thống kê lượt đọc thành công"));
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Delete([FromRoute] Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteAsync([FromRoute] Guid id, CancellationToken cancellationToken)
     {
         await postService.DeleteAsync(id, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đã xóa bài viết"));
     }
-
-    private static string MessageFor(string status, string verb)
-        => status == PostStatuses.Published ? "Đã xuất bản bài viết" : $"{verb} bản nháp";
 }
