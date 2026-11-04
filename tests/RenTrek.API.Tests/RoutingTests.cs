@@ -32,7 +32,5 @@ public sealed class RoutingTests
             && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminPostsController));
         Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/rental-orders"
             && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminRentalOrdersController));
-        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/management/rental-orders"
-            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RenTrek.API.Controllers.Admin.AdminRentalOrdersController));
     }
 }

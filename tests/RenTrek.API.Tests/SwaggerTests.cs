@@ -6,23 +6,22 @@ using RenTrek.API.Controllers;
 using RenTrek.API.Extensions;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
-using RentalOpsRequest = RenTrek.BLL.DTOs.RentalOps.Requests.CreateRentalChargeRequest;
-using WarehouseRequest = RenTrek.BLL.DTOs.Warehouse.Requests.CreateRentalChargeRequest;
+using RentalOpsLine = RenTrek.BLL.DTOs.RentalOps.Responses.AdminRentalLineResponse;
+using AdminLine = RenTrek.BLL.DTOs.Admin.Responses.AdminRentalLineResponse;
 
 namespace RenTrek.API.Tests;
 
 public sealed class SwaggerTests
 {
     [Fact]
-    public async Task GetSwagger_AllControllers_GeneratesDocumentWithDistinctRentalChargeSchemas()
+    public async Task GetSwagger_AllControllers_GeneratesDocumentWithFullNameSchemaIds()
     {
         await using var app = CreateApp();
 
         var document = app.Services.GetRequiredService<ISwaggerProvider>().GetSwagger("v1");
 
         Assert.NotEmpty(document.Paths);
-        Assert.Contains(typeof(RentalOpsRequest).FullName!, document.Components.Schemas.Keys);
-        Assert.Contains(typeof(WarehouseRequest).FullName!, document.Components.Schemas.Keys);
+        Assert.Contains(typeof(RentalOpsLine).FullName!, document.Components.Schemas.Keys);
         Assert.All(document.Components.Schemas.Keys, key => Assert.Matches("^[a-zA-Z0-9._-]+$", key));
 
         var upload = document.Paths["/api/v1/users/me/avatar"].Operations[OperationType.Post];
@@ -38,14 +37,14 @@ public sealed class SwaggerTests
         var generator = app.Services.GetRequiredService<ISchemaGenerator>();
         var repository = new SchemaRepository();
 
-        var rentalOps = generator.GenerateSchema(typeof(ApiResponse<RentalOpsRequest>), repository);
-        var warehouse = generator.GenerateSchema(typeof(ApiResponse<WarehouseRequest>), repository);
+        var rentalOps = generator.GenerateSchema(typeof(ApiResponse<RentalOpsLine>), repository);
+        var admin = generator.GenerateSchema(typeof(ApiResponse<AdminLine>), repository);
 
-        Assert.NotEqual(rentalOps.Reference.Id, warehouse.Reference.Id);
-        Assert.Equal(typeof(RentalOpsRequest).FullName,
+        Assert.NotEqual(rentalOps.Reference.Id, admin.Reference.Id);
+        Assert.Equal(typeof(RentalOpsLine).FullName,
             repository.Schemas[rentalOps.Reference.Id].Properties["data"].Reference.Id);
-        Assert.Equal(typeof(WarehouseRequest).FullName,
-            repository.Schemas[warehouse.Reference.Id].Properties["data"].Reference.Id);
+        Assert.Equal(typeof(AdminLine).FullName,
+            repository.Schemas[admin.Reference.Id].Properties["data"].Reference.Id);
         Assert.All(repository.Schemas.Keys, key => Assert.Matches("^[a-zA-Z0-9._-]+$", key));
     }
 

@@ -9,6 +9,8 @@ public interface IRentalFulfillmentService
 {
     Task<PagedResponse<AdminRentalOrderListItemResponse>> GetListAsync(AdminRentalOrderQueryRequest query, CancellationToken cancellationToken = default);
     Task<AdminRentalOrderDetailResponse> GetDetailAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<AdminRentalOrderDetailResponse> ClaimAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<AdminRentalOrderDetailResponse> ScanHandoverAsync(Guid orderId, ScanHandoverRequest request, CancellationToken cancellationToken = default);
     Task<AdminRentalOrderDetailResponse> HandoverAsync(Guid orderId, HandoverRentalRequest request, CancellationToken cancellationToken = default);
     Task<AdminRentalOrderDetailResponse> ReturnAsync(Guid orderId, ReturnRentalAssetsRequest request, CancellationToken cancellationToken = default);
     Task<AdminRentalOrderDetailResponse> CreateChargeAsync(Guid orderId, CreateRentalChargeRequest request, CancellationToken cancellationToken = default);

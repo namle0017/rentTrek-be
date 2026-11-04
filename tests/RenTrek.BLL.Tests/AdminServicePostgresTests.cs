@@ -16,7 +16,6 @@ public sealed class AdminServicePostgresTests
         await using var context = database.Context(); var service = database.Service(context); var request = new AdminQueryRequest();
         Assert.Equal(5, (await service.GetUsersAsync(request, Token)).TotalItems);
         Assert.Equal(2, (await service.GetOrdersAsync(request, Token)).TotalItems);
-        Assert.Single((await service.GetRentalsAsync(request, Token)).Items);
         Assert.Single(await service.GetCategoriesAsync(request, Token));
         Assert.Single(await service.GetLocationsAsync(request, Token));
         Assert.Empty(await service.GetTagsAsync(request, Token));
@@ -37,32 +36,17 @@ public sealed class AdminServicePostgresTests
     }
 
     [AdminPostgresFact]
-    public async Task Staff_SeesOnlyOwnedOrders_AndCanClaimUnassignedRental()
+    public async Task Staff_SeesOnlyOrdersTheyHandle()
     {
         await using var database = new AdminTestDatabase(); await database.InitializeAsync();
         await using var context = database.Context(); var service = database.Service(context, database.StaffId, "Staff");
         Assert.Single((await service.GetOrdersAsync(new(), Token)).Items);
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetOrderAsync("RENT-TEST", Token));
-        await service.ClaimRentalAsync("RENT-TEST", Token);
+        await context.RentalOrders.Where(x => x.Order.OrderCode == "RENT-TEST").ExecuteUpdateAsync(x => x.SetProperty(r => r.HandledByUserId, database.StaffId));
         Assert.Equal(2, (await service.GetOrdersAsync(new(), Token)).TotalItems);
         await using var otherContext = database.Context(); var other = database.Service(otherContext, database.OtherStaffId, "Staff");
         Assert.Empty((await other.GetOrdersAsync(new(), Token)).Items);
-        await Assert.ThrowsAsync<ConflictException>(() => other.ClaimRentalAsync("RENT-TEST", Token));
         await Assert.ThrowsAsync<ForbiddenException>(() => other.GetUsersAsync(new(), Token));
-    }
-
-    [AdminPostgresFact]
-    public async Task ConcurrentClaim_HasExactlyOneWinner()
-    {
-        await using var database = new AdminTestDatabase(); await database.InitializeAsync();
-        async Task<bool> Claim(Guid actor)
-        {
-            await using var context = database.Context();
-            try { await database.Service(context, actor, "Staff").ClaimRentalAsync("RENT-TEST", Token); return true; }
-            catch (ConflictException) { return false; }
-        }
-        var results = await Task.WhenAll(Claim(database.StaffId), Claim(database.OtherStaffId));
-        Assert.Equal(1, results.Count(x => x));
     }
 
     [AdminPostgresFact]

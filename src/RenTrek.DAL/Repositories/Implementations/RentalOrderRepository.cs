@@ -213,25 +213,4 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
 
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => _context.Orders.AddAsync(order, cancellationToken).AsTask();
-
-    public async Task<RentalOrder?> GetByOrderCodeWithFulfillmentAsync(string orderCode, CancellationToken cancellationToken = default)
-    {
-        return await _context.RentalOrders
-            .Include(ro => ro.Order)
-                .ThenInclude(o => o.CustomerUser)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.ProductVariant)
-                    .ThenInclude(pv => pv!.Product)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.Bundle)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.AssetAssignments)
-                    .ThenInclude(a => a.EquipmentAsset)
-                        .ThenInclude(ea => ea.ProductVariant)
-            .Include(ro => ro.RentalCharges)
-                .ThenInclude(rc => rc.EquipmentAsset)
-            .Include(ro => ro.RentalCharges)
-                .ThenInclude(rc => rc.CreatedByUser)
-            .FirstOrDefaultAsync(ro => ro.Order.OrderCode == orderCode, cancellationToken);
-    }
 }

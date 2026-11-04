@@ -17,6 +17,12 @@ public sealed class HandoverRentalRequest
     public List<Guid>? AssignmentIds { get; set; }
 }
 
+/// <summary>Quét / nhập mã một thiết bị để giao (FR-R06).</summary>
+public sealed class ScanHandoverRequest
+{
+    public string AssetCode { get; set; } = string.Empty;
+}
+
 /// <summary>Nhận trả một hoặc nhiều thiết bị đang ở khách.</summary>
 public sealed class ReturnRentalAssetsRequest
 {
