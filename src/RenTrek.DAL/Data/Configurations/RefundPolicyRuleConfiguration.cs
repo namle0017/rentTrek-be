@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class RefundPolicyRuleConfiguration : IEntityTypeConfiguration<RefundPoli
     {
         builder.HasKey(e => e.RefundPolicyRuleId).HasName("refund_policy_rules_pkey");
 
-        builder.ToTable("refund_policy_rules");
+        builder.ToTable("refund_policy_rules", table =>
+        {
+            table.HasCheckConstraint("refund_policy_rules_refund_percentage_check", "((refund_percentage >= (0)::numeric) AND (refund_percentage <= (100)::numeric))");
+        });
 
         builder.HasIndex(e => e.RefundPolicyId, "ix_refund_policy_rules_refund_policy_id");
 

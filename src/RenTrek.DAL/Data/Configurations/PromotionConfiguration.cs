@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class PromotionConfiguration : IEntityTypeConfiguration<Promotion>
     {
         builder.HasKey(e => e.PromotionId).HasName("promotions_pkey");
 
-        builder.ToTable("promotions");
+        builder.ToTable("promotions", table =>
+        {
+            table.HasCheckConstraint("promotions_check", "(end_at > start_at)");
+        });
 
         builder.HasIndex(e => e.CreatedByUserId, "ix_promotions_created_by_user_id");
         builder.HasIndex(e => e.PromotionCode, "promotions_promotion_code_key").IsUnique();

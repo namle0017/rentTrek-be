@@ -30,7 +30,7 @@ public class RentalChargesController : ControllerBase
     /// <summary>
     /// 16.1. Danh sách phí phát sinh của đơn thuê (Màn O26).
     /// </summary>
-    [HttpGet("api/v1/admin/rental-orders/{orderCode}/charges")]
+    [HttpGet("api/v1/admin/rental-orders/by-code/{orderCode}/charges")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
     [ProducesResponseType(typeof(ApiResponse<List<RentalChargeDetailResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetChargesAsync(
@@ -44,7 +44,7 @@ public class RentalChargesController : ControllerBase
     /// <summary>
     /// 16.2. Lập biên bản phí phát sinh mới (Draft) (Màn O26).
     /// </summary>
-    [HttpPost("api/v1/admin/rental-orders/{orderCode}/charges")]
+    [HttpPost("api/v1/admin/rental-orders/by-code/{orderCode}/charges")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
     [ProducesResponseType(typeof(ApiResponse<RentalChargeDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -95,7 +95,7 @@ public class RentalChargesController : ControllerBase
     /// <summary>
     /// 16.6. Nghiệm thu đóng toàn bộ đơn thuê (Complete Order) (Màn O26).
     /// </summary>
-    [HttpPost("api/v1/admin/rental-orders/{orderCode}/complete")]
+    [HttpPost("api/v1/admin/rental-orders/by-code/{orderCode}/complete")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]

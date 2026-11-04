@@ -10,7 +10,10 @@ public class TourRecurrenceRuleConfiguration : IEntityTypeConfiguration<TourRecu
     {
         builder.HasKey(e => e.RecurrenceRuleId).HasName("tour_recurrence_rules_pkey");
 
-        builder.ToTable("tour_recurrence_rules");
+        builder.ToTable("tour_recurrence_rules", table =>
+        {
+            table.HasCheckConstraint("tour_recurrence_rules_default_group_count_check", "((default_group_count IS NULL) OR (default_group_count > 0))");
+        });
 
         builder.HasIndex(e => e.TourId, "ix_tour_recurrence_rules_tour_id");
 

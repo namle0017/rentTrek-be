@@ -13,8 +13,18 @@ public class TourPreparationItemConfiguration : IEntityTypeConfiguration<TourPre
     public void Configure(EntityTypeBuilder<TourPreparationItem> builder)
     {
         builder.ToTable("tour_preparation_items");
-        builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).HasColumnName("preparation_item_id");
+        builder.HasKey(p => p.Id).HasName("tour_preparation_items_pkey");
+        builder.Property(p => p.Id).HasColumnName("preparation_item_id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(p => p.ItemName).IsRequired().HasMaxLength(255);
+
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        builder.HasIndex(x => x.TourId, "ix_tour_preparation_items_tour_id");
+        builder.HasOne(x => x.Tour)
+            .WithMany(x => x.PreparationItems)
+            .HasForeignKey(x => x.TourId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("tour_preparation_items_tour_id_fkey");
     }
 }

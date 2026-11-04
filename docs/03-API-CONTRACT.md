@@ -17,6 +17,13 @@
 
 ---
 
+## Route khi tích hợp các phân hệ (2026-11-04)
+
+- API mà frontend hiện dùng giữ nguyên: `/admin/posts` (trình soạn bài viết với `tagNames`, `tourIds`, `status`) và `/admin/rental-orders` (vận hành theo GUID).
+- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/management/posts`; các thao tác list/detail/claim trong mục 15 chuyển sang `/admin/management/rental-orders`. Request, response và phân quyền của nhóm này giữ nguyên.
+- Phí và đóng đơn kho theo mã đơn dùng `/admin/rental-orders/by-code/{orderCode}/charges` và `/admin/rental-orders/by-code/{orderCode}/complete`; các route theo GUID mà frontend dùng giữ nguyên.
+- Tách route để mỗi phương thức HTTP và đường dẫn chỉ có một action, kể cả khi khác tên tham số đường dẫn.
+
 ## Mục lục
 
 - [Quy ước chung](#quy-ước-chung)
@@ -454,9 +461,9 @@ HTTP 500 Internal Server Error
 | **14.4**| Assets | `PATCH`| `/admin/assets/{assetCode}/status` | Staff/Admin | Đổi tình trạng máy | Đổi sang Sẵn sàng, Bảo trì, Hỏng, Mất | ✅ Done |
 | **14.5**| Assets | `GET` | `/admin/assets/{assetCode}/history` | Staff/Admin | Lịch sử phân bổ của thiết bị | Tra cứu toàn bộ các lần thuê/cấp chuyến | ✅ Done |
 | **14.6**| Assets | `GET` | `/admin/assets/schedule-gantt` | Staff/Admin | Biểu đồ Gantt phân bổ thiết bị | Màn O21 xem trực quan lịch chiếm dụng kho | ✅ Done |
-| **15.1**| Rentals | `GET` | `/admin/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Màn O22 lọc tab giao hôm nay, nhận hôm nay | ⬜ TODO |
-| **15.2**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/claim` | Staff/Admin | Nhân viên nhận xử lý đơn thuê | Gán `handled_by_user_id` | ⬜ TODO |
-| **15.3**| Rentals | `GET` | `/admin/rental-orders/{orderCode}` | Staff/Admin | Chi tiết đơn thuê vận hành | Màn O23 xem các món đồ, combo, asset đã gán | ⬜ TODO |
+| **15.1**| Rentals | `GET` | `/admin/management/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Màn O22 lọc tab giao hôm nay, nhận hôm nay | ⬜ TODO |
+| **15.2**| Rentals | `POST` | `/admin/management/rental-orders/{orderCode}/claim` | Staff/Admin | Nhân viên nhận xử lý đơn thuê | Gán `handled_by_user_id` | ⬜ TODO |
+| **15.3**| Rentals | `GET` | `/admin/management/rental-orders/{orderCode}` | Staff/Admin | Chi tiết đơn thuê vận hành | Màn O23 xem các món đồ, combo, asset đã gán | ⬜ TODO |
 | **15.4**| Rentals | `GET` | `/admin/rental-orders/{orderCode}/handover-checklist` | Staff/Admin | Danh sách thiết bị cần bàn giao | Màn O24 bảng tiến độ quét bàn giao | ⬜ TODO |
 | **15.5**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/scan` | Staff/Admin | Quét barcode kiểm tra & giao từng món | Phản hồi ngay kết quả quét barcode từng thiết bị | ⬜ TODO |
 | **15.6**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/complete` | Staff/Admin | Hoàn tất bàn giao thiết bị | Chuyển trạng thái đơn sang `InFulfillment` | ⬜ TODO |
@@ -464,12 +471,12 @@ HTTP 500 Internal Server Error
 | **15.8**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/scan` | Staff/Admin | Quét barcode nhận lại & kiểm tra tình trạng | Ghi nhận tình trạng (Bình thường, Hư hỏng, Thiếu) | ⬜ TODO |
 | **15.9**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/report-lost` | Staff/Admin | Báo mất thiết bị | Chuyển asset sang Lost, gợi ý tạo phí đền bù | ⬜ TODO |
 | **15.10**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/complete` | Staff/Admin | Hoàn tất quy trình nhận đồ | Đóng phần kiểm kê thiết bị vật lý | ⬜ TODO |
-| **16.1**| Charges | `GET` | `/admin/rental-orders/{orderCode}/charges` | Staff/Admin | Danh sách phí phát sinh của đơn | Màn O26 bảng các khoản phí phạt | ⬜ TODO |
-| **16.2**| Charges | `POST` | `/admin/rental-orders/{orderCode}/charges` | Staff/Admin | Lập biên bản phí phát sinh mới | Tạo khoản phí ở trạng thái `Draft` | ⬜ TODO |
+| **16.1**| Charges | `GET` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Danh sách phí phát sinh của đơn | Màn O26 bảng các khoản phí phạt | ⬜ TODO |
+| **16.2**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Lập biên bản phí phát sinh mới | Tạo khoản phí ở trạng thái `Draft` | ⬜ TODO |
 | **16.3**| Charges | `POST` | `/admin/charges/{chargeId}/assess` | Staff/Admin | Chốt phí phát sinh | Chuyển từ Draft sang `Assessed` để yêu cầu trả | ⬜ TODO |
 | **16.4**| Charges | `POST` | `/admin/charges/{chargeId}/void` | Admin | Hủy phí phát sinh | Chỉ Admin được duyệt xóa phí, bắt buộc lý do | ⬜ TODO |
 | **16.5**| Charges | `POST` | `/admin/rental-orders/{orderCode}/charges/request-payment` | Staff/Admin | Tạo yêu cầu thanh toán phí | Sinh giao dịch Collection AdditionalCharge SePay | ⬜ TODO |
-| **16.6**| Charges | `POST` | `/admin/rental-orders/{orderCode}/complete` | Staff/Admin | Nghiệm thu đóng toàn bộ đơn thuê | Kiểm tra hết đồ trả, hết phí nợ -> `Completed` | ⬜ TODO |
+| **16.6**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/complete` | Staff/Admin | Nghiệm thu đóng toàn bộ đơn thuê | Kiểm tra hết đồ trả, hết phí nợ -> `Completed` | ⬜ TODO |
 | **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ⬜ TODO |
 | **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Thất bại, Cần đối soát | ⬜ TODO |
 | **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền qua SePay | Gọi API cổng SePay thực hiện chuyển khoản | ⬜ TODO |
@@ -484,14 +491,14 @@ HTTP 500 Internal Server Error
 | **18.5**| Promos | `PATCH`| `/admin/promotions/{promotionId}/status` | Admin | Bật / Tắt / Tạm dừng khuyến mãi | Đổi trạng thái Active, Paused, Expired | ⬜ TODO |
 | **18.6**| Promos | `PUT` | `/admin/promotions/{promotionId}/tiers` | Admin | Cập nhật các bậc giảm giá & quà tặng | Bảng bậc tỷ lệ %, số tiền hoặc quà tặng kèm | ⬜ TODO |
 | **18.7**| Promos | `GET` | `/admin/promotions/{promotionId}/usage` | Staff/Admin | Lịch sử áp dụng khuyến mãi | Màn O31 danh sách đơn hàng đã dùng mã | ⬜ TODO |
-| **19.1**| Posts | `GET` | `/admin/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ⬜ TODO |
-| **19.2**| Posts | `POST` | `/admin/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ⬜ TODO |
-| **19.3**| Posts | `GET` | `/admin/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ⬜ TODO |
-| **19.4**| Posts | `PUT` | `/admin/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ⬜ TODO |
-| **19.5**| Posts | `DELETE`| `/admin/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ⬜ TODO |
-| **19.6**| Posts | `POST` | `/admin/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ⬜ TODO |
-| **19.7**| Posts | `POST` | `/admin/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ⬜ TODO |
-| **19.8**| Posts | `GET` | `/admin/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ⬜ TODO |
+| **19.1**| Posts | `GET` | `/admin/management/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ⬜ TODO |
+| **19.2**| Posts | `POST` | `/admin/management/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ⬜ TODO |
+| **19.3**| Posts | `GET` | `/admin/management/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ⬜ TODO |
+| **19.4**| Posts | `PUT` | `/admin/management/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ⬜ TODO |
+| **19.5**| Posts | `DELETE`| `/admin/management/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ⬜ TODO |
+| **19.6**| Posts | `POST` | `/admin/management/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ⬜ TODO |
+| **19.7**| Posts | `POST` | `/admin/management/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ⬜ TODO |
+| **19.8**| Posts | `GET` | `/admin/management/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ⬜ TODO |
 | **20.1**| Policies| `GET` | `/admin/refund-policies` | Staff/Admin | Danh sách chính sách hoàn tiền | Màn O34 danh sách chính sách Tour & Thuê | ⬜ TODO |
 | **20.2**| Policies| `POST` | `/admin/refund-policies` | Admin | Tạo chính sách hoàn tiền mới | Thiết lập chính sách | ⬜ TODO |
 | **20.3**| Policies| `GET` | `/admin/refund-policies/{policyId}` | Staff/Admin | Chi tiết chính sách & quy tắc | Xem các bậc % hoàn theo mốc thời gian | ⬜ TODO |
@@ -2787,7 +2794,7 @@ HTTP 400 Bad Request
 ## 15. Admin: Đơn thuê & Quy trình Giao nhận (Màn O22, O23, O24, O25)
 
 ### 15.1. Danh sách đơn thuê vận hành
-`GET /admin/rental-orders` · **Auth:** Staff / Admin
+`GET /admin/management/rental-orders` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O22 — danh sách chuyên biệt để nhân viên kho và giao nhận theo dõi việc chuẩn bị đồ, giao đồ và nhận đồ hàng ngày.
 - **Tabs nhanh:**
@@ -2844,14 +2851,14 @@ HTTP 400 Bad Request
 ---
 
 ### 15.2. Nhân viên tiếp nhận xử lý đơn thuê (Claim)
-`POST /admin/rental-orders/{orderCode}/claim` · **Auth:** Staff / Admin
+`POST /admin/management/rental-orders/{orderCode}/claim` · **Auth:** Staff / Admin
 
 - **Mục đích:** Nút "Nhận xử lý" trên màn O22 — gán `RENTAL_ORDERS.handled_by_user_id` thành tài khoản của nhân viên đang thao tác, ghi nhật ký kiểm toán `AUDIT_LOGS`.
 
 ---
 
 ### 15.3. Chi tiết đơn thuê vận hành
-`GET /admin/rental-orders/{orderCode}` · **Auth:** Staff / Admin
+`GET /admin/management/rental-orders/{orderCode}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O23 — xem chi tiết từng món đồ thuê lẻ và thành phần combo (`RENTAL_BUNDLE_ITEM_SNAPSHOTS`), danh sách các mã thiết bị cụ thể (`EQUIPMENT_ASSETS`) đã được hệ thống giữ chỗ cho đơn này.
 
@@ -2984,7 +2991,7 @@ HTTP 400 Bad Request
 ## 16. Admin: Phí phát sinh & Quyết toán Đơn thuê (Màn O26)
 
 ### 16.1. Danh sách phí phát sinh của đơn thuê
-`GET /admin/rental-orders/{orderCode}/charges` · **Auth:** Staff / Admin
+`GET /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O26 — danh sách các khoản phạt phát sinh (Phí trả trễ, Phí làm hỏng thiết bị, Phí làm mất đồ, Phí vệ sinh bẩn nặng).
 
@@ -3016,7 +3023,7 @@ HTTP 400 Bad Request
 ---
 
 ### 16.2. Lập biên bản phí phát sinh mới
-`POST /admin/rental-orders/{orderCode}/charges` · **Auth:** Staff / Admin
+`POST /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
 
 - **Mục đích:** Tạo một khoản phí phát sinh mới ở trạng thái `Draft` (nháp) để nhân viên thương lượng với khách.
 
@@ -3055,7 +3062,7 @@ HTTP 400 Bad Request
 ---
 
 ### 16.6. Nghiệm thu đóng toàn bộ đơn thuê (Complete Order)
-`POST /admin/rental-orders/{orderCode}/complete` · **Auth:** Staff / Admin
+`POST /admin/rental-orders/by-code/{orderCode}/complete` · **Auth:** Staff / Admin
 
 - **Mục đích:** Đóng đơn hàng thuê, chuyển `ORDERS.status` sang `Completed`.
 - **Checklist điều kiện tiên quyết (Invariants):**
@@ -3363,7 +3370,7 @@ HTTP 502 Bad Gateway
 ## 19. Admin: Quản lý Bài viết & Nội dung Hướng dẫn (Màn O32)
 
 ### 19.1. Danh sách bài viết & cẩm nang
-`GET /admin/posts` · **Auth:** Staff / Admin
+`GET /admin/management/posts` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O32 — danh sách các bài viết hướng dẫn trekking, kỹ năng sinh tồn, thông tin địa điểm.
 - **Trường thống kê:** Tác giả, số tour đang gắn bài viết này (`COUNT(tour_posts)`), tổng số lượt khách tham gia tour đã bấm đọc bài viết này (`COUNT(participant_post_reads)`).
@@ -3404,7 +3411,7 @@ HTTP 502 Bad Gateway
 ---
 
 ### 19.2. Tạo bài viết mới (Draft)
-`POST /admin/posts` · **Auth:** Staff / Admin
+`POST /admin/management/posts` · **Auth:** Staff / Admin
 
 **Request body**
 
@@ -3422,36 +3429,36 @@ HTTP 502 Bad Gateway
 ---
 
 ### 19.3. Chi tiết bài viết & trình soạn thảo
-`GET /admin/posts/{postId}` · **Auth:** Staff / Admin
+`GET /admin/management/posts/{postId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Trình soạn thảo rich-text màn O32.
 
 ---
 
 ### 19.4. Sửa bài viết
-`PUT /admin/posts/{postId}` · **Auth:** Staff / Admin
+`PUT /admin/management/posts/{postId}` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.5. Xóa bài viết
-`DELETE /admin/posts/{postId}` · **Auth:** Admin
+`DELETE /admin/management/posts/{postId}` · **Auth:** Admin
 
 ---
 
 ### 19.6. Xuất bản bài viết
-`POST /admin/posts/{postId}/publish` · **Auth:** Staff / Admin
+`POST /admin/management/posts/{postId}/publish` · **Auth:** Staff / Admin
 
 - **Mục đích:** Đổi trạng thái sang `Published`, cập nhật `published_at = now`.
 
 ---
 
 ### 19.7. Lưu trữ bài viết
-`POST /admin/posts/{postId}/archive` · **Auth:** Staff / Admin
+`POST /admin/management/posts/{postId}/archive` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.8. Báo cáo lượt đọc bài viết của khách hàng
-`GET /admin/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
+`GET /admin/management/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
 
 - **Mục đích:** Thống kê tỷ lệ hành khách đã đọc bài viết chuẩn bị trước khi chuyến khởi hành (dựa trên bảng `PARTICIPANT_POST_READS`).
 
@@ -4614,6 +4621,7 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-04 | Codex | `/admin/management/posts*`, `/admin/management/rental-orders*`, `/admin/rental-orders/by-code/{orderCode}/*` | Tách route quản trị mới và thao tác kho theo mã đơn để tránh trùng action; giữ URL frontend hiện có và khôi phục Swagger. |
 | 2026-10-31 | Antigravity | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping`, `/trip-bookings/{orderId}/cancel`, `/tours/{id}/group-settings`, `/tours/{id}/recurrence-rules`, `/trips*`, `/guide/trip-groups*` | Hoàn thiện triển khai BE cho Chia TripGroup (Section 7): migration DB, tự xếp sau webhook SePay, quản trị cấu hình group/lịch lặp, snapshot Staff/Guide, gán guide chống trùng lịch, chuyển/tách booking, tính lại đồ cấp chuyến, chốt group, hủy booking giữ lịch sử và lọc hiển thị theo quyền |
 | 2026-10-31 | Codex | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping` | Thêm contract dự kiến cho FE: cấu hình số group, snapshot Staff/Guide, gán guide, chuyển/tách booking, chốt và Customer xem group Published theo quyền |
 | 2026-10-30 | — | `/auth/verify-email`, `/auth/resend-verification-email`, `/users/me/orders`, `/trip-bookings*` | Chuyển đặt chuyến nhóm sang gán theo email (`contactPhone`, `buyerParticipates` đặt giùm, `email`/`phone` tuỳ chọn, tự động gán `linkedUserId` khi webhook SePay hoặc xác thực email, sửa participant `PUT /{orderId}/participants/{participantId}`, link chỉ đọc `preview` kèm `participantNames` & `activities` đến `tripEndAt`; gỡ `claim`, `participant-invitations` và `DELETE .../link`) |

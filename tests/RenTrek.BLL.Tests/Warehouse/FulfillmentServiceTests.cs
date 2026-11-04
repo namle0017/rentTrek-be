@@ -83,6 +83,7 @@ public class FulfillmentServiceTests
 
     private class FakeFulfillmentUow : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
 
         public FakeRentalOrderRepo RentalOrdersRepo { get; } = new();

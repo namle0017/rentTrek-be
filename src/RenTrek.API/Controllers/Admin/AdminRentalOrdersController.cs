@@ -7,7 +7,7 @@ using RenTrek.BLL.Services.Admin;
 namespace RenTrek.API.Controllers.Admin;
 
 [ApiController]
-[Route("api/v1/admin/rental-orders")]
+[Route("api/v1/admin/management/rental-orders")]
 [Authorize(Roles = "Admin,Staff")]
 public sealed class AdminRentalOrdersController(IAdminService service) : ControllerBase
 {

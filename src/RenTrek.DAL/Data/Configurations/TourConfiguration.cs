@@ -11,25 +11,25 @@ public class TourConfiguration : IEntityTypeConfiguration<Tour>
 {
     public void Configure(EntityTypeBuilder<Tour> builder)
     {
-        builder.ToTable("tours");
+        builder.ToTable("tours", table =>
+        {
+            table.HasCheckConstraint("tours_group_max_participants_check", "((group_max_participants IS NULL) OR (group_max_participants > 0))");
+        });
 
-        builder.HasKey(t => t.Id);
-        builder.Property(t => t.Id).HasColumnName("tour_id");
+        builder.HasKey(t => t.Id).HasName("tours_pkey");
+        builder.Property(t => t.Id).HasColumnName("tour_id").HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(t => t.Name)
-            .IsRequired()
-            .HasMaxLength(200);
+            .IsRequired().HasMaxLength(255);
 
-        builder.Property(t => t.Description)
-            .HasMaxLength(4000);
+        builder.Property(t => t.Description).HasColumnType("text");
 
         builder.Property(t => t.DifficultyLevel)
             .IsRequired()
-            .HasMaxLength(50);
+            .HasMaxLength(50).HasDefaultValueSql("'Trung b\u00ecnh'::character varying");
 
         builder.Property(t => t.Status)
-            .IsRequired()
-            .HasMaxLength(30);
+            .IsRequired().HasMaxLength(50);
 
         builder.Property(t => t.BasePrice)
             .HasPrecision(18, 0);
@@ -40,43 +40,30 @@ public class TourConfiguration : IEntityTypeConfiguration<Tour>
         builder.Property(t => t.GroupMaxParticipants)
             .HasColumnName("group_max_participants");
 
-        // Relationships
-        builder.HasOne(t => t.Category)
-            .WithMany(c => c.Tours)
-            .HasForeignKey(t => t.CategoryId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne(t => t.MainLocation)
-            .WithMany(l => l.Tours)
-            .HasForeignKey(t => t.MainLocationId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(t => t.Images)
-            .WithOne(i => i.Tour)
-            .HasForeignKey(i => i.TourId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(t => t.Activities)
-            .WithOne(a => a.Tour)
-            .HasForeignKey(a => a.TourId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(t => t.PreparationItems)
-            .WithOne(p => p.Tour)
-            .HasForeignKey(p => p.TourId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(t => t.ProvidedItems)
-            .WithOne(p => p.Tour)
-            .HasForeignKey(p => p.TourId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(t => t.Trips)
-            .WithOne(tr => tr.Tour)
-            .HasForeignKey(tr => tr.TourId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasIndex(t => new { t.TourFamilyId, t.Version })
-            .IsUnique();
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.CreatedByUserId).IsRequired();
+        builder.Property(x => x.InspectionRate).HasDefaultValue(0);
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.Version).HasDefaultValue(1);
+        builder.HasIndex(x => x.CategoryId, "ix_tours_category_id");
+        builder.HasIndex(x => x.CreatedByUserId, "ix_tours_created_by_user_id");
+        builder.HasIndex(x => x.MainLocationId, "ix_tours_main_location_id");
+        builder.HasIndex(x => new { x.TourFamilyId, x.Version }, "tours_tour_family_id_version_key").IsUnique();
+        builder.HasOne(x => x.Category)
+            .WithMany(x => x.Tours)
+            .HasForeignKey(x => x.CategoryId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("tours_category_id_fkey");
+        builder.HasOne(x => x.CreatedByUser)
+            .WithMany(x => x.Tours)
+            .HasForeignKey(x => x.CreatedByUserId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("tours_created_by_user_id_fkey");
+        builder.HasOne(x => x.MainLocation)
+            .WithMany(x => x.Tours)
+            .HasForeignKey(x => x.MainLocationId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("tours_main_location_id_fkey");
     }
 }

@@ -7,7 +7,7 @@ using RenTrek.BLL.Services.Admin;
 namespace RenTrek.API.Controllers.Admin;
 
 [ApiController]
-[Route("api/v1/admin/posts")]
+[Route("api/v1/admin/management/posts")]
 [Authorize(Roles = "Admin,Staff")]
 public sealed class AdminPostsController(IAdminService service) : ControllerBase
 {

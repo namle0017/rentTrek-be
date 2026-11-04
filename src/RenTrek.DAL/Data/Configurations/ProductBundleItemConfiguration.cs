@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class ProductBundleItemConfiguration : IEntityTypeConfiguration<ProductBu
     {
         builder.HasKey(e => e.BundleItemId).HasName("product_bundle_items_pkey");
 
-        builder.ToTable("product_bundle_items");
+        builder.ToTable("product_bundle_items", table =>
+        {
+            table.HasCheckConstraint("product_bundle_items_quantity_check", "(quantity > 0)");
+        });
 
         builder.HasIndex(e => e.BundleId, "ix_product_bundle_items_bundle_id");
         builder.HasIndex(e => e.ProductVariantId, "ix_product_bundle_items_product_variant_id");

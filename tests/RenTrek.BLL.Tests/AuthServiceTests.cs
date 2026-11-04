@@ -274,6 +274,7 @@ public sealed class AuthServiceTests
 
     private sealed class FakeUnitOfWork(IAccountRepository accounts, ITripBookingRepository tripBookings) : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         public IAccountRepository Accounts { get; } = accounts;
         public ITripBookingRepository TripBookings { get; } = tripBookings;
         public IRoleRepository Roles { get; } = new FakeRoleRepository();

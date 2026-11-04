@@ -1195,6 +1195,7 @@ public sealed class TripGroupServiceTests
 
     private sealed class ScopedFakeUnitOfWork : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         private readonly SharedStore _store;
         private readonly List<SemaphoreSlim> _heldLocks = [];
         private readonly HashSet<string> _heldLockKeys = [];

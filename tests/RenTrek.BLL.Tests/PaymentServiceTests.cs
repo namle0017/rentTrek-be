@@ -402,6 +402,7 @@ public sealed class PaymentServiceTests
 
     private sealed class FakeUnitOfWork(IPaymentRepository payments, ITripBookingRepository tripBookings) : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         public IPaymentRepository Payments { get; } = payments;
         public ITripBookingRepository TripBookings { get; } = tripBookings;
         public IAccountRepository Accounts => throw new NotSupportedException();
