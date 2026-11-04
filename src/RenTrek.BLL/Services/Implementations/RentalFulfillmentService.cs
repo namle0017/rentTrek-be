@@ -101,7 +101,7 @@ public sealed class RentalFulfillmentService(
             EnsureStatus(order, OrderStatuses.PendingPayment, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
             var rental = order.RentalOrder!;
             var previous = rental.HandledByUserId;
-            if (previous is not null && previous != actorId && currentUser.Role != RoleNames.Admin)
+            if (!RentalFulfillmentRules.CanClaim(previous, actorId, IsAdmin))
                 throw new ConflictException("Đơn thuê đã có người phụ trách");
 
             rental.HandledByUserId = actorId;
@@ -114,29 +114,15 @@ public sealed class RentalFulfillmentService(
         Guid orderId,
         HandoverRentalRequest request,
         CancellationToken cancellationToken = default)
-        => IssueAsync(orderId, "RentalHandover", reserved =>
-        {
-            if (request.AssignmentIds is not { Count: > 0 } ids)
-                return reserved;
+        => IssueAsync(orderId, "RentalHandover",
+            reserved => RentalFulfillmentRules.PickForHandover(reserved, request.AssignmentIds), cancellationToken);
 
-            var targets = reserved.Where(a => ids.Contains(a.AssetAssignmentId)).ToList();
-            if (targets.Count != ids.Distinct().Count())
-                throw new ConflictException("Có thiết bị không ở trạng thái chờ giao");
-            return targets;
-        }, cancellationToken);
-
-    // Quét từng mã: chỉ nhận thiết bị đang giữ cho chính đơn này; quét lại mã đã giao bị từ chối nên không giao trùng.
     public Task<AdminRentalOrderDetailResponse> ScanHandoverAsync(
         Guid orderId,
         ScanHandoverRequest request,
         CancellationToken cancellationToken = default)
-        => IssueAsync(orderId, "RentalHandoverScan", reserved =>
-        {
-            var code = request.AssetCode.Trim();
-            var match = reserved.FirstOrDefault(a => string.Equals(a.EquipmentAsset.AssetCode, code, StringComparison.OrdinalIgnoreCase))
-                ?? throw new ConflictException($"Thiết bị {code} không nằm trong danh sách chờ giao của đơn này");
-            return [match];
-        }, cancellationToken);
+        => IssueAsync(orderId, "RentalHandoverScan",
+            reserved => RentalFulfillmentRules.PickByCode(reserved, request.AssetCode), cancellationToken);
 
     private Task<AdminRentalOrderDetailResponse> IssueAsync(
         Guid orderId,
@@ -339,6 +325,8 @@ public sealed class RentalFulfillmentService(
             var charge = FindCharge(order, chargeId);
             if (charge.Status is not (RentalChargeStatuses.Draft or RentalChargeStatuses.Assessed))
                 throw new ConflictException("Phí này không thể hủy", ErrorCodes.ChargeNotReviewable);
+            if (!RentalFulfillmentRules.CanVoid(charge.Status, IsAdmin))
+                throw new ForbiddenException("Chỉ quản trị viên được hủy phí đã xác nhận");
 
             // Không xóa: giữ dấu vết, lý do nằm trong audit log (FR-C04)
             var previousStatus = charge.Status;
@@ -406,6 +394,8 @@ public sealed class RentalFulfillmentService(
 
         return await GetDetailAsync(orderId, cancellationToken);
     }
+
+    private bool IsAdmin => currentUser.Role == RoleNames.Admin;
 
     private static IEnumerable<AssetAssignment> Assignments(Order order)
         => order.RentalOrder!.RentalOrderItems.SelectMany(i => i.AssetAssignments);

@@ -83,8 +83,10 @@ public sealed class AdminRentalOrdersController(IRentalFulfillmentService fulfil
     public async Task<IActionResult> AssessChargeAsync([FromRoute] Guid orderId, [FromRoute] Guid chargeId, CancellationToken cancellationToken)
         => Detail(await fulfillment.AssessChargeAsync(orderId, chargeId, cancellationToken), "Đã xác nhận khoản phí");
 
+    /// <summary>Hủy phí. Phí Draft: Staff/Admin; phí Assessed: chỉ Admin.</summary>
     [HttpPost("{orderId:guid}/charges/{chargeId:guid}/void")]
     [ProducesResponseType(typeof(ApiResponse<AdminRentalOrderDetailResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> VoidChargeAsync(
         [FromRoute] Guid orderId,

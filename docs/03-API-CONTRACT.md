@@ -2818,7 +2818,7 @@ Quy tắc chung 15.4–15.5: đơn `Confirmed` / `InFulfillment`, `paymentStatus
 `POST /admin/rental-orders/{orderId}/charges/{chargeId}/assess` — `Draft` → `Assessed`; trạng thái khác → `409 CHARGE_NOT_REVIEWABLE`.
 
 ### 16.3. Hủy phí
-`POST /admin/rental-orders/{orderId}/charges/{chargeId}/void` — body `{ "reason": "..." }`. `Draft` / `Assessed` → `Voided`; không xóa, lý do nằm trong audit.
+`POST /admin/rental-orders/{orderId}/charges/{chargeId}/void` — body `{ "reason": "..." }`. `Draft` / `Assessed` → `Voided`; không xóa, lý do nằm trong audit. Phí `Draft`: Staff / Admin hủy được; phí `Assessed` đã là công nợ của khách nên chỉ Admin hủy (Staff → `403`).
 
 ### 16.4. Đóng đơn
 `POST /admin/rental-orders/{orderId}/complete` — đơn `InFulfillment`. Bị chặn (`409`) khi còn thiết bị chưa giao, chưa nhận trả, hoặc còn phí `Draft`. Quyết toán theo PRD §8.7: phí `Assessed` trừ vào cọc đã thu → `settlement.depositToRefund` / `settlement.additionalAmountDue`; đơn chuyển `Completed`.
