@@ -4,6 +4,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 
 public interface IUnitOfWork : IDisposable
 {
+    IAdminOperationRepository AdminOperations { get; }
     // Mọi thao tác DB của Service đi qua các repository dưới đây (dùng chung DbContext / transaction của UnitOfWork)
     IAccessTokenRepository AccessTokens { get; }
     IAccountRepository Accounts { get; }

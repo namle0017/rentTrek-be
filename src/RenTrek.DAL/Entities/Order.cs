@@ -18,6 +18,7 @@ public sealed class Order
     public decimal DiscountAmount { get; set; }
     public string PaymentStatus { get; set; } = string.Empty;
     public DateTimeOffset? HoldExpiresAt { get; set; }
+    public DateTimeOffset? ReconciliationDeadlineAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public string? CancelReason { get; set; }
     public Guid RefundPolicyId { get; set; }

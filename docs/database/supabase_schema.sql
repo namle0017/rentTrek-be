@@ -459,6 +459,8 @@ CREATE TABLE orders (
     discount_amount     numeric(18,0) NOT NULL DEFAULT 0,
     payment_status      varchar(50)   NOT NULL,
     hold_expires_at     timestamptz,
+    reconciliation_deadline_at timestamptz,
+    idempotency_key      varchar(100),
     cancelled_at        timestamptz,
     cancel_reason       varchar(500),
     refund_policy_id    uuid          NOT NULL REFERENCES refund_policies(refund_policy_id),
@@ -530,6 +532,8 @@ CREATE TABLE activity_attendances (
 
 CREATE TABLE reviews (
     review_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    is_hidden boolean NOT NULL DEFAULT false,
+    hidden_reason text,
     rating          integer     NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment         text,
     created_at      timestamptz NOT NULL DEFAULT now(),
