@@ -1,6 +1,8 @@
 # Build output
 **/bin
 **/obj
+artifacts
+RenTrekk Design System
 
 # Secrets / cấu hình local — cấu hình trên Render lấy từ biến môi trường
 .env
