@@ -174,7 +174,7 @@ public class TripGroupRepository : GenericRepository<TripGroup>, ITripGroupRepos
                                        && !g.IsDeleted
                                        && g.GuideUserId == guideUserId
                                        && !g.Trip.IsDeleted
-                                       && g.Trip.Status != "Cancelled",
+                                       && g.Trip.Status != "Cancelled", cancellationToken);
     public Task<Trip?> GetTripAsync(Guid tripId, CancellationToken cancellationToken = default)
         => _context.Trips
             .AsNoTracking()
@@ -246,25 +246,6 @@ public class TripGroupRepository : GenericRepository<TripGroup>, ITripGroupRepos
             .Include(x => x.Role)
             .Include(x => x.Profile)
             .FirstOrDefaultAsync(x => x.UserId == guideUserId && !x.IsDeleted, cancellationToken);
-
-    public Task<bool> HasOverlappingGuideAssignmentAsync(
-        Guid guideUserId,
-        Guid currentTripId,
-        DateTimeOffset startAt,
-        DateTimeOffset endAt,
-        CancellationToken cancellationToken = default)
-        => _dbSet
-            .AsNoTracking()
-            .AnyAsync(
-                x => x.GuideUserId == guideUserId
-                     && !x.IsDeleted
-                     && x.TripId != currentTripId
-                     && !x.Trip.IsDeleted
-                     && x.Trip.Status != "Cancelled"
-                     && x.Trip.Status != "Completed"
-                     && x.Trip.StartAt < endAt
-                     && x.Trip.EndAt > startAt,
-                cancellationToken);
 
     public async Task<IReadOnlyList<BookingParticipant>> GetActiveParticipantsWithOrderByTripAsync(
         Guid tripId,

@@ -43,9 +43,9 @@ public sealed class AdminTripGroupService(
         var groupColumns = new List<KanbanGroupColumnResponse>(groups.Count);
         foreach (var group in groups)
         {
-            var hasOverlap = group.GuideUserId != Guid.Empty &&
+            var hasOverlap = group.GuideUserId is Guid guideUserId && guideUserId != Guid.Empty &&
                              await unitOfWork.TripGroups.HasOverlappingGuideAssignmentAsync(
-                                 group.GuideUserId,
+                                 guideUserId,
                                  trip.TripId,
                                  trip.StartAt,
                                  trip.EndAt,

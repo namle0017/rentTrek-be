@@ -33,10 +33,7 @@ public interface ITripGroupRepository : IGenericRepository<TripGroup>
 
     Task<IReadOnlyList<TripGroup>> GetGuideGroupsAsync(Guid guideUserId, CancellationToken cancellationToken = default);
     Task<TripGroup?> GetGuideGroupByIdAsync(Guid groupId, Guid guideUserId, CancellationToken cancellationToken = default);
-/// Định nghĩa truy cập dữ liệu cho nhóm đoàn (TripGroup), bảng Kanban chia nhóm và phân công Hướng dẫn viên.
-/// </summary>
-public interface ITripGroupRepository : IGenericRepository<TripGroup>
-{
+
     Task<Trip?> GetTripAsync(Guid tripId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TripGroup>> GetGroupsWithDetailsByTripAsync(Guid tripId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TripGroup>> GetGroupsForUpdateByTripAsync(Guid tripId, CancellationToken cancellationToken = default);
@@ -47,12 +44,6 @@ public interface ITripGroupRepository : IGenericRepository<TripGroup>
         Guid? excludeGroupId = null,
         CancellationToken cancellationToken = default);
     Task<Account?> GetGuideWithRoleAndProfileAsync(Guid guideUserId, CancellationToken cancellationToken = default);
-    Task<bool> HasOverlappingGuideAssignmentAsync(
-        Guid guideUserId,
-        Guid currentTripId,
-        DateTimeOffset startAt,
-        DateTimeOffset endAt,
-        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BookingParticipant>> GetActiveParticipantsWithOrderByTripAsync(
         Guid tripId,
         CancellationToken cancellationToken = default);

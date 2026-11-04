@@ -35,8 +35,12 @@ public static class DependencyInjection
         services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
-        services.Configure<RefundSettings>(options =>
-            options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty);
+        services.AddOptions<RefundSettings>()
+            .Bind(configuration.GetSection("Refund"))
+            .Configure(options => options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty)
+            .Validate(options => options.HasValidEncryptionKey(), "RefundDataEncryptionKey phải là chuỗi Base64 của 32 byte")
+            .Validate(options => options.PayoutRetentionDays is >= 1 and <= 3650, "Refund:PayoutRetentionDays phải từ 1 đến 3650")
+            .ValidateOnStart();
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
@@ -51,7 +55,6 @@ public static class DependencyInjection
         services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, FileStorageService>();
-        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();

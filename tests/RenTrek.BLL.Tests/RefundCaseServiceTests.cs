@@ -224,11 +224,33 @@ public sealed class RefundCaseServiceTests
         var refund = fixture.Seed(RefundCaseStatuses.Approved);
         fixture.ActAs(fixture.Admin);
 
-        var result = await fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 1 });
+        var result = await fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest
+        {
+            ProviderTransactionId = $"BANK-{collected}",
+            ExpectedRowVersion = 1
+        });
 
         Assert.Equal(RefundCaseStatuses.Completed, result.Status);
         Assert.Equal(PaymentStatuses.Succeeded, refund.RefundPayment.Status);
         Assert.Equal(expectedStatus, refund.Order.PaymentStatus);
+        Assert.True(fixture.PaymentOrderLockAcquired);
+        Assert.True(fixture.Repository.OrderReloaded);
+    }
+
+    [Fact]
+    public async Task Complete_OrderNeedsReconciliationIsRejected()
+    {
+        var fixture = new Fixture();
+        var refund = fixture.Seed(RefundCaseStatuses.Approved);
+        refund.Order.PaymentStatus = OrderPaymentStatuses.NeedsReconciliation;
+        fixture.ActAs(fixture.Admin);
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CompleteAsync(
+            refund.RefundCaseId,
+            new CompleteRefundRequest { ProviderTransactionId = "BANK-RECON", ExpectedRowVersion = 1 }));
+
+        Assert.Equal(ErrorCodes.OrderNotReconcilable, error.ErrorCode);
+        Assert.Equal(RefundCaseStatuses.Approved, refund.Status);
     }
 
     [Fact]
@@ -243,6 +265,18 @@ public sealed class RefundCaseServiceTests
 
         Assert.Equal(ErrorCodes.RefundCaseNotCompletable, error.ErrorCode);
         Assert.Equal(OrderPaymentStatuses.Paid, refund.Order.PaymentStatus);
+    }
+
+    [Fact]
+    public async Task Complete_WithoutTransactionIdIsRejected()
+    {
+        var fixture = new Fixture();
+        var refund = fixture.Seed(RefundCaseStatuses.Approved);
+        fixture.ActAs(fixture.Admin);
+
+        await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.CompleteAsync(
+            refund.RefundCaseId,
+            new CompleteRefundRequest { ExpectedRowVersion = 1 }));
     }
 
     [Fact]
@@ -388,6 +422,36 @@ public sealed class RefundCaseServiceTests
         Assert.NotNull(result.RefundCase);
     }
 
+    [Fact]
+    public async Task Cancel_UnsupportedPaidStateIsRejected()
+    {
+        var fixture = new BookingFixture(refundAmount: 1_600_000m);
+        fixture.Order.Status = OrderStatuses.InFulfillment;
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CancelAsync(
+            fixture.Order.OrderId,
+            new CancelTripBookingRequest { ExpectedRefundAmount = 1_600_000m }));
+
+        Assert.Equal(ErrorCodes.OrderNotCancellable, error.ErrorCode);
+        Assert.False(fixture.CaseOpened);
+    }
+
+    [Fact]
+    public async Task Cancel_UnpaidBooking_CancelsPendingCollection()
+    {
+        var fixture = new BookingFixture(refundAmount: 0m);
+        fixture.Order.Status = OrderStatuses.PendingPayment;
+        fixture.Order.PaymentStatus = OrderPaymentStatuses.Unpaid;
+        fixture.PendingCollection = new Payment { Status = PaymentStatuses.Pending };
+
+        var result = await fixture.Service.CancelAsync(fixture.Order.OrderId);
+
+        Assert.Equal(OrderStatuses.Cancelled, result.Status);
+        Assert.Equal(PaymentStatuses.Cancelled, fixture.PendingCollection.Status);
+        Assert.Equal(Now, fixture.PendingCollection.ProcessedAt);
+        Assert.False(fixture.CaseOpened);
+    }
+
     private sealed class FixedTime : TimeProvider
     {
         public DateTimeOffset Current { get; set; } = Now;
@@ -400,7 +464,7 @@ public sealed class RefundCaseServiceTests
 
         public Fixture()
         {
-            Repository = new FakeRefundCaseRepository(Time);
+            Repository = new FakeRefundCaseRepository();
             Protector = new RefundDataProtector(Microsoft.Extensions.Options.Options.Create(new RefundSettings
             {
                 DataEncryptionKey = Convert.ToBase64String(new byte[32])
@@ -422,6 +486,11 @@ public sealed class RefundCaseServiceTests
                         Payments.Add((Payment)args[0]!);
                         return Task.CompletedTask;
                     }),
+                    ("AcquireOrderLockAsync", _ =>
+                    {
+                        PaymentOrderLockAcquired = true;
+                        return Task.CompletedTask;
+                    }),
                     ("ProviderTransactionExistsAsync", _ => Task.FromResult(false)))),
                 ("get_Accounts", _ => TestProxy.Create<IAccountRepository>(
                     ("GetByIdWithRoleAsync", _ => Task.FromResult<Account?>(new Account
@@ -430,6 +499,8 @@ public sealed class RefundCaseServiceTests
                         FullName = "Admin",
                         EmailConfirmedAt = DateTime.UtcNow
                     })))),
+                ("BeginTransactionAsync", _ => Task.CompletedTask),
+                ("RollbackAsync", _ => Task.CompletedTask),
                 ("CommitAsync", _ =>
                 {
                     Commits++;
@@ -468,6 +539,7 @@ public sealed class RefundCaseServiceTests
         public List<AuditLog> AuditLogs { get; } = [];
         public List<Payment> Payments { get; } = [];
         public decimal Collected { get; set; } = 2_000_000m;
+        public bool PaymentOrderLockAcquired { get; private set; }
         public int Commits { get; private set; }
         public string LastCode { get; private set; } = string.Empty;
 
@@ -532,6 +604,9 @@ public sealed class RefundCaseServiceTests
             var unitOfWork = TestProxy.Create<IUnitOfWork>(
                 ("get_TripBookings", _ => TestProxy.Create<ITripBookingRepository>(
                     ("GetOwnedBookingAsync", _ => Task.FromResult<Order?>(Order)))),
+                ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(
+                    ("AcquireOrderLockAsync", _ => Task.CompletedTask),
+                    ("GetLatestPendingCollectionAsync", _ => Task.FromResult(PendingCollection)))),
                 ("get_TripGroups", _ => TestProxy.Create<ITripGroupRepository>()),
                 ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>()),
                 ("SaveChangesAsync", _ => Task.FromResult(1)));
@@ -553,17 +628,29 @@ public sealed class RefundCaseServiceTests
         }
 
         public Order Order { get; }
+        public Payment? PendingCollection { get; set; }
         public TripBookingService Service { get; }
         public bool CaseOpened { get; private set; }
     }
 
-    private sealed class FakeRefundCaseRepository(TimeProvider time) : IRefundCaseRepository
+    private sealed class FakeRefundCaseRepository : IRefundCaseRepository
     {
         public List<RefundCase> Cases { get; } = [];
         public List<RefundActionChallenge> Challenges { get; } = [];
         public RefundPolicy? Policy { get; set; }
 
         private RefundCase? Find(Guid id) => Cases.SingleOrDefault(x => x.RefundCaseId == id);
+
+        public Task AcquireChallengeLockAsync(Guid adminUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public bool OrderReloaded { get; private set; }
+
+        public Task ReloadOrderAsync(Order order, CancellationToken cancellationToken = default)
+        {
+            OrderReloaded = true;
+            return Task.CompletedTask;
+        }
 
         public Task AddAsync(RefundCase refundCase, CancellationToken cancellationToken = default)
         {

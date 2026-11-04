@@ -502,6 +502,8 @@ public sealed class TripOperationsAndGuideServicesTests
 
     private sealed class TestUnitOfWork : IUnitOfWork
     {
+        IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
+
         public FakeRecurrenceRuleRepo RecurrenceRepo { get; } = new();
         public FakeTripRepo TripRepo { get; } = new();
         public FakeTripGroupRepo GroupRepo { get; } = new();
@@ -608,6 +610,8 @@ public sealed class TripOperationsAndGuideServicesTests
 
     private sealed class FakeTripRepo : BaseFakeGenericRepo<Trip>, ITripRepository
     {
+        Task<Trip?> ITripRepository.GetTripWithTourAndRequirementsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Trip? Trip { get; set; }
         public int SoldSlots { get; set; }
         public List<Trip> AddedTrips { get; } = [];
@@ -665,6 +669,22 @@ public sealed class TripOperationsAndGuideServicesTests
 
     private sealed class FakeTripGroupRepo : BaseFakeGenericRepo<TripGroup>, ITripGroupRepository
     {
+        Task ITripGroupRepository.AcquireGuideLockAsync(Guid guideUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripGroupRepository.AcquireRecurrenceRuleLockAsync(Guid recurrenceRuleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripGroupRepository.AcquireTripLockAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Account?> ITripGroupRepository.GetAccountWithRoleAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TourRecurrenceRule>> ITripGroupRepository.GetActiveRecurrenceRulesAsync(Guid? tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Guid?> ITripGroupRepository.GetActiveTourRefundPolicyIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<Guid>> ITripGroupRepository.GetAdminAccountIdsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Guid?> ITripGroupRepository.GetBookingTripIdAsync(Guid orderId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Order?> ITripGroupRepository.GetBookingWithOrderAsync(Guid orderId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Guid?> ITripGroupRepository.GetDefaultManagerUserIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripGroup?> ITripGroupRepository.GetGuideGroupByIdAsync(Guid groupId, Guid guideUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGuideGroupsAsync(Guid guideUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TourRecurrenceRule>> ITripGroupRepository.GetRecurrenceRulesByTourAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Tour?> ITripGroupRepository.GetTourForWriteAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripGroupRepository.GetTripWorkspaceGraphAsync(Guid tripId, bool asTracking, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Trip? Trip { get; set; }
         public TripBookingOrder? Booking { get; set; }
         public List<TripGroup> Groups { get; } = [];

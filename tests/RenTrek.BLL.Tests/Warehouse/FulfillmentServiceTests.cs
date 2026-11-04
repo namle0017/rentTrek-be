@@ -27,6 +27,10 @@ public class FulfillmentServiceTests
 
     private class FakeRentalOrderRepo : FakeGenericRepo<RentalOrder>, IRentalOrderRepository
     {
+        Task IRentalOrderRepository.AcquireFulfillmentLockAsync(Guid orderId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<RentalOrderDetailRow?> IRentalOrderRepository.GetDetailAsync(Guid orderId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Order?> IRentalOrderRepository.GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public RentalOrder? ReturnOrder { get; set; }
         public Task<RentalOrder?> GetByOrderCodeWithFulfillmentAsync(string orderCode, CancellationToken cancellationToken = default)
             => Task.FromResult(ReturnOrder);
@@ -79,6 +83,8 @@ public class FulfillmentServiceTests
 
     private class FakeFulfillmentUow : IUnitOfWork
     {
+        IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
+
         public FakeRentalOrderRepo RentalOrdersRepo { get; } = new();
         public FakeRentalChargeRepo RentalChargesRepo { get; } = new();
         public FakeAssetRepo EquipmentAssetsRepo { get; } = new();

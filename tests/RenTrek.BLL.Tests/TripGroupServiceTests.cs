@@ -1233,7 +1233,9 @@ public sealed class TripGroupServiceTests
         public IOrderRepository Orders => throw new NotSupportedException();
         public IParticipantPostReadRepository ParticipantPostReads => throw new NotSupportedException();
         public IPasswordResetTokenRepository PasswordResetTokens => throw new NotSupportedException();
-        public IPaymentRepository Payments => throw new NotSupportedException();
+        public IPaymentRepository Payments { get; } = TestProxy.Create<IPaymentRepository>(
+            ("AcquireOrderLockAsync", _ => Task.CompletedTask),
+            ("GetLatestPendingCollectionAsync", _ => Task.FromResult<Payment?>(null)));
         public IPostRepository Posts => throw new NotSupportedException();
         public IPostSoftSkillRepository PostSoftSkills => throw new NotSupportedException();
         public IPostTagRepository PostTags => throw new NotSupportedException();
@@ -1309,6 +1311,39 @@ public sealed class TripGroupServiceTests
         SharedStore store,
         Func<string, CancellationToken, Task> lockAcquirer) : ITripGroupRepository
     {
+        Task<IReadOnlyList<BookingParticipant>> ITripGroupRepository.GetActiveParticipantsForUpdateByTripAsync(
+                Guid tripId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<BookingParticipant>> ITripGroupRepository.GetActiveParticipantsWithOrderByTripAsync(
+                Guid tripId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripBookingOrder?> ITripGroupRepository.GetBookingOrderForUpdateAsync(
+                Guid tripId,
+                Guid bookingId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripGroup?> ITripGroupRepository.GetGroupForUpdateAsync(Guid tripId, Guid groupId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<int> ITripGroupRepository.GetGroupParticipantCountAsync(Guid groupId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGroupsForUpdateByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGroupsWithDetailsByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGuideAssignedGroupsWithTripAndLocationAsync(
+                Guid guideUserId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripGroup?> ITripGroupRepository.GetGuideGroupForTripAsync(
+                Guid tripId,
+                Guid guideUserId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Account?> ITripGroupRepository.GetGuideWithRoleAndProfileAsync(Guid guideUserId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<BookingParticipant?> ITripGroupRepository.GetParticipantForUpdateAsync(
+                Guid tripId,
+                Guid participantId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripGroupRepository.GetTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<bool> ITripGroupRepository.GroupNameExistsInTripAsync(
+                Guid tripId,
+                string groupName,
+                Guid? excludeGroupId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task AcquireTripLockAsync(Guid tripId, CancellationToken cancellationToken = default)
             => lockAcquirer($"trip-group:trip:{tripId:N}", cancellationToken);
 
@@ -1558,6 +1593,52 @@ public sealed class TripGroupServiceTests
         : ITourRecurrenceRuleRepository, ITripRepository
         where TEntity : class
     {
+        Task<IReadOnlyList<TourRecurrenceRule>> ITourRecurrenceRuleRepository.GetByTourIdAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<RefundPolicy?> ITourRecurrenceRuleRepository.GetDefaultOrSpecificRefundPolicyAsync(
+                Guid? refundPolicyId,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TourRecurrenceRule?> ITourRecurrenceRuleRepository.GetRuleForUpdateAsync(Guid ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TourRecurrenceRule?> ITourRecurrenceRuleRepository.GetRuleWithTourAsync(Guid ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Tour?> ITourRecurrenceRuleRepository.GetTourByIdAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<Trip>> ITourRecurrenceRuleRepository.GetTripsByTourAndRangeAsync(
+                Guid tourId,
+                DateTimeOffset fromUtc,
+                DateTimeOffset toUtc,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripRepository.AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripRepository.AddPaymentsAsync(IEnumerable<Payment> payments, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripRepository.AddTripProvidedItemsAsync(IEnumerable<TripProvidedItem> items, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Account?> ITripRepository.GetAccountByIdAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<BookingParticipant>> ITripRepository.GetActiveParticipantsByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<RefundPolicy?> ITripRepository.GetActiveRefundPolicyAsync(Guid refundPolicyId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripRepository.GetActiveTripGroupsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripRepository.GetActiveTripGroupsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripRepository.GetAdminTripDetailAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<(IReadOnlyList<Trip> Items, int TotalCount)> ITripRepository.GetPagedAdminTripsAsync(
+                Guid? tourId,
+                string? status,
+                DateTimeOffset? fromStartAt,
+                DateTimeOffset? toStartAt,
+                Guid? managedByUserId,
+                int pageNumber,
+                int pageSize,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Dictionary<Guid, int>> ITripRepository.GetSoldSlotsByTripIdsAsync(
+                IReadOnlyCollection<Guid> tripIds,
+                DateTimeOffset utcNow,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<int> ITripRepository.GetSoldSlotsCountAsync(Guid tripId, DateTimeOffset utcNow, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<Payment>> ITripRepository.GetSucceededPaymentsByOrderIdsAsync(
+                IReadOnlyCollection<Guid> orderIds,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Tour?> ITripRepository.GetTourWithProvidedItemsAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripBookingOrder>> ITripRepository.GetTripBookingsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripBookingOrder>> ITripRepository.GetTripBookingsWithDetailsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripRepository.GetTripForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripProvidedItem>> ITripRepository.GetTripProvidedItemsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripProvidedItem>> ITripRepository.GetTripProvidedItemsWithAssetsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripRepository.GetTripWithTourAndRequirementsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         Task<TourRecurrenceRule?> IGenericRepository<TourRecurrenceRule>.GetByIdAsync(object id, CancellationToken cancellationToken) => throw new NotSupportedException();
         IQueryable<TourRecurrenceRule> IGenericRepository<TourRecurrenceRule>.Query() => ((List<TourRecurrenceRule>)(object)list).AsQueryable();
         IQueryable<TourRecurrenceRule> IGenericRepository<TourRecurrenceRule>.QueryTracking() => ((List<TourRecurrenceRule>)(object)list).AsQueryable();
@@ -1597,6 +1678,10 @@ public sealed class TripGroupServiceTests
 
     private sealed class FakeTripProvidedItemRepository(List<TripProvidedItem> items) : ITripProvidedItemRepository
     {
+        Task<List<EquipmentAsset>> ITripProvidedItemRepository.GetAvailableAssetsForItemAsync(Guid productVariantId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripProvidedItem?> ITripProvidedItemRepository.GetByIdWithDetailsAsync(Guid tripId, Guid itemId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<List<TripProvidedItem>> ITripProvidedItemRepository.GetByTripIdWithDetailsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task AddAsync(TripProvidedItem entity, CancellationToken cancellationToken = default)
         {
             items.Add(entity);

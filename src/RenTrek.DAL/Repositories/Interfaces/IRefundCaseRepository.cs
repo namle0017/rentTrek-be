@@ -4,6 +4,7 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IRefundCaseRepository
 {
+    Task AcquireChallengeLockAsync(Guid adminUserId, CancellationToken cancellationToken = default);
     Task AddAsync(RefundCase refundCase, CancellationToken cancellationToken = default);
 
     /// <summary>Hồ sơ kèm Order, Payment, người liên quan (chỉ đọc).</summary>
@@ -11,6 +12,9 @@ public interface IRefundCaseRepository
 
     /// <summary>Khoá advisory theo hồ sơ rồi lấy bản có tracking. BẮT BUỘC gọi trong transaction đã mở.</summary>
     Task<RefundCase?> GetForUpdateAsync(Guid refundCaseId, CancellationToken cancellationToken = default);
+
+    /// <summary>Tải lại Order sau khi đã lấy advisory lock chung với webhook.</summary>
+    Task ReloadOrderAsync(Order order, CancellationToken cancellationToken = default);
 
     Task<RefundCase?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
 

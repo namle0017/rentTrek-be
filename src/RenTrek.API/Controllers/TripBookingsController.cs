@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
@@ -37,6 +38,24 @@ public sealed class TripBookingsController(
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Lấy booking thành công"));
     }
 
+    [HttpGet("{orderId:guid}/cancellation-preview")]
+    public async Task<IActionResult> GetCancellationPreview(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.GetCancellationPreviewAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<CancellationPreviewResponse>.Ok(result, "Lấy thông tin hủy booking thành công"));
+    }
+
+    [HttpPost("{orderId:guid}/cancel")]
+    [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
+    public async Task<IActionResult> Cancel(
+        Guid orderId,
+        [FromBody] CancelTripBookingRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.CancelAsync(orderId, request, cancellationToken);
+        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Hủy booking thành công"));
+    }
+
     [HttpPut("{orderId:guid}/participants/{participantId:guid}")]
     public async Task<IActionResult> UpdateParticipant(
         Guid orderId,
@@ -46,23 +65,6 @@ public sealed class TripBookingsController(
     {
         var result = await tripBookingService.UpdateParticipantAsync(orderId, participantId, request, cancellationToken);
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Cập nhật thông tin người tham gia thành công"));
-    }
-
-    [HttpGet("{orderId:guid}/cancellation-preview")]
-    public async Task<IActionResult> GetCancellationPreview(Guid orderId, CancellationToken cancellationToken)
-    {
-        var result = await tripBookingService.GetCancellationPreviewAsync(orderId, cancellationToken);
-        return Ok(ApiResponse<CancellationPreviewResponse>.Ok(result, "Lấy thông tin hủy booking thành công"));
-    }
-
-    [HttpPost("{orderId:guid}/cancel")]
-    public async Task<IActionResult> Cancel(
-        Guid orderId,
-        [FromBody] CancelTripBookingRequest? request,
-        CancellationToken cancellationToken)
-    {
-        var result = await tripBookingService.CancelAsync(orderId, request, cancellationToken);
-        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Hủy booking chuyến đi thành công"));
     }
 
     [HttpGet("{orderId:guid}/grouping")]

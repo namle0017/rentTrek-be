@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS public.refund_cases (
     dispute_reason varchar(1000),
     completed_at timestamptz,
     completion_method varchar(40),
+    approved_at timestamptz,
     sensitive_data_purged_at timestamptz,
     rejection_reason varchar(1000),
     row_version integer NOT NULL DEFAULT 1 CHECK (row_version >= 1),
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.refund_cases (
 -- Một Order chỉ có một hồ sơ chưa ở trạng thái cuối
 CREATE UNIQUE INDEX IF NOT EXISTS ux_refund_cases_open_order
     ON public.refund_cases (order_id)
-    WHERE NOT is_deleted AND status NOT IN ('Completed', 'Rejected', 'Cancelled');
+    WHERE NOT is_deleted AND status NOT IN ('Completed', 'Rejected', 'Failed', 'Cancelled');
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_refund_cases_provider_transaction
     ON public.refund_cases (provider_transaction_id)

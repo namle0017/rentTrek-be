@@ -25,6 +25,7 @@ public sealed class RefundVerificationService(
         Guid adminUserId,
         CancellationToken cancellationToken = default)
     {
+        await unitOfWork.RefundCases.AcquireChallengeLockAsync(adminUserId, cancellationToken);
         var utcNow = timeProvider.GetUtcNow();
         var issued = await unitOfWork.RefundCases.CountChallengesSinceAsync(
             adminUserId,
@@ -55,6 +56,7 @@ public sealed class RefundVerificationService(
         string code,
         CancellationToken cancellationToken = default)
     {
+        await unitOfWork.RefundCases.AcquireChallengeLockAsync(adminUserId, cancellationToken);
         var challenge = await unitOfWork.RefundCases.GetChallengeAsync(challengeId, cancellationToken);
         if (challenge is null ||
             challenge.AdminUserId != adminUserId ||

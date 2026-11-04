@@ -199,11 +199,8 @@ public sealed partial class PaymentService(
                     Purpose = payment.Purpose
                 }, cancellationToken);
 
-                if (order.Status == OrderStatuses.PendingPayment)
-                {
-                    order.PaymentStatus = OrderPaymentStatuses.NeedsReconciliation;
-                    order.UpdatedAt = now;
-                }
+                order.PaymentStatus = OrderPaymentStatuses.NeedsReconciliation;
+                order.UpdatedAt = now;
 
                 logger.LogWarning(
                     "SePay giao dịch {TransactionId} ({Amount}) cho đơn {OrderCode} cần đối soát",
