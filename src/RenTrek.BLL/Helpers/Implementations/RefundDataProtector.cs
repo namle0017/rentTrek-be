@@ -22,22 +22,38 @@ public sealed class RefundDataProtector(IOptions<RefundSettings> options) : IRef
         var ciphertext = new byte[plaintext.Length];
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var tag = new byte[TagSize];
+        var key = Key();
 
-        using var aes = new AesGcm(Key(), TagSize);
-        aes.Encrypt(nonce, plaintext, ciphertext, tag, Aad(refundCaseId, orderId));
-        CryptographicOperations.ZeroMemory(plaintext);
-        return new ProtectedRefundPayload(ciphertext, nonce, tag);
+        try
+        {
+            using var aes = new AesGcm(key, TagSize);
+            aes.Encrypt(nonce, plaintext, ciphertext, tag, Aad(refundCaseId, orderId));
+            return new ProtectedRefundPayload(ciphertext, nonce, tag);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+            CryptographicOperations.ZeroMemory(key);
+        }
     }
 
     public RefundPayoutDetails Unprotect(ProtectedRefundPayload payload, Guid refundCaseId, Guid orderId)
     {
         var plaintext = new byte[payload.Ciphertext.Length];
-        using var aes = new AesGcm(Key(), TagSize);
-        aes.Decrypt(payload.Nonce, payload.Ciphertext, payload.Tag, plaintext, Aad(refundCaseId, orderId));
+        var key = Key();
 
-        var details = JsonSerializer.Deserialize<RefundPayoutDetails>(plaintext);
-        CryptographicOperations.ZeroMemory(plaintext);
-        return details ?? throw new CryptographicException("Payload hoàn tiền không hợp lệ");
+        try
+        {
+            using var aes = new AesGcm(key, TagSize);
+            aes.Decrypt(payload.Nonce, payload.Ciphertext, payload.Tag, plaintext, Aad(refundCaseId, orderId));
+            return JsonSerializer.Deserialize<RefundPayoutDetails>(plaintext)
+                ?? throw new CryptographicException("Payload hoàn tiền không hợp lệ");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+            CryptographicOperations.ZeroMemory(key);
+        }
     }
 
     private static byte[] Aad(Guid refundCaseId, Guid orderId)
@@ -50,6 +66,7 @@ public sealed class RefundDataProtector(IOptions<RefundSettings> options) : IRef
             var key = Convert.FromBase64String(options.Value.DataEncryptionKey);
             if (key.Length == KeySize)
                 return key;
+            CryptographicOperations.ZeroMemory(key);
         }
         catch (FormatException)
         {

@@ -126,7 +126,8 @@ public sealed class AuthServiceTests
                 Password = "app-password",
                 FrontendBaseUrl = "http://localhost:5173"
             }),
-            NullLogger<AuthService>.Instance);
+            NullLogger<AuthService>.Instance,
+            new EmailService(NullLogger<EmailService>.Instance));
         return new Fixture(service, accounts, tripBookings, tokenHelper, emailSender);
     }
 

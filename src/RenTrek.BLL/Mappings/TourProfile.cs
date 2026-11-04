@@ -71,7 +71,6 @@ public class TourProfile : AutoMapper.Profile
                     PostType = tp.Post.PostType,
                     PublishedAt = tp.Post.PublishedAt
                 })));
-                .OrderBy(t => t.StartAt)));
     }
 
     private static string GetSlotStatusText(Tour tour)

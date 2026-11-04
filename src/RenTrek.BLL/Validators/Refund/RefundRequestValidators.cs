@@ -23,6 +23,7 @@ public class CompleteRefundRequestValidator : AbstractValidator<CompleteRefundRe
     public CompleteRefundRequestValidator()
     {
         RuleFor(x => x.ProviderTransactionId)
+            .NotEmpty().WithMessage("Cần nhập mã giao dịch ngân hàng")
             .MaximumLength(255).WithMessage("Mã giao dịch không vượt quá 255 ký tự");
     }
 }

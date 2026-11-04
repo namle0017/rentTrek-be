@@ -31,15 +31,6 @@ public class ValidationException : AppException
     {
         Errors = new Dictionary<string, string[]>
         {
-            { propertyName, new[] { errorMessage } }
-        };
-    }
-
-    public ValidationException(string errorMessage)
-        : base(errorMessage, 400)
-    {
-        Errors = new Dictionary<string, string[]>
-        {
             ["general"] = [errorMessage]
         };
     }

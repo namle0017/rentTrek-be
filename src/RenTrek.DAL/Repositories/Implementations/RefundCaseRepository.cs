@@ -10,6 +10,9 @@ namespace RenTrek.DAL.Repositories.Implementations;
 /// </summary>
 public sealed class RefundCaseRepository(AppDbContext context) : IRefundCaseRepository
 {
+    public Task AcquireChallengeLockAsync(Guid adminUserId, CancellationToken cancellationToken = default)
+        => PostgresAdvisoryLock.AcquireAsync(context, $"refund-otp:{adminUserId:N}", cancellationToken);
+
     public Task AddAsync(RefundCase refundCase, CancellationToken cancellationToken = default)
         => context.RefundCases.AddAsync(refundCase, cancellationToken).AsTask();
 
@@ -21,6 +24,9 @@ public sealed class RefundCaseRepository(AppDbContext context) : IRefundCaseRepo
         await PostgresAdvisoryLock.AcquireAsync(context, $"refund-case:{refundCaseId:N}", cancellationToken);
         return await Graph().SingleOrDefaultAsync(x => x.RefundCaseId == refundCaseId, cancellationToken);
     }
+
+    public Task ReloadOrderAsync(Order order, CancellationToken cancellationToken = default)
+        => context.Entry(order).ReloadAsync(cancellationToken);
 
     public Task<RefundCase?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
         => Graph().AsNoTracking()

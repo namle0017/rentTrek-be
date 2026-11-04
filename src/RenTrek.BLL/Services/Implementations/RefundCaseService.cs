@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Refund.Internal;
@@ -9,6 +10,7 @@ using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
+using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
@@ -25,7 +27,8 @@ public sealed class RefundCaseService(
     IRefundDataProtector dataProtector,
     IRefundVerificationService verificationService,
     IEmailSender emailSender,
-    ILogger<RefundCaseService> logger) : IRefundCaseService
+    ILogger<RefundCaseService> logger,
+    IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService
 {
     private const string PaymentTypeRefund = "Refund";
     private const string PaymentMethodBankTransfer = "BankTransfer";
@@ -34,8 +37,8 @@ public sealed class RefundCaseService(
     private const string EntityType = "RefundCase";
     private const int MaxPageSize = 100;
 
-    private static readonly TimeSpan PayoutRetention = TimeSpan.FromDays(30);
     private static readonly string[] AdminOnly = [RoleNames.Admin];
+    private TimeSpan PayoutRetention => TimeSpan.FromDays(refundOptions?.Value.PayoutRetentionDays ?? 30);
 
     public async Task<RefundQuoteResult> QuoteAsync(Order order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
@@ -141,8 +144,20 @@ public sealed class RefundCaseService(
         if (admin.EmailConfirmedAt is null)
             throw new ForbiddenException("Email của Admin chưa được xác minh");
 
-        var (challenge, code) = await verificationService.IssueAsync(adminId, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        RefundActionChallenge challenge;
+        string code;
+        try
+        {
+            (challenge, code) = await verificationService.IssueAsync(adminId, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
 
         // Gửi sau khi lưu để lỗi SMTP không làm mất giới hạn số lần gửi
         await emailSender.SendAsync(
@@ -227,10 +242,21 @@ public sealed class RefundCaseService(
                 throw new ConflictException("Hồ sơ chưa được xuất cho kế toán", ErrorCodes.RefundCaseNotCompletable);
             EnsureRowVersion(refund, request.ExpectedRowVersion);
 
-            var transactionId = string.IsNullOrWhiteSpace(request.ProviderTransactionId) ? null : request.ProviderTransactionId.Trim();
-            if (transactionId is not null &&
-                (await unitOfWork.RefundCases.ProviderTransactionUsedAsync(transactionId, cancellationToken) ||
-                 await unitOfWork.Payments.ProviderTransactionExistsAsync(transactionId, cancellationToken)))
+            await unitOfWork.Payments.AcquireOrderLockAsync(refund.OrderId, cancellationToken);
+            await unitOfWork.RefundCases.ReloadOrderAsync(refund.Order, cancellationToken);
+            if (refund.Order.PaymentStatus == OrderPaymentStatuses.NeedsReconciliation)
+            {
+                throw new ConflictException(
+                    "Đơn đang chờ đối soát thanh toán",
+                    ErrorCodes.OrderNotReconcilable);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ProviderTransactionId))
+                throw new BadRequestException("Cần nhập mã giao dịch ngân hàng");
+
+            var transactionId = request.ProviderTransactionId.Trim();
+            if (await unitOfWork.RefundCases.ProviderTransactionUsedAsync(transactionId, cancellationToken) ||
+                await unitOfWork.Payments.ProviderTransactionExistsAsync(transactionId, cancellationToken))
             {
                 throw new ConflictException("Mã giao dịch đã được dùng cho hồ sơ khác", ErrorCodes.RefundTransactionDuplicated);
             }

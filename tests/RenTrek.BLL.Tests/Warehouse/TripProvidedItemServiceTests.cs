@@ -26,6 +26,39 @@ public class TripProvidedItemServiceTests
 
     private class FakeTripRepo : FakeGenericRepo<Trip>, ITripRepository
     {
+        Task ITripRepository.AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripRepository.AddPaymentsAsync(IEnumerable<Payment> payments, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task ITripRepository.AddTripProvidedItemsAsync(IEnumerable<TripProvidedItem> items, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Account?> ITripRepository.GetAccountByIdAsync(Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<BookingParticipant>> ITripRepository.GetActiveParticipantsByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<RefundPolicy?> ITripRepository.GetActiveRefundPolicyAsync(Guid refundPolicyId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripRepository.GetActiveTripGroupsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripRepository.GetActiveTripGroupsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripRepository.GetAdminTripDetailAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<(IReadOnlyList<Trip> Items, int TotalCount)> ITripRepository.GetPagedAdminTripsAsync(
+                Guid? tourId,
+                string? status,
+                DateTimeOffset? fromStartAt,
+                DateTimeOffset? toStartAt,
+                Guid? managedByUserId,
+                int pageNumber,
+                int pageSize,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Dictionary<Guid, int>> ITripRepository.GetSoldSlotsByTripIdsAsync(
+                IReadOnlyCollection<Guid> tripIds,
+                DateTimeOffset utcNow,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<int> ITripRepository.GetSoldSlotsCountAsync(Guid tripId, DateTimeOffset utcNow, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<Payment>> ITripRepository.GetSucceededPaymentsByOrderIdsAsync(
+                IReadOnlyCollection<Guid> orderIds,
+                CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Tour?> ITripRepository.GetTourWithProvidedItemsAsync(Guid tourId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripBookingOrder>> ITripRepository.GetTripBookingsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripBookingOrder>> ITripRepository.GetTripBookingsWithDetailsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<Trip?> ITripRepository.GetTripForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripProvidedItem>> ITripRepository.GetTripProvidedItemsForUpdateAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripProvidedItem>> ITripRepository.GetTripProvidedItemsWithAssetsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Trip? ReturnTrip { get; set; }
         public Task<Trip?> GetTripWithTourAndRequirementsAsync(Guid tripId, CancellationToken cancellationToken = default)
             => Task.FromResult(ReturnTrip);
@@ -64,6 +97,8 @@ public class TripProvidedItemServiceTests
 
     private class FakeUnitOfWork : IUnitOfWork
     {
+        IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
+
         public FakeTripRepo TripsRepo { get; } = new();
         public FakeTripProvidedItemRepo TripProvidedItemsRepo { get; } = new();
         public FakeAssignmentRepo AssetAssignmentsRepo { get; } = new();

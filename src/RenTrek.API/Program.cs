@@ -13,6 +13,7 @@ using RenTrek.API.Middlewares;
 using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;

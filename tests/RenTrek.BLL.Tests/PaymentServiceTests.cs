@@ -186,6 +186,23 @@ public sealed class PaymentServiceTests
         Assert.Empty(fixture.TripGroups.AutoAssignedOrderIds);
     }
 
+    [Fact]
+    public async Task Webhook_FlagsReconciliationWhenPaymentArrivesAfterCancellation()
+    {
+        var fixture = CreateFixture();
+        var transferContent = await CreatePaymentAsync(fixture);
+        fixture.Order.Status = "Cancelled";
+        fixture.Order.PaymentStatus = "Unpaid";
+        fixture.Repository.Payments.Single().Status = "Cancelled";
+
+        await fixture.Service.HandleSePayWebhookAsync($"Apikey {ApiKey}", Webhook(8, transferContent, 1_000_000m));
+
+        Assert.Equal("Cancelled", fixture.Order.Status);
+        Assert.Equal("NeedsReconciliation", fixture.Order.PaymentStatus);
+        Assert.Contains(fixture.Repository.Payments, payment => payment.ProviderTransactionId == "SEPAY:8");
+        Assert.True(fixture.Repository.LockAcquired);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Apikey wrong-key")]

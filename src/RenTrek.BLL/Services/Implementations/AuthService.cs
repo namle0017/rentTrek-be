@@ -40,9 +40,8 @@ public class AuthService : IAuthService
         IInviteTokenHelper inviteTokenHelper,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
-        ILogger<AuthService> logger)
-        IEmailService emailService,
-        IOptions<JwtSettings> jwtOptions)
+        ILogger<AuthService> logger,
+        IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
@@ -275,6 +274,8 @@ public class AuthService : IAuthService
         {
             _logger.LogWarning(ex, "Gửi email xác thực thất bại cho user {UserId}", account.UserId);
         }
+    }
+
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
@@ -520,7 +521,7 @@ public class AuthService : IAuthService
                 Email = account.Email,
                 FullName = account.FullName,
                 Role = account.Role?.RoleName ?? "Customer",
-                EmailConfirmed = account.EmailConfirmedAt is not null
+                EmailConfirmed = account.EmailConfirmedAt is not null,
                 AvatarUrl = account.Profile?.AvatarUrl
             }
         };

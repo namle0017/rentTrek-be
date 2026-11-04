@@ -70,6 +70,8 @@ public class AuthController : ControllerBase
     {
         await _authService.ResendVerificationEmailAsync(_currentUserService.RequiredUserId, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+    }
+
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
