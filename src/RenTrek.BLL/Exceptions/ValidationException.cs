@@ -18,6 +18,15 @@ public class ValidationException : AppException
     }
 
     public ValidationException(string propertyName, string errorMessage)
+        : base("Dữ liệu không hợp lệ", 400)
+    {
+        Errors = new Dictionary<string, string[]>
+        {
+            [propertyName] = [errorMessage]
+        };
+    }
+
+    public ValidationException(string errorMessage)
         : base(errorMessage, 400)
     {
         Errors = new Dictionary<string, string[]>
@@ -26,12 +35,12 @@ public class ValidationException : AppException
         };
     }
 
-    public ValidationException(string message)
-        : base(message, 400)
+    public ValidationException(string errorMessage)
+        : base(errorMessage, 400)
     {
         Errors = new Dictionary<string, string[]>
         {
-            { "general", new[] { message } }
+            ["general"] = [errorMessage]
         };
     }
 }

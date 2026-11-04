@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>8.0-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Keep existing compiler/analyzer warnings visible; do not turn all into errors. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS4014;CA2012;CA2200</WarningsAsErrors>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ErrorLog Condition="'$(CiValidation)' == 'true'">$(MSBuildProjectDirectory)/obj/ci-analysis.sarif,version=2.1</ErrorLog>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SecurityAudit)' == 'true'">
+    <!-- Fail closed on unavailable advisory data, high/critical advisories and audit sources. -->
+    <WarningsAsErrors>$(WarningsAsErrors);NU1900;NU1903;NU1904;NU1905</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

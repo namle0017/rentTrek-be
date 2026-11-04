@@ -49,6 +49,9 @@ public static class DependencyInjection
         // Services
         // Phiên đăng nhập luôn theo giờ thật: tua đồng hồ giả lập không làm hết hạn token
         services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IFileStorageService, FileStorageService>();
+        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
@@ -67,6 +70,11 @@ public static class DependencyInjection
         services.AddScoped<IAssetService, AssetService>();
         services.AddScoped<ITripProvidedItemService, TripProvidedItemService>();
         services.AddScoped<IFulfillmentService, FulfillmentService>();
+        services.AddScoped<IAdminRecurrenceRuleService, AdminRecurrenceRuleService>();
+        services.AddScoped<IAdminTripService, AdminTripService>();
+        services.AddScoped<IAdminTripGroupService, AdminTripGroupService>();
+        services.AddScoped<IAdminTripAttendanceService, AdminTripAttendanceService>();
+        services.AddScoped<IGuidePortalService, GuidePortalService>();
 
         return services;
     }

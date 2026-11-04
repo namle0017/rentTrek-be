@@ -10,4 +10,5 @@ public class UserInfoResponse
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool EmailConfirmed { get; set; }
+    public string? AvatarUrl { get; set; }
 }

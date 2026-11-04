@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IPasswordResetTokenRepository : IGenericRepository<PasswordResetToken>
 {
-    // Query đặc thù của PasswordResetToken khai báo tại đây
+    Task<PasswordResetToken?> GetValidTokenAsync(Guid userId, string tokenHash, CancellationToken cancellationToken = default);
+    Task InvalidateTokensByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 }
