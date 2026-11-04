@@ -26,7 +26,7 @@ public sealed partial class PaymentService(
     IOptions<SePaySettings> sePayOptions,
     IEmailSender emailSender,
     IOptions<EmailSettings> emailOptions,
-    ITripGroupService tripGroupService,
+    ITripGroupingService tripGroupingService,
     ILogger<PaymentService> logger) : IPaymentService
 {
     private const string PaymentTypeCollection = "Collection";
@@ -180,7 +180,7 @@ public sealed partial class PaymentService(
                 if (order.OrderType == OrderTypes.TripBooking)
                 {
                     confirmedTripOrder = await LinkTripParticipantsAsync(order.OrderId, now, cancellationToken);
-                    await tripGroupService.AutoAssignPaidBookingInTransactionAsync(order.OrderId, cancellationToken);
+                    await tripGroupingService.AutoAssignPaidBookingInTransactionAsync(order.OrderId, cancellationToken);
                 }
             }
             else
@@ -245,7 +245,7 @@ public sealed partial class PaymentService(
         var confirmedAccounts = await unitOfWork.TripBookings.GetConfirmedAccountsByEmailsAsync(emails, cancellationToken);
         var userIdsByEmail = confirmedAccounts
             .Where(a => a.EmailConfirmedAt is not null &&
-                        string.Equals(a.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(a.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase) &&
                         !a.IsDeleted)
             .ToDictionary(a => a.Email.Trim().ToLowerInvariant(), a => a.UserId, StringComparer.Ordinal);
 

@@ -25,8 +25,9 @@ public class RentalOrdersController : ControllerBase
     }
 
     [HttpPost("quote")]
+    [ProducesResponseType(typeof(ApiResponse<RentalQuoteResponse>), StatusCodes.Status200OK)]
     [Authorize]
-    public async Task<IActionResult> Quote([FromBody] RentalQuoteRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> QuoteAsync([FromBody] RentalQuoteRequest request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -35,8 +36,9 @@ public class RentalOrdersController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<RentalOrderDetailResponse>), StatusCodes.Status201Created)]
     [Authorize(Roles = RoleNames.Customer)]
-    public async Task<IActionResult> Create(
+    public async Task<IActionResult> CreateAsync(
         [FromBody] CreateRentalOrderRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken cancellationToken)
@@ -50,8 +52,9 @@ public class RentalOrdersController : ControllerBase
     }
 
     [HttpGet("{orderId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<RentalOrderDetailResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Customer)]
-    public async Task<IActionResult> GetById(Guid orderId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 

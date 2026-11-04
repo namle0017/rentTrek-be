@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.Exceptions;
@@ -33,7 +34,7 @@ public sealed class TripGroupServiceTests
         var configuredTour = store.SeedTour(groupMaxParticipants: 8);
         var scope = store.CreateScope(store.AdminUser);
 
-        var unconfiguredEx = await Assert.ThrowsAsync<ConflictException>(() => scope.TripGroups.CreateTripAsync(new CreateTripRequest
+        var unconfiguredEx = await Assert.ThrowsAsync<ConflictException>(() => scope.Trips.CreateTripAsync(new CreateTripRequest
         {
             TourId = unconfiguredTour.Id,
             StartAt = BaseNow.AddDays(10),
@@ -44,7 +45,7 @@ public sealed class TripGroupServiceTests
         }));
         Assert.Equal(ErrorCodes.TripOperationalCapacityInsufficient, unconfiguredEx.ErrorCode);
 
-        var created = await scope.TripGroups.CreateTripAsync(new CreateTripRequest
+        var created = await scope.Trips.CreateTripAsync(new CreateTripRequest
         {
             TourId = configuredTour.Id,
             StartAt = BaseNow.AddDays(10),
@@ -76,7 +77,7 @@ public sealed class TripGroupServiceTests
         var tour = store.SeedTour(groupMaxParticipants: 6);
         var scope = store.CreateScope(store.AdminUser);
 
-        var rule = await scope.TripGroups.CreateRecurrenceRuleAsync(tour.Id, new CreateTourRecurrenceRuleRequest
+        var rule = await scope.Recurrence.CreateRecurrenceRuleAsync(tour.Id, new CreateTourRecurrenceRuleRequest
         {
             Frequency = "Weekly",
             IntervalValue = 1,
@@ -91,7 +92,7 @@ public sealed class TripGroupServiceTests
 
         Assert.Equal(2, rule.DefaultGroupCount);
 
-        var firstRun = await scope.TripGroups.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
+        var firstRun = await scope.Recurrence.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
         {
             TourId = tour.Id
         });
@@ -114,7 +115,7 @@ public sealed class TripGroupServiceTests
         });
 
         // Chạy lại cùng occurrence: không tạo trùng Trip hoặc group
-        var secondRun = await scope.TripGroups.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
+        var secondRun = await scope.Recurrence.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
         {
             TourId = tour.Id
         });
@@ -153,7 +154,7 @@ public sealed class TripGroupServiceTests
         store.RecurrenceRules.Add(legacyRule);
 
         var scope = store.CreateScope(store.AdminUser);
-        var result = await scope.TripGroups.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
+        var result = await scope.Recurrence.GenerateRecurringTripsAsync(new GenerateRecurringTripsRequest
         {
             TourId = tour.Id
         });
@@ -178,7 +179,7 @@ public sealed class TripGroupServiceTests
         var scope = store.CreateScope(store.AdminUser);
 
         // 1 group: Max = 6, Overflow = 2 => sức chứa vận hành = 8 < TotalSlots = 15 => vẫn lưu Draft thành công
-        var draft = await scope.TripGroups.CreateTripAsync(new CreateTripRequest
+        var draft = await scope.Trips.CreateTripAsync(new CreateTripRequest
         {
             TourId = tour.Id,
             StartAt = BaseNow.AddDays(14),
@@ -193,13 +194,13 @@ public sealed class TripGroupServiceTests
         Assert.NotNull(draft.OpenReadinessWarning);
 
         // Chuyển sang Open bị từ chối vì 8 < 15
-        var openEx = await Assert.ThrowsAsync<ConflictException>(() => scope.TripGroups.UpdateTripStatusAsync(
+        var openEx = await Assert.ThrowsAsync<ConflictException>(() => scope.Trips.UpdateTripStatusAsync(
             draft.TripId,
             new UpdateTripStatusRequest { Status = TripStatuses.Open }));
         Assert.Equal(ErrorCodes.TripOperationalCapacityInsufficient, openEx.ErrorCode);
 
         // Khi còn Draft, Admin nâng lên 2 group => (6 + 2) * 2 = 16 >= 15 (sức chứa chuẩn 12 < 15 nhưng gồm overflow 16 >= 15)
-        var updatedDraft = await scope.TripGroups.UpdateTripAsync(draft.TripId, new UpdateTripRequest
+        var updatedDraft = await scope.Trips.UpdateTripAsync(draft.TripId, new UpdateTripRequest
         {
             StartAt = BaseNow.AddDays(14),
             EndAt = BaseNow.AddDays(16),
@@ -212,13 +213,13 @@ public sealed class TripGroupServiceTests
         Assert.Equal(2, updatedDraft.GroupCount);
 
         // Nay chuyển sang Open thành công
-        var opened = await scope.TripGroups.UpdateTripStatusAsync(
+        var opened = await scope.Trips.UpdateTripStatusAsync(
             draft.TripId,
             new UpdateTripStatusRequest { Status = TripStatuses.Open });
         Assert.Equal(TripStatuses.Open, opened.Status);
 
         // Sau khi Open: cả thêm group (3) lẫn xóa group (1) đều bị từ chối với mã TRIP_GROUP_COUNT_LOCKED
-        var addAfterOpenEx = await Assert.ThrowsAsync<ConflictException>(() => scope.TripGroups.UpdateTripAsync(draft.TripId, new UpdateTripRequest
+        var addAfterOpenEx = await Assert.ThrowsAsync<ConflictException>(() => scope.Trips.UpdateTripAsync(draft.TripId, new UpdateTripRequest
         {
             StartAt = BaseNow.AddDays(14),
             EndAt = BaseNow.AddDays(16),
@@ -229,7 +230,7 @@ public sealed class TripGroupServiceTests
         }));
         Assert.Equal(ErrorCodes.TripGroupCountLocked, addAfterOpenEx.ErrorCode);
 
-        var removeAfterOpenEx = await Assert.ThrowsAsync<ConflictException>(() => scope.TripGroups.UpdateTripAsync(draft.TripId, new UpdateTripRequest
+        var removeAfterOpenEx = await Assert.ThrowsAsync<ConflictException>(() => scope.Trips.UpdateTripAsync(draft.TripId, new UpdateTripRequest
         {
             StartAt = BaseNow.AddDays(14),
             EndAt = BaseNow.AddDays(16),
@@ -250,29 +251,29 @@ public sealed class TripGroupServiceTests
         var scope = store.CreateScope(store.StaffUser);
 
         var pendingOrder = store.SeedBooking(trip, store.BuyerUser, seatCount: 2, status: "PendingPayment", paymentStatus: "Unpaid");
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
         Assert.All(pendingOrder.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
 
         pendingOrder.Status = "Confirmed";
         pendingOrder.PaymentStatus = "Unpaid";
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
         Assert.All(pendingOrder.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
 
         pendingOrder.Status = "PendingPayment";
         pendingOrder.PaymentStatus = "Paid";
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
         Assert.All(pendingOrder.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
 
         pendingOrder.Status = "Confirmed";
         pendingOrder.PaymentStatus = "Paid";
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
 
         var assignedGroupId = pendingOrder.TripBookingOrder.Participants.First().TripGroupId;
         Assert.NotNull(assignedGroupId);
         Assert.All(pendingOrder.TripBookingOrder.Participants, p => Assert.Equal(assignedGroupId, p.TripGroupId));
 
         var auditCountBeforeDuplicate = store.AuditLogs.Count(a => a.Action == "AutoAssignBookingToGroup");
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(pendingOrder.OrderId);
         var auditCountAfterDuplicate = store.AuditLogs.Count(a => a.Action == "AutoAssignBookingToGroup");
 
         Assert.Equal(auditCountBeforeDuplicate, auditCountAfterDuplicate);
@@ -298,21 +299,21 @@ public sealed class TripGroupServiceTests
         var scope = store.CreateScope(store.StaffUser);
 
         var booking1 = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(booking1.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(booking1.OrderId);
         Assert.All(booking1.TripBookingOrder.Participants, p => Assert.Equal(expectedFirstTieGroup.TripGroupId, p.TripGroupId));
 
         var booking2 = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 2, status: "Confirmed", paymentStatus: "Paid");
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(booking2.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(booking2.OrderId);
         Assert.All(booking2.TripBookingOrder.Participants, p => Assert.Equal(otherGroup.TripGroupId, p.TripGroupId));
 
         // Booking 3 (4 người): vừa nếu dùng overflow của otherGroup (2 + 4 = 6 <= 5 + 2), NHƯNG không vừa sức chứa chuẩn (6 > 5)!
         var booking3 = store.SeedBooking(trip, store.BuyerUser, seatCount: 4, status: "Confirmed", paymentStatus: "Paid");
-        await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(booking3.OrderId);
+        await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(booking3.OrderId);
 
         Assert.All(booking3.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
         Assert.False(booking3.TripBookingOrder.IsSplit);
 
-        var snapshot = await scope.TripGroups.GetGroupingSnapshotAsync(trip.TripId);
+        var snapshot = await scope.Grouping.GetGroupingSnapshotAsync(trip.TripId);
         var unassigned = Assert.Single(snapshot.UnassignedBookings);
         Assert.Equal(booking3.OrderId, unassigned.BookingOrderId);
         Assert.Equal(4, unassigned.ParticipantCount);
@@ -334,17 +335,17 @@ public sealed class TripGroupServiceTests
         var staffScope = store.CreateScope(store.StaffUser);
 
         var bookingA = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(bookingA.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(bookingA.OrderId);
         var bookingB = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 2, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(bookingB.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(bookingB.OrderId);
         var bookingC = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 1, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(bookingC.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(bookingC.OrderId);
 
         Assert.All(bookingA.TripBookingOrder.Participants, p => Assert.Equal(group1.TripGroupId, p.TripGroupId));
         Assert.All(bookingB.TripBookingOrder.Participants, p => Assert.Equal(group2.TripGroupId, p.TripGroupId));
         Assert.All(bookingC.TripBookingOrder.Participants, p => Assert.Equal(group2.TripGroupId, p.TripGroupId));
 
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, group1.TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, group1.TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide1User.UserId
         });
@@ -371,7 +372,7 @@ public sealed class TripGroupServiceTests
         Assert.All(bookingC.TripBookingOrder.Participants, p => Assert.Equal(group2.TripGroupId, p.TripGroupId));
 
         // 3) Manifest Staff: group1 hiện 0 người tham gia hiệu lực
-        var snapshotAfterCancel = await staffScope.TripGroups.GetGroupingSnapshotAsync(trip.TripId);
+        var snapshotAfterCancel = await staffScope.Grouping.GetGroupingSnapshotAsync(trip.TripId);
         var staffGroup1 = snapshotAfterCancel.Groups.Single(g => g.TripGroupId == group1.TripGroupId);
         Assert.Equal(0, staffGroup1.ParticipantCount);
         Assert.Empty(staffGroup1.Bookings);
@@ -379,32 +380,32 @@ public sealed class TripGroupServiceTests
 
         // 4) Màn Guide (cả /grouping lẫn /guide/trip-groups): group1 rỗng, không lộ participant đơn hủy
         var guideScope = store.CreateScope(store.Guide1User);
-        var guideSnapshot = await guideScope.TripGroups.GetGroupingSnapshotAsync(trip.TripId);
+        var guideSnapshot = await guideScope.Grouping.GetGroupingSnapshotAsync(trip.TripId);
         var guideGroupCard = Assert.Single(guideSnapshot.Groups);
         Assert.Equal(0, guideGroupCard.ParticipantCount);
         Assert.Empty(guideGroupCard.Bookings);
-        var guideGroup1 = await guideScope.TripGroups.GetGuideGroupByIdAsync(group1.TripGroupId);
+        var guideGroup1 = await guideScope.Views.GetGuideGroupByIdAsync(group1.TripGroupId);
         Assert.Equal(0, guideGroup1.CurrentParticipants);
         Assert.Empty(guideGroup1.Participants);
 
         // 5) Booking mới D (4 người) dùng số lượng hiện tại của group1 (0/4) nên xếp vừa trọn vào group1
         var bookingD = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 4, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(bookingD.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(bookingD.OrderId);
         Assert.All(bookingD.TripBookingOrder.Participants, p => Assert.Equal(group1.TripGroupId, p.TripGroupId));
 
         // 6) Kể cả sau khi Published, màn khách của bookingA vẫn không trả participant đã hủy hay của bookingD
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, group2.TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, group2.TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide2User.UserId
         });
-        await staffScope.TripGroups.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
+        await staffScope.Trips.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
         {
             Status = TripStatuses.ClosedForBooking
         });
-        await staffScope.TripGroups.RecalculateProvidedItemsAsync(trip.TripId);
-        await staffScope.TripGroups.PublishGroupsAsync(trip.TripId);
+        await staffScope.Publish.RecalculateProvidedItemsAsync(trip.TripId);
+        await staffScope.Publish.PublishGroupsAsync(trip.TripId);
 
-        var cancelledCustomerGrouping = await buyerAScope.TripGroups.GetCustomerGroupingAsync(bookingA.OrderId);
+        var cancelledCustomerGrouping = await buyerAScope.Views.GetCustomerGroupingAsync(bookingA.OrderId);
         Assert.Empty(cancelledCustomerGrouping.Groups);
     }
 
@@ -426,7 +427,7 @@ public sealed class TripGroupServiceTests
             await scope.UnitOfWork.BeginTransactionAsync();
             try
             {
-                await scope.TripGroups.AutoAssignPaidBookingInTransactionAsync(orderId);
+                await scope.Grouping.AutoAssignPaidBookingInTransactionAsync(orderId);
                 await scope.UnitOfWork.SaveChangesAsync();
                 await scope.UnitOfWork.CommitAsync();
             }
@@ -442,7 +443,7 @@ public sealed class TripGroupServiceTests
             RunWebhookTransactionAsync(booking2.OrderId));
 
         var verifyScope = store.CreateScope(store.StaffUser);
-        var snapshot = await verifyScope.TripGroups.GetGroupingSnapshotAsync(trip.TripId);
+        var snapshot = await verifyScope.Grouping.GetGroupingSnapshotAsync(trip.TripId);
         var groupState = Assert.Single(snapshot.Groups);
 
         Assert.Equal(3, groupState.ParticipantCount);
@@ -465,16 +466,16 @@ public sealed class TripGroupServiceTests
         var staffScope = store.CreateScope(store.StaffUser);
 
         var b1 = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(b1.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(b1.OrderId);
         var b2 = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 4, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(b2.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(b2.OrderId);
 
         var b3 = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(b3.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(b3.OrderId);
         Assert.All(b3.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
 
         // expectedTripRowVersion cũ bị từ chối với CONCURRENCY_CONFLICT
-        var staleEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.MoveBookingAsync(
+        var staleEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.MoveBookingAsync(
             trip.TripId,
             b3.OrderId,
             new MoveBookingGroupRequest
@@ -485,7 +486,7 @@ public sealed class TripGroupServiceTests
         Assert.Equal(ErrorCodes.ConcurrencyConflict, staleEx.ErrorCode);
 
         // Group không thuộc Trip bị từ chối với GROUP_WRONG_TRIP (400)
-        var wrongTripEx = await Assert.ThrowsAsync<BadRequestException>(() => staffScope.TripGroups.MoveBookingAsync(
+        var wrongTripEx = await Assert.ThrowsAsync<BadRequestException>(() => staffScope.Grouping.MoveBookingAsync(
             trip.TripId,
             b3.OrderId,
             new MoveBookingGroupRequest
@@ -495,7 +496,7 @@ public sealed class TripGroupServiceTests
         Assert.Equal(ErrorCodes.GroupWrongTrip, wrongTripEx.ErrorCode);
 
         // 1) Staff chuyển nguyên b3 (3 người) vào group1 (đang 3 người): 3 + 3 = 6 <= 4 + 2 (overflow) => THÀNH CÔNG
-        var afterMove = await staffScope.TripGroups.MoveBookingAsync(trip.TripId, b3.OrderId, new MoveBookingGroupRequest
+        var afterMove = await staffScope.Grouping.MoveBookingAsync(trip.TripId, b3.OrderId, new MoveBookingGroupRequest
         {
             TargetGroupId = group1.TripGroupId,
             ExpectedTripRowVersion = trip.RowVersion,
@@ -508,7 +509,7 @@ public sealed class TripGroupServiceTests
         Assert.Equal(0, movedGroup1.RemainingOverflowSlots);
 
         // 2) Chuyển b3 (3 người) sang group2 (4 + 3 = 7 > 6) => TỪ CHỐI với GROUP_CAPACITY_EXCEEDED
-        var capEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.MoveBookingAsync(
+        var capEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.MoveBookingAsync(
             trip.TripId,
             b3.OrderId,
             new MoveBookingGroupRequest
@@ -522,11 +523,11 @@ public sealed class TripGroupServiceTests
         var sg = splitTrip.TripGroups.OrderBy(g => g.CreatedAt).ThenBy(g => g.TripGroupId).ToList();
         var fill1 = store.SeedBooking(splitTrip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
         var fill2 = store.SeedBooking(splitTrip, store.SecondBuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(fill1.OrderId);
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(fill2.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(fill1.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(fill2.OrderId);
 
         var toSplit = store.SeedBooking(splitTrip, store.BuyerUser, seatCount: 4, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(toSplit.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(toSplit.OrderId);
         var seats = toSplit.TripBookingOrder.Participants.ToList();
         var validAssignments = new List<ParticipantGroupAssignmentRequest>
         {
@@ -535,7 +536,7 @@ public sealed class TripGroupServiceTests
         };
 
         // Thiếu lý do tách => bị từ chối
-        await Assert.ThrowsAsync<BadRequestException>(() => staffScope.TripGroups.SplitBookingAsync(
+        await Assert.ThrowsAsync<BadRequestException>(() => staffScope.Grouping.SplitBookingAsync(
             splitTrip.TripId,
             toSplit.OrderId,
             new SplitTripBookingRequest
@@ -546,7 +547,7 @@ public sealed class TripGroupServiceTests
 
         // Thiếu người duyệt (audit metadata UserId rỗng / không hợp lệ) => bị từ chối
         var anonymousScope = store.CreateScope(account: null);
-        await Assert.ThrowsAsync<BadRequestException>(() => anonymousScope.TripGroups.SplitBookingAsync(
+        await Assert.ThrowsAsync<BadRequestException>(() => anonymousScope.Grouping.SplitBookingAsync(
             splitTrip.TripId,
             toSplit.OrderId,
             new SplitTripBookingRequest
@@ -556,7 +557,7 @@ public sealed class TripGroupServiceTests
             }));
 
         // Đủ lý do và metadata người duyệt => thành công, ghi đầy đủ trường tách và AuditLog
-        var splitSnapshot = await staffScope.TripGroups.SplitBookingAsync(
+        var splitSnapshot = await staffScope.Grouping.SplitBookingAsync(
             splitTrip.TripId,
             toSplit.OrderId,
             new SplitTripBookingRequest
@@ -606,24 +607,24 @@ public sealed class TripGroupServiceTests
         var groupC = tripCNonOverlapping.TripGroups.Single();
         var staffScope = store.CreateScope(store.StaffUser);
 
-        await staffScope.TripGroups.AssignGuideAsync(tripA.TripId, groupsA[0].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(tripA.TripId, groupsA[0].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide1User.UserId
         });
 
-        var sameTripEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.AssignGuideAsync(
+        var sameTripEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.AssignGuideAsync(
             tripA.TripId,
             groupsA[1].TripGroupId,
             new AssignTripGroupGuideRequest { GuideUserId = store.Guide1User.UserId }));
         Assert.Equal(ErrorCodes.GuideScheduleConflict, sameTripEx.ErrorCode);
 
-        var overlapEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.AssignGuideAsync(
+        var overlapEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.AssignGuideAsync(
             tripBOverlapping.TripId,
             groupB.TripGroupId,
             new AssignTripGroupGuideRequest { GuideUserId = store.Guide1User.UserId }));
         Assert.Equal(ErrorCodes.GuideScheduleConflict, overlapEx.ErrorCode);
 
-        var nonOverlapResult = await staffScope.TripGroups.AssignGuideAsync(
+        var nonOverlapResult = await staffScope.Grouping.AssignGuideAsync(
             tripCNonOverlapping.TripId,
             groupC.TripGroupId,
             new AssignTripGroupGuideRequest { GuideUserId = store.Guide1User.UserId });
@@ -643,9 +644,9 @@ public sealed class TripGroupServiceTests
         var staffScope = store.CreateScope(store.StaffUser);
 
         var booking1 = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(booking1.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(booking1.OrderId);
         var booking2 = store.SeedBooking(trip, store.SecondBuyerUser, seatCount: 5, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(booking2.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(booking2.OrderId);
 
         var activeHold = store.SeedBooking(
             trip,
@@ -656,26 +657,26 @@ public sealed class TripGroupServiceTests
             holdExpiresAt: BaseNow.AddMinutes(10));
 
         // Chặn 1: Trip còn Open => TRIP_NOT_CLOSED_FOR_BOOKING
-        var exNotClosed = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.PublishGroupsAsync(trip.TripId));
+        var exNotClosed = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Publish.PublishGroupsAsync(trip.TripId));
         Assert.Equal(ErrorCodes.TripNotClosedForBooking, exNotClosed.ErrorCode);
 
-        await staffScope.TripGroups.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
+        await staffScope.Trips.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
         {
             Status = TripStatuses.ClosedForBooking
         });
 
         // Chặn 2: Còn hold thanh toán hợp lệ => ACTIVE_PAYMENT_HOLDS
-        var exHold = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.PublishGroupsAsync(trip.TripId));
+        var exHold = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Publish.PublishGroupsAsync(trip.TripId));
         Assert.Equal(ErrorCodes.ActivePaymentHolds, exHold.ErrorCode);
 
         activeHold.HoldExpiresAt = BaseNow.AddMinutes(-1);
 
         // Chặn 3: Còn participant của booking2 (Paid) chưa được xếp group => UNASSIGNED_PARTICIPANTS
-        var exUnassigned = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.PublishGroupsAsync(trip.TripId));
+        var exUnassigned = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Publish.PublishGroupsAsync(trip.TripId));
         Assert.Equal(ErrorCodes.UnassignedParticipants, exUnassigned.ErrorCode);
 
         var b2Seats = booking2.TripBookingOrder.Participants.ToList();
-        await staffScope.TripGroups.SplitBookingAsync(trip.TripId, booking2.OrderId, new SplitTripBookingRequest
+        await staffScope.Grouping.SplitBookingAsync(trip.TripId, booking2.OrderId, new SplitTripBookingRequest
         {
             Reason = "Đoàn 5 người vượt sức chứa chuẩn 4",
             Assignments =
@@ -686,14 +687,14 @@ public sealed class TripGroupServiceTests
         });
 
         // Chặn 4: Group có người chưa có guide => GROUP_GUIDE_REQUIRED
-        var exNoGuide = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.PublishGroupsAsync(trip.TripId));
+        var exNoGuide = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Publish.PublishGroupsAsync(trip.TripId));
         Assert.Equal(ErrorCodes.GroupGuideRequired, exNoGuide.ErrorCode);
 
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide1User.UserId
         });
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, groups[1].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, groups[1].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide2User.UserId
         });
@@ -701,10 +702,10 @@ public sealed class TripGroupServiceTests
 
         // Chặn 5: Nhu cầu đồ cấp chưa cập nhật => EQUIPMENT_REQUIREMENTS_STALE
         Assert.True(trip.ProvidedItemsNeedsRecalc);
-        var exProvided = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.PublishGroupsAsync(trip.TripId));
+        var exProvided = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Publish.PublishGroupsAsync(trip.TripId));
         Assert.Equal(ErrorCodes.EquipmentRequirementsStale, exProvided.ErrorCode);
 
-        var recalc = await staffScope.TripGroups.RecalculateProvidedItemsAsync(trip.TripId);
+        var recalc = await staffScope.Publish.RecalculateProvidedItemsAsync(trip.TripId);
         Assert.False(recalc.ProvidedItemsNeedsRecalc);
         Assert.Equal(2, recalc.ActiveGroupCount);
         Assert.Equal(8, recalc.ActiveParticipantCount);
@@ -712,7 +713,7 @@ public sealed class TripGroupServiceTests
         Assert.Equal(8, recalc.ProvidedItems.Single(i => i.QuantityBasis == "PER_PARTICIPANT").RequiredQuantity);
 
         // Chốt thành công, kể cả group[2] rỗng không có guide
-        var published = await staffScope.TripGroups.PublishGroupsAsync(trip.TripId);
+        var published = await staffScope.Publish.PublishGroupsAsync(trip.TripId);
         Assert.Equal(TripGroupStatuses.Published, published.GroupingStatus);
         Assert.All(published.Groups, g => Assert.Equal(TripGroupStatuses.Published, g.Status));
         Assert.Null(published.Groups.Single(g => g.TripGroupId == groups[2].TripGroupId).Guide);
@@ -720,24 +721,24 @@ public sealed class TripGroupServiceTests
         // Sau khi Published:
         // a) Auto-assign không nhận booking mới
         var lateBooking = store.SeedBooking(trip, store.BuyerUser, seatCount: 2, status: "Confirmed", paymentStatus: "Paid");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(lateBooking.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(lateBooking.OrderId);
         Assert.All(lateBooking.TripBookingOrder.Participants, p => Assert.Null(p.TripGroupId));
 
         // b) Chuyển/tách/gán guide bằng API thường bị từ chối với TRIP_GROUPING_LOCKED
-        var moveIntoPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.MoveBookingAsync(
+        var moveIntoPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.MoveBookingAsync(
             trip.TripId,
             lateBooking.OrderId,
             new MoveBookingGroupRequest { TargetGroupId = groups[2].TripGroupId }));
         Assert.Equal(ErrorCodes.TripGroupingLocked, moveIntoPublishedEx.ErrorCode);
 
-        var moveFromPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.MoveBookingAsync(
+        var moveFromPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.MoveBookingAsync(
             trip.TripId,
             booking1.OrderId,
             new MoveBookingGroupRequest { TargetGroupId = groups[2].TripGroupId }));
         Assert.Equal(ErrorCodes.TripGroupingLocked, moveFromPublishedEx.ErrorCode);
 
         var lateSeats = lateBooking.TripBookingOrder.Participants.ToList();
-        var splitIntoPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.TripGroups.SplitBookingAsync(
+        var splitIntoPublishedEx = await Assert.ThrowsAsync<ConflictException>(() => staffScope.Grouping.SplitBookingAsync(
             trip.TripId,
             lateBooking.OrderId,
             new SplitTripBookingRequest
@@ -771,7 +772,7 @@ public sealed class TripGroupServiceTests
             status: "Confirmed",
             paymentStatus: "Paid",
             namePrefix: "Người Lạ");
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(strangerBooking.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(strangerBooking.OrderId);
 
         var buyerBooking = store.SeedBooking(
             trip,
@@ -792,7 +793,7 @@ public sealed class TripGroupServiceTests
 
         buyerSeats[2].FullName = "Bé Con";
 
-        await staffScope.TripGroups.SplitBookingAsync(trip.TripId, buyerBooking.OrderId, new SplitTripBookingRequest
+        await staffScope.Grouping.SplitBookingAsync(trip.TripId, buyerBooking.OrderId, new SplitTripBookingRequest
         {
             Reason = "Ghép đoàn theo sức chứa",
             Assignments =
@@ -802,33 +803,33 @@ public sealed class TripGroupServiceTests
             ]
         });
 
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide1User.UserId
         });
 
         // 1) Guide1 thấy ngay group[0] ở trạng thái Draft (cả qua /grouping lẫn /guide/trip-groups), KHÔNG thấy group[1] ngoài phạm vi
         var guide1Scope = store.CreateScope(store.Guide1User);
-        var guide1Snapshot = await guide1Scope.TripGroups.GetGroupingSnapshotAsync(trip.TripId);
+        var guide1Snapshot = await guide1Scope.Grouping.GetGroupingSnapshotAsync(trip.TripId);
         var onlyVisibleGroup = Assert.Single(guide1Snapshot.Groups);
         Assert.Equal(groups[0].TripGroupId, onlyVisibleGroup.TripGroupId);
         Assert.Equal(TripGroupStatuses.Draft, onlyVisibleGroup.Status);
         Assert.Equal(4, onlyVisibleGroup.ParticipantCount);
         Assert.Empty(guide1Snapshot.UnassignedBookings);
 
-        var guide1List = await guide1Scope.TripGroups.GetGuideGroupsAsync();
+        var guide1List = await guide1Scope.Views.GetGuideGroupsAsync();
         Assert.Single(guide1List);
 
         // 2) Staff đổi guide của group[0] từ Guide1 sang Guide2 => Guide1 mất quyền ngay lập tức!
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, groups[0].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide2User.UserId
         });
-        Assert.Empty(await guide1Scope.TripGroups.GetGuideGroupsAsync());
-        await Assert.ThrowsAsync<NotFoundException>(() => guide1Scope.TripGroups.GetGroupingSnapshotAsync(trip.TripId));
-        await Assert.ThrowsAsync<NotFoundException>(() => guide1Scope.TripGroups.GetGuideGroupByIdAsync(groups[0].TripGroupId));
+        Assert.Empty(await guide1Scope.Views.GetGuideGroupsAsync());
+        await Assert.ThrowsAsync<NotFoundException>(() => guide1Scope.Grouping.GetGroupingSnapshotAsync(trip.TripId));
+        await Assert.ThrowsAsync<NotFoundException>(() => guide1Scope.Views.GetGuideGroupByIdAsync(groups[0].TripGroupId));
 
-        await staffScope.TripGroups.AssignGuideAsync(trip.TripId, groups[1].TripGroupId, new AssignTripGroupGuideRequest
+        await staffScope.Grouping.AssignGuideAsync(trip.TripId, groups[1].TripGroupId, new AssignTripGroupGuideRequest
         {
             GuideUserId = store.Guide1User.UserId
         });
@@ -836,23 +837,23 @@ public sealed class TripGroupServiceTests
         // 3) Khi group còn Draft: cả Chủ đơn lẫn Bạn đồng hành nhận groupingStatus = Pending và groups = []
         var buyerScope = store.CreateScope(store.BuyerUser);
         var companionScope = store.CreateScope(store.CompanionUser);
-        var pendingBuyerView = await buyerScope.TripGroups.GetCustomerGroupingAsync(buyerBooking.OrderId);
-        var pendingCompanionView = await companionScope.TripGroups.GetCustomerGroupingAsync(buyerBooking.OrderId);
+        var pendingBuyerView = await buyerScope.Views.GetCustomerGroupingAsync(buyerBooking.OrderId);
+        var pendingCompanionView = await companionScope.Views.GetCustomerGroupingAsync(buyerBooking.OrderId);
         Assert.Equal(TripGroupStatuses.Pending, pendingBuyerView.GroupingStatus);
         Assert.Empty(pendingBuyerView.Groups);
         Assert.Equal(TripGroupStatuses.Pending, pendingCompanionView.GroupingStatus);
         Assert.Empty(pendingCompanionView.Groups);
 
         // 4) Staff đóng nhận khách, tính lại đồ cấp và Chốt (Published)
-        await staffScope.TripGroups.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
+        await staffScope.Trips.UpdateTripStatusAsync(trip.TripId, new UpdateTripStatusRequest
         {
             Status = TripStatuses.ClosedForBooking
         });
-        await staffScope.TripGroups.RecalculateProvidedItemsAsync(trip.TripId);
-        await staffScope.TripGroups.PublishGroupsAsync(trip.TripId);
+        await staffScope.Publish.RecalculateProvidedItemsAsync(trip.TripId);
+        await staffScope.Publish.PublishGroupsAsync(trip.TripId);
 
         // 5) Sau khi Published:
-        var buyerGrouping = await buyerScope.TripGroups.GetCustomerGroupingAsync(buyerBooking.OrderId);
+        var buyerGrouping = await buyerScope.Views.GetCustomerGroupingAsync(buyerBooking.OrderId);
         Assert.Equal(TripGroupStatuses.Published, buyerGrouping.GroupingStatus);
         Assert.Equal(2, buyerGrouping.Groups.Count);
         var buyerViewGroup0 = buyerGrouping.Groups.Single(g => g.TripGroupId == groups[0].TripGroupId);
@@ -862,7 +863,7 @@ public sealed class TripGroupServiceTests
         Assert.DoesNotContain(buyerViewGroup0.Participants, p => p.FullName.StartsWith("Người Lạ", StringComparison.Ordinal));
         Assert.Equal(["Bạn Đồng Hành"], buyerViewGroup1.Participants.Select(p => p.FullName).ToArray());
 
-        var companionGrouping = await companionScope.TripGroups.GetCustomerGroupingAsync(buyerBooking.OrderId);
+        var companionGrouping = await companionScope.Views.GetCustomerGroupingAsync(buyerBooking.OrderId);
         Assert.Equal(TripGroupStatuses.Published, companionGrouping.GroupingStatus);
         var onlyCompanionGroup = Assert.Single(companionGrouping.Groups);
         Assert.Equal(groups[1].TripGroupId, onlyCompanionGroup.TripGroupId);
@@ -900,7 +901,7 @@ public sealed class TripGroupServiceTests
         var initialOrder = store.Orders.Single(o => o.OrderId == initialBooking.OrderId);
         initialOrder.Status = OrderStatuses.Confirmed;
         initialOrder.PaymentStatus = OrderPaymentStatuses.Paid;
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(initialOrder.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(initialOrder.OrderId);
 
         var initialGroupId = initialOrder.TripBookingOrder.Participants.First().TripGroupId!.Value;
         Assert.Equal(groups[0].TripGroupId, initialGroupId);
@@ -927,10 +928,10 @@ public sealed class TripGroupServiceTests
         var extraOrder = store.Orders.Single(o => o.OrderId == extraBooking.OrderId);
         extraOrder.Status = OrderStatuses.Confirmed;
         extraOrder.PaymentStatus = OrderPaymentStatuses.Paid;
-        await staffScope.TripGroups.AutoAssignPaidBookingInTransactionAsync(extraOrder.OrderId);
+        await staffScope.Grouping.AutoAssignPaidBookingInTransactionAsync(extraOrder.OrderId);
         Assert.All(extraOrder.TripBookingOrder.Participants, p => Assert.Equal(groups[1].TripGroupId, p.TripGroupId));
 
-        var merged = await staffScope.TripGroups.MoveBookingAsync(trip.TripId, extraOrder.OrderId, new MoveBookingGroupRequest
+        var merged = await staffScope.Grouping.MoveBookingAsync(trip.TripId, extraOrder.OrderId, new MoveBookingGroupRequest
         {
             TargetGroupId = groups[0].TripGroupId,
             Note = "Ghép booking bổ sung đi cùng đoàn gốc"
@@ -939,6 +940,38 @@ public sealed class TripGroupServiceTests
         var mergedGroup0 = merged.Groups.Single(g => g.TripGroupId == groups[0].TripGroupId);
         Assert.Equal(5, mergedGroup0.ParticipantCount);
         Assert.All(extraOrder.TripBookingOrder.Participants, p => Assert.Equal(groups[0].TripGroupId, p.TripGroupId));
+    }
+
+    // Kanban (FR-D06, BR-10, FR-I01): hai staff cùng kéo khách vào chỗ cuối của một nhóm thì chỉ một người thành công;
+    // thao tác thành công ghi audit và bật cờ tính lại đồ cấp.
+    [Fact]
+    public async Task KanbanAssignParticipant_ConcurrentMovesIntoLastSlot_OnlyOneSucceedsWithAuditAndRecalc()
+    {
+        var store = new SharedStore();
+        var trip = await CreateOpenTripAsync(store, groupMaxParticipants: 2, groupCount: 2, totalSlots: 4);
+        var order = store.SeedBooking(trip, store.BuyerUser, seatCount: 3, status: "Confirmed", paymentStatus: "Paid");
+        var target = trip.TripGroups.First();
+        var participants = order.TripBookingOrder.Participants.ToList();
+        participants[0].TripGroupId = target.TripGroupId;
+        trip.ProvidedItemsNeedsRecalc = false;
+        var rowVersionBefore = trip.RowVersion;
+        store.SimulateConcurrentReadDelay = true;
+
+        var moves = participants.Skip(1).Select(p => Task.Run(() => store.CreateScope(store.StaffUser).Kanban.AssignParticipantGroupAsync(
+            trip.TripId,
+            new AssignParticipantGroupRequest { ParticipantId = p.ParticipantId, TargetGroupId = target.TripGroupId }))).ToList();
+        var results = await Task.WhenAll(moves.Select(async t =>
+        {
+            try { await t; return null; }
+            catch (ConflictException ex) { return ex.ErrorCode; }
+        }));
+
+        Assert.Equal(2, participants.Count(p => p.TripGroupId == target.TripGroupId));
+        Assert.Single(results, r => r is null);
+        Assert.Single(results, r => r == ErrorCodes.GroupCapacityExceeded);
+        Assert.Single(store.AuditLogs, a => a.Action == "KanbanMoveParticipant" && a.ActorUserId == store.StaffUser.UserId);
+        Assert.True(trip.ProvidedItemsNeedsRecalc);
+        Assert.Equal(rowVersionBefore + 1, trip.RowVersion);
     }
 
     private static async Task<Trip> CreateOpenTripAsync(
@@ -952,7 +985,7 @@ public sealed class TripGroupServiceTests
     {
         var tour = store.SeedTour(groupMaxParticipants, withProvidedItems);
         var adminScope = store.CreateScope(store.AdminUser);
-        var created = await adminScope.TripGroups.CreateTripAsync(new CreateTripRequest
+        var created = await adminScope.Trips.CreateTripAsync(new CreateTripRequest
         {
             TourId = tour.Id,
             StartAt = startAt ?? BaseNow.AddDays(10),
@@ -962,17 +995,25 @@ public sealed class TripGroupServiceTests
             PricePerPerson = 1_500_000m,
             MinParticipants = 1
         });
-        await adminScope.TripGroups.UpdateTripStatusAsync(created.TripId, new UpdateTripStatusRequest
+        await adminScope.Trips.UpdateTripStatusAsync(created.TripId, new UpdateTripStatusRequest
         {
             Status = TripStatuses.Open
         });
-        return store.Trips.Single(t => t.TripId == created.TripId);
+        // Staff fixture vận hành chuyến (PRD §3.2 "G": chỉ chuyến mình phụ trách).
+        var trip = store.Trips.Single(t => t.TripId == created.TripId);
+        trip.ManagedByUserId = store.StaffUser.UserId;
+        return trip;
     }
 
     private sealed record ServiceScope(
         IUnitOfWork UnitOfWork,
-        TripGroupService TripGroups,
-        TripBookingService TripBookings);
+        TripRecurrenceService Recurrence,
+        TripService Trips,
+        TripGroupingService Grouping,
+        TripGroupPublishService Publish,
+        TripGroupViewService Views,
+        TripBookingService TripBookings,
+        AdminTripGroupService Kanban);
 
     private sealed class SharedStore
     {
@@ -1152,11 +1193,7 @@ public sealed class TripGroupServiceTests
             var uow = new ScopedFakeUnitOfWork(this);
             var currentUser = new FakeCurrentUser(account);
             var time = new FixedTimeProvider(BaseNow);
-            var tripGroupService = new TripGroupService(
-                uow,
-                currentUser,
-                time,
-                NullLogger<TripGroupService>.Instance);
+            var recurrence = new TripRecurrenceService(uow, currentUser, time, NullLogger<TripRecurrenceService>.Instance);
             var tripBookingService = new TripBookingService(
                 uow,
                 currentUser,
@@ -1167,7 +1204,9 @@ public sealed class TripGroupServiceTests
                     FrontendBaseUrl = "http://localhost:5173"
                 }),
                 TestProxy.NoRefunds());
-            return new ServiceScope(uow, tripGroupService, tripBookingService);
+            return new ServiceScope(uow, recurrence, new TripService(uow, currentUser, time), new TripGroupingService(uow, currentUser, time),
+                new TripGroupPublishService(uow, currentUser, time), new TripGroupViewService(uow, currentUser, time), tripBookingService,
+                new AdminTripGroupService(uow, currentUser, time));
         }
     }
 
@@ -1317,15 +1356,26 @@ public sealed class TripGroupServiceTests
                 CancellationToken cancellationToken) => throw new NotSupportedException();
         Task<IReadOnlyList<BookingParticipant>> ITripGroupRepository.GetActiveParticipantsWithOrderByTripAsync(
                 Guid tripId,
-                CancellationToken cancellationToken) => throw new NotSupportedException();
+                CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookingParticipant>>(TripParticipants(tripId).ToList());
         Task<TripBookingOrder?> ITripGroupRepository.GetBookingOrderForUpdateAsync(
                 Guid tripId,
                 Guid bookingId,
                 CancellationToken cancellationToken) => throw new NotSupportedException();
-        Task<TripGroup?> ITripGroupRepository.GetGroupForUpdateAsync(Guid tripId, Guid groupId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        Task<int> ITripGroupRepository.GetGroupParticipantCountAsync(Guid groupId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<TripGroup?> ITripGroupRepository.GetGroupForUpdateAsync(Guid tripId, Guid groupId, CancellationToken cancellationToken)
+            => Task.FromResult(store.Trips.Single(t => t.TripId == tripId).TripGroups
+                .SingleOrDefault(g => g.TripGroupId == groupId && !g.IsDeleted));
+
+        async Task<int> ITripGroupRepository.GetGroupParticipantCountAsync(Guid groupId, CancellationToken cancellationToken)
+        {
+            var count = store.Trips.SelectMany(t => TripParticipants(t.TripId)).Count(p => p.TripGroupId == groupId);
+            if (store.SimulateConcurrentReadDelay)
+                await Task.Delay(25, cancellationToken);
+            return count;
+        }
         Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGroupsForUpdateByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGroupsWithDetailsByTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGroupsWithDetailsByTripAsync(Guid tripId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TripGroup>>(store.Trips.Single(t => t.TripId == tripId).TripGroups.Where(g => !g.IsDeleted).ToList());
         Task<IReadOnlyList<TripGroup>> ITripGroupRepository.GetGuideAssignedGroupsWithTripAndLocationAsync(
                 Guid guideUserId,
                 CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -1337,8 +1387,15 @@ public sealed class TripGroupServiceTests
         Task<BookingParticipant?> ITripGroupRepository.GetParticipantForUpdateAsync(
                 Guid tripId,
                 Guid participantId,
-                CancellationToken cancellationToken) => throw new NotSupportedException();
-        Task<Trip?> ITripGroupRepository.GetTripAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+                CancellationToken cancellationToken)
+            => Task.FromResult(TripParticipants(tripId).SingleOrDefault(p => p.ParticipantId == participantId));
+
+        private IEnumerable<BookingParticipant> TripParticipants(Guid tripId)
+            => store.Trips.Single(t => t.TripId == tripId).TripBookingOrders
+                .SelectMany(b => b.Participants)
+                .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled);
+        Task<Trip?> ITripGroupRepository.GetTripAsync(Guid tripId, CancellationToken cancellationToken)
+            => Task.FromResult(store.Trips.SingleOrDefault(t => t.TripId == tripId && !t.IsDeleted));
         Task<bool> ITripGroupRepository.GroupNameExistsInTripAsync(
                 Guid tripId,
                 string groupName,

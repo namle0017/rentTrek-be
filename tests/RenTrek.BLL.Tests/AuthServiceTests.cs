@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
@@ -36,6 +37,43 @@ public sealed class AuthServiceTests
         var sent = Assert.Single(fixture.EmailSender.Sent);
         Assert.Equal("guest@example.com", sent.To);
         Assert.Contains("http://localhost:5173/verify-email#t=", sent.Body);
+    }
+
+    [Fact]
+    public async Task LoginAsync_LocksEmailAfterTooManyWrongPasswords()
+    {
+        var fixture = CreateFixture();
+        fixture.Accounts.Accounts.Add(new Account
+        {
+            UserId = Guid.NewGuid(),
+            Email = "victim@example.com",
+            PasswordHash = "hashed:Correct@123",
+            Status = "Active",
+            FullName = "Nạn nhân"
+        });
+
+        for (var i = 0; i < AuthAttemptLimiter.MaxFailures; i++)
+        {
+            await Assert.ThrowsAsync<UnauthorizedException>(() => fixture.Service.LoginAsync(
+                new LoginRequest { Email = "victim@example.com", Password = "wrong" }));
+        }
+
+        // Đúng mật khẩu vẫn bị chặn khi đang khóa.
+        await Assert.ThrowsAsync<TooManyRequestsException>(() => fixture.Service.LoginAsync(
+            new LoginRequest { Email = " Victim@Example.com ", Password = "Correct@123" }));
+    }
+
+    [Fact]
+    public async Task GoogleLoginAsync_RejectsUnsignedTokenWhenDevTokensDisabled()
+    {
+        var fixture = CreateFixture();
+        // JWT không chữ ký (alg=none) tự khai email admin.
+        static string B64(string s) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(s)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var forged = $"{B64("{\"alg\":\"none\",\"typ\":\"JWT\"}")}.{B64("{\"sub\":\"1\",\"email\":\"admin@rentrek.com\"}")}.";
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => fixture.Service.GoogleLoginAsync(
+            new GoogleLoginRequest { IdToken = forged }));
+        Assert.Empty(fixture.Accounts.Accounts);
     }
 
     [Fact]
@@ -127,7 +165,9 @@ public sealed class AuthServiceTests
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             NullLogger<AuthService>.Instance,
-            new EmailService(NullLogger<EmailService>.Instance));
+            new EmailService(NullLogger<EmailService>.Instance),
+            new AuthAttemptLimiter(new InMemoryAuthAttempts(), new FixedTimeProvider(Now)),
+            Microsoft.Extensions.Options.Options.Create(new GoogleAuthSettings()));
         return new Fixture(service, accounts, tripBookings, tokenHelper, emailSender);
     }
 

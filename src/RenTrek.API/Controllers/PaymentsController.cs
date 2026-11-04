@@ -25,8 +25,9 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("orders/{orderId:guid}/payments")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentResponse>), StatusCodes.Status201Created)]
     [Authorize(Roles = RoleNames.Customer)]
-    public async Task<IActionResult> Create(
+    public async Task<IActionResult> CreateAsync(
         Guid orderId,
         [FromBody] CreatePaymentRequest request,
         CancellationToken cancellationToken)
@@ -42,8 +43,9 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("orders/{orderId:guid}/payments/{paymentId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentStatusResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Customer)]
-    public async Task<IActionResult> GetStatus(Guid orderId, Guid paymentId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetStatusAsync(Guid orderId, Guid paymentId, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 
@@ -53,8 +55,9 @@ public class PaymentsController : ControllerBase
 
     /// <summary>SePay gọi khi tài khoản có giao dịch; phản hồi <c>{"success": true}</c> để SePay không gửi lại.</summary>
     [HttpPost("payments/webhooks/sepay")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> SePayWebhook(
+    public async Task<IActionResult> SePayWebhookAsync(
         [FromBody] SePayWebhookRequest request,
         [FromHeader(Name = "Authorization")] string? authorization,
         CancellationToken cancellationToken)

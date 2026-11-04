@@ -37,6 +37,7 @@ public static class ErrorCodes
     public const string TripGroupCountLocked = "TRIP_GROUP_COUNT_LOCKED";
     public const string TripOperationalCapacityInsufficient = "TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT";
     public const string GroupCapacityExceeded = "GROUP_CAPACITY_EXCEEDED";
+    public const string TripNotAssigned = "TRIP_NOT_ASSIGNED";
     public const string GroupWrongTrip = "GROUP_WRONG_TRIP";
     public const string GuideScheduleConflict = "GUIDE_SCHEDULE_CONFLICT";
     public const string TripGroupingLocked = "TRIP_GROUPING_LOCKED";

@@ -17,10 +17,11 @@ namespace RenTrek.API.Controllers;
 [Route("api/v1/trip-bookings")]
 public sealed class TripBookingsController(
     ITripBookingService tripBookingService,
-    ITripGroupService tripGroupService) : ControllerBase
+    ITripGroupViewService tripGroupViewService) : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> Create(
+    [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateAsync(
         [FromBody] CreateTripBookingRequest request,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         CancellationToken cancellationToken)
@@ -32,22 +33,25 @@ public sealed class TripBookingsController(
     }
 
     [HttpGet("{orderId:guid}")]
-    public async Task<IActionResult> GetById(Guid orderId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var result = await tripBookingService.GetByIdAsync(orderId, cancellationToken);
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Lấy booking thành công"));
     }
 
     [HttpGet("{orderId:guid}/cancellation-preview")]
-    public async Task<IActionResult> GetCancellationPreview(Guid orderId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<CancellationPreviewResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCancellationPreviewAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var result = await tripBookingService.GetCancellationPreviewAsync(orderId, cancellationToken);
         return Ok(ApiResponse<CancellationPreviewResponse>.Ok(result, "Lấy thông tin hủy booking thành công"));
     }
 
     [HttpPost("{orderId:guid}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> Cancel(
+    public async Task<IActionResult> CancelAsync(
         Guid orderId,
         [FromBody] CancelTripBookingRequest? request,
         CancellationToken cancellationToken)
@@ -57,7 +61,8 @@ public sealed class TripBookingsController(
     }
 
     [HttpPut("{orderId:guid}/participants/{participantId:guid}")]
-    public async Task<IActionResult> UpdateParticipant(
+    [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateParticipantAsync(
         Guid orderId,
         Guid participantId,
         [FromBody] UpdateBookingParticipantRequest request,
@@ -68,21 +73,24 @@ public sealed class TripBookingsController(
     }
 
     [HttpGet("{orderId:guid}/grouping")]
-    public async Task<IActionResult> GetGrouping(Guid orderId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<CustomerTripGroupingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetGroupingAsync(Guid orderId, CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.GetCustomerGroupingAsync(orderId, cancellationToken);
+        var result = await tripGroupViewService.GetCustomerGroupingAsync(orderId, cancellationToken);
         return Ok(ApiResponse<CustomerTripGroupingResponse>.Ok(result, "Lấy nhóm chuyến đi thành công"));
     }
 
     [HttpGet("{orderId:guid}/invite-link")]
-    public async Task<IActionResult> GetInviteLink(Guid orderId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<InviteLinkResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInviteLinkAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var result = await tripBookingService.GetInviteLinkAsync(orderId, cancellationToken);
         return Ok(ApiResponse<InviteLinkResponse>.Ok(result, "Lấy link chuyến đi thành công"));
     }
 
     [HttpPost("{orderId:guid}/invite-link/rotate")]
-    public async Task<IActionResult> RotateInviteLink(Guid orderId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<InviteLinkResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> RotateInviteLinkAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var result = await tripBookingService.RotateInviteLinkAsync(orderId, cancellationToken);
         return Ok(ApiResponse<InviteLinkResponse>.Ok(result, "Đã đổi link chuyến đi"));
@@ -90,8 +98,9 @@ public sealed class TripBookingsController(
 
     /// <summary>Trang xem chuyến công khai cần token; dùng POST để token không nằm trên URL.</summary>
     [HttpPost("participant-invitations/preview")]
+    [ProducesResponseType(typeof(ApiResponse<InvitationPreviewResponse>), StatusCodes.Status200OK)]
     [AllowAnonymous]
-    public async Task<IActionResult> GetInvitationPreview(
+    public async Task<IActionResult> GetInvitationPreviewAsync(
         [FromBody] InvitationPreviewRequest request,
         CancellationToken cancellationToken)
     {

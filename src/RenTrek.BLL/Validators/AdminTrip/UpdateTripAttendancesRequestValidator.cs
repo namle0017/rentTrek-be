@@ -1,3 +1,4 @@
+using RenTrek.BLL.Constants;
 using FluentValidation;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 
@@ -8,7 +9,7 @@ namespace RenTrek.BLL.Validators.AdminTrip;
 /// </summary>
 public sealed class UpdateTripAttendancesRequestValidator : AbstractValidator<UpdateTripAttendancesRequest>
 {
-    private static readonly string[] AllowedStatuses = ["Present", "Absent", "Late", "Excused"];
+    private static readonly string[] AllowedStatuses = [AttendanceStatuses.Present, AttendanceStatuses.Absent, AttendanceStatuses.Late, AttendanceStatuses.Excused];
 
     public UpdateTripAttendancesRequestValidator()
     {

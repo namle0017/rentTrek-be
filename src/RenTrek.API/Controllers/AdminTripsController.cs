@@ -18,16 +18,18 @@ namespace RenTrek.API.Controllers;
 public sealed class AdminTripsController(IAdminTripService adminTripService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetPaged(
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminTripItemResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPagedAsync(
         [FromQuery] AdminTripQueryRequest request,
         CancellationToken cancellationToken)
     {
         var result = await adminTripService.GetPagedAsync(request, cancellationToken);
-        return Ok(ApiResponse<PagedResponse<AdminTripItemResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<PagedResponse<AdminTripItemResponse>>.Ok(result, "Lấy danh sách chuyến đi thành công"));
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateAsync(
         [FromBody] CreateAdminTripRequest request,
         CancellationToken cancellationToken)
     {
@@ -38,16 +40,18 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpGet("{tripId:guid}")]
-    public async Task<IActionResult> GetById(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByIdAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await adminTripService.GetByIdAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<AdminTripDetailResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<AdminTripDetailResponse>.Ok(result, "Lấy chi tiết chuyến đi thành công"));
     }
 
     [HttpPut("{tripId:guid}")]
-    public async Task<IActionResult> Update(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateAsync(
         Guid tripId,
         [FromBody] UpdateAdminTripRequest request,
         CancellationToken cancellationToken)
@@ -57,16 +61,18 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpGet("{tripId:guid}/readiness-checklist")]
-    public async Task<IActionResult> GetReadinessChecklist(
+    [ProducesResponseType(typeof(ApiResponse<TripReadinessChecklistResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReadinessChecklistAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await adminTripService.GetReadinessChecklistAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<TripReadinessChecklistResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<TripReadinessChecklistResponse>.Ok(result, "Lấy checklist sẵn sàng thành công"));
     }
 
     [HttpPost("{tripId:guid}/open-booking")]
-    public async Task<IActionResult> OpenBooking(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> OpenBookingAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
@@ -75,7 +81,8 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpPost("{tripId:guid}/close-booking")]
-    public async Task<IActionResult> CloseBooking(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CloseBookingAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
@@ -84,7 +91,8 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpPost("{tripId:guid}/start")]
-    public async Task<IActionResult> StartTrip(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> StartTripAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
@@ -93,7 +101,8 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpPost("{tripId:guid}/complete")]
-    public async Task<IActionResult> CompleteTrip(
+    [ProducesResponseType(typeof(ApiResponse<AdminTripDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CompleteTripAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
@@ -102,8 +111,9 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpPost("{tripId:guid}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<CancelAdminTripResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> CancelTrip(
+    public async Task<IActionResult> CancelTripAsync(
         Guid tripId,
         [FromBody] CancelAdminTripRequest request,
         CancellationToken cancellationToken)
@@ -113,16 +123,18 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
     }
 
     [HttpGet("{tripId:guid}/bookings")]
-    public async Task<IActionResult> GetTripBookings(
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminTripBookingItemResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTripBookingsAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await adminTripService.GetTripBookingsAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<AdminTripBookingItemResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<IReadOnlyList<AdminTripBookingItemResponse>>.Ok(result, "Lấy danh sách booking của chuyến thành công"));
     }
 
     [HttpGet("{tripId:guid}/manifest")]
-    public async Task<IActionResult> GetManifest(
+    [ProducesResponseType(typeof(ApiResponse<TripManifestResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetManifestAsync(
         Guid tripId,
         [FromQuery] string? format,
         CancellationToken cancellationToken)
@@ -134,6 +146,6 @@ public sealed class AdminTripsController(IAdminTripService adminTripService) : C
         }
 
         var result = await adminTripService.GetManifestAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<TripManifestResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<TripManifestResponse>.Ok(result, "Lấy danh sách hành khách thành công"));
     }
 }

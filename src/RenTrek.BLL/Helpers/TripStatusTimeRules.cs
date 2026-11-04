@@ -4,7 +4,7 @@ namespace RenTrek.BLL.Helpers;
 
 /// <summary>
 /// Kiểm tra thứ tự và thời điểm chuyển trạng thái Trip (PRD §7.2) cho các bước Staff/Admin bấm tay.
-/// Open / ClosedForBooking / Draft đã được kiểm tra riêng trong TripGroupService.
+/// Open / ClosedForBooking / Draft đã được kiểm tra riêng trong TripService.
 /// </summary>
 public static class TripStatusTimeRules
 {

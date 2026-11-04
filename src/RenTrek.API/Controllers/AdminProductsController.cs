@@ -16,7 +16,7 @@ public sealed class AdminProductsController(IProductService productService) : Co
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminProductListItemResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] AdminProductQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync([FromQuery] AdminProductQueryRequest request, CancellationToken cancellationToken)
     {
         var result = await productService.GetAdminProductsAsync(request, cancellationToken);
         return Ok(ApiResponse<PagedResponse<AdminProductListItemResponse>>.Ok(result, "Lấy danh sách sản phẩm vận hành thành công"));
@@ -26,7 +26,7 @@ public sealed class AdminProductsController(IProductService productService) : Co
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<AdminProductDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByIdAsync([FromRoute] Guid id, CancellationToken cancellationToken)
     {
         var result = await productService.GetAdminProductByIdAsync(id, cancellationToken);
         return Ok(ApiResponse<AdminProductDetailResponse>.Ok(result, "Lấy chi tiết sản phẩm thành công"));

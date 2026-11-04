@@ -77,8 +77,8 @@ public sealed class RentalOrderServiceTests
         Assert.Contains(result.Errors, error => error.PropertyName.Contains("Quantity"));
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateRentalOrderRequest.Note));
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateRentalOrderRequest.AcceptedRefundPolicyVersion));
-        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("ReceiverPhone"));
-        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("Method"));
+        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("ReceiverPhone", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.PropertyName.EndsWith("Method", StringComparison.Ordinal));
     }
 
     [Fact]

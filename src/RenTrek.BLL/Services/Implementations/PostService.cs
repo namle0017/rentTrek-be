@@ -17,6 +17,10 @@ namespace RenTrek.BLL.Services.Implementations;
 /// <summary>
 /// Nghiệp vụ bài viết / cẩm nang (FR-N01–N03): soạn, xuất bản và hiển thị công khai.
 /// </summary>
+/// <remarks>
+/// Gộp luồng trùng (2026-11-05, Tri Tin refactor, commit 629189a): bỏ /admin/management/posts
+/// (AdminPostsController trong Controllers/Admin + phần post của AdminService, do TIGER.ER viết, commit 6cf600b "Task Admin").
+/// </remarks>
 public class PostService : IPostService
 {
     private const int ExcerptLength = 220;
@@ -252,7 +256,7 @@ public class PostService : IPostService
 
         var tourIds = _unitOfWork.TourPosts.Query().Where(tp => tp.PostId == postId).Select(tp => tp.TourId);
         var participants = _unitOfWork.BookingParticipants.Query()
-            .Where(bp => !bp.IsDeleted && bp.Status != "Cancelled" && tourIds.Contains(bp.Trip.TourId));
+            .Where(bp => !bp.IsDeleted && bp.Status != BookingParticipantStatuses.Cancelled && tourIds.Contains(bp.Trip.TourId));
         var total = await participants.CountAsync(cancellationToken);
         var read = await participants.CountAsync(bp => bp.ParticipantPostReads.Any(r => r.PostId == postId), cancellationToken);
 

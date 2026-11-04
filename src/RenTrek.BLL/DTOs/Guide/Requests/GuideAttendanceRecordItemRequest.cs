@@ -1,3 +1,5 @@
+using RenTrek.BLL.Constants;
+
 namespace RenTrek.BLL.DTOs.Guide.Requests;
 
 /// <summary>
@@ -6,6 +8,6 @@ namespace RenTrek.BLL.DTOs.Guide.Requests;
 public sealed class GuideAttendanceRecordItemRequest
 {
     public Guid ParticipantId { get; set; }
-    public string Status { get; set; } = "Present";
+    public string Status { get; set; } = AttendanceStatuses.Present;
     public string? Reason { get; set; }
 }

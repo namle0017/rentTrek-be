@@ -16,7 +16,7 @@ public sealed class AdminToursController(ITourService tourService) : ControllerB
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminTourListItemResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] AdminTourQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync([FromQuery] AdminTourQueryRequest request, CancellationToken cancellationToken)
     {
         var result = await tourService.GetAdminToursAsync(request, cancellationToken);
         return Ok(ApiResponse<PagedResponse<AdminTourListItemResponse>>.Ok(result, "Lấy danh sách tour vận hành thành công"));
