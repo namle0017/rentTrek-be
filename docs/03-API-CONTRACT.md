@@ -20,8 +20,8 @@
 ## Route khi tích hợp các phân hệ (2026-11-04)
 
 - API mà frontend hiện dùng giữ nguyên: `/admin/posts` (trình soạn bài viết với `tagNames`, `tourIds`, `status`) và `/admin/rental-orders` (vận hành theo GUID).
-- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/posts`; các thao tác list/detail/claim trong mục 15 chuyển sang `/admin/management/rental-orders`. Request, response và phân quyền của nhóm này giữ nguyên.
-- Phí và đóng đơn kho theo mã đơn dùng `/admin/rental-orders/by-code/{orderCode}/charges` và `/admin/rental-orders/by-code/{orderCode}/complete`; các route theo GUID mà frontend dùng giữ nguyên.
+- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/posts`.
+- Vận hành đơn thuê chỉ còn một luồng `/admin/rental-orders/{orderId}` (mục 15–16); các route `/admin/management/rental-orders*` và `/admin/rental-orders/by-code/*` đã bỏ (2026-11-05).
 - Tách route để mỗi phương thức HTTP và đường dẫn chỉ có một action, kể cả khi khác tên tham số đường dẫn.
 
 ## Mục lục
@@ -48,8 +48,8 @@
 - [12. Admin: Quản lý Đơn hàng Tổng hợp & Đơn Tour (Màn O38, O15)](#12-admin-quản-lý-đơn-hàng-tổng-hợp--đơn-tour-màn-o38-o15)
 - [13. Admin: Sản phẩm, Biến thể, Bảng giá & Combo (Màn O16, O17, O18, O19)](#13-admin-sản-phẩm-biến-thể-bảng-giá--combo-màn-o16-o17-o18-o19)
 - [14. Admin: Quản lý Thiết bị (Asset) & Lịch Gantt (Màn O20, O21)](#14-admin-quản-lý-thiết-bị-asset--lịch-gantt-màn-o20-o21)
-- [15. Admin: Đơn thuê & Quy trình Giao nhận (Màn O22, O23, O24, O25)](#15-admin-đơn-thuê--quy-trình-giao-nhận-màn-o22-o23-o24-o25)
-- [16. Admin: Phí phát sinh & Quyết toán Đơn thuê (Màn O26)](#16-admin-phí-phát-sinh--quyết-toán-đơn-thuê-màn-o26)
+- [15. Admin: Vận hành đơn thuê (Màn O22–O26)](#15-admin-vận-hành-đơn-thuê-màn-o22o26)
+- [16. Admin: Phí phát sinh & Đóng đơn thuê (FR-C02–C05, FR-R08)](#16-admin-phí-phát-sinh--đóng-đơn-thuê-fr-c02c05-fr-r08)
 - [17. Admin: Giao dịch, Hoàn tiền & Đối soát (Màn O27, O28)](#17-admin-giao-dịch-hoàn-tiền--đối-soát-màn-o27-o28)
 - [18. Admin: Chương trình Khuyến mãi (Màn O29, O30, O31)](#18-admin-chương-trình-khuyến-mãi-màn-o29-o30-o31)
 - [19. Admin: Quản lý Bài viết & Nội dung Hướng dẫn (Màn O32)](#19-admin-quản-lý-bài-viết--nội-dung-hướng-dẫn-màn-o32)
@@ -461,22 +461,16 @@ HTTP 500 Internal Server Error
 | **14.4**| Assets | `PATCH`| `/admin/assets/{assetCode}/status` | Staff/Admin | Đổi tình trạng máy | Đổi sang Sẵn sàng, Bảo trì, Hỏng, Mất | ✅ Done |
 | **14.5**| Assets | `GET` | `/admin/assets/{assetCode}/history` | Staff/Admin | Lịch sử phân bổ của thiết bị | Tra cứu toàn bộ các lần thuê/cấp chuyến | ✅ Done |
 | **14.6**| Assets | `GET` | `/admin/assets/schedule-gantt` | Staff/Admin | Biểu đồ Gantt phân bổ thiết bị | Màn O21 xem trực quan lịch chiếm dụng kho | ✅ Done |
-| **15.1**| Rentals | `GET` | `/admin/management/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Màn O22 lọc tab giao hôm nay, nhận hôm nay | ⬜ TODO |
-| **15.2**| Rentals | `POST` | `/admin/management/rental-orders/{orderCode}/claim` | Staff/Admin | Nhân viên nhận xử lý đơn thuê | Gán `handled_by_user_id` | ⬜ TODO |
-| **15.3**| Rentals | `GET` | `/admin/management/rental-orders/{orderCode}` | Staff/Admin | Chi tiết đơn thuê vận hành | Màn O23 xem các món đồ, combo, asset đã gán | ⬜ TODO |
-| **15.4**| Rentals | `GET` | `/admin/rental-orders/{orderCode}/handover-checklist` | Staff/Admin | Danh sách thiết bị cần bàn giao | Màn O24 bảng tiến độ quét bàn giao | ⬜ TODO |
-| **15.5**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/scan` | Staff/Admin | Quét barcode kiểm tra & giao từng món | Phản hồi ngay kết quả quét barcode từng thiết bị | ⬜ TODO |
-| **15.6**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/complete` | Staff/Admin | Hoàn tất bàn giao thiết bị | Chuyển trạng thái đơn sang `InFulfillment` | ⬜ TODO |
-| **15.7**| Rentals | `GET` | `/admin/rental-orders/{orderCode}/return-checklist` | Staff/Admin | Danh sách thiết bị cần thu hồi | Màn O25 bảng tiến độ nhận lại đồ | ⬜ TODO |
-| **15.8**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/scan` | Staff/Admin | Quét barcode nhận lại & kiểm tra tình trạng | Ghi nhận tình trạng (Bình thường, Hư hỏng, Thiếu) | ⬜ TODO |
-| **15.9**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/report-lost` | Staff/Admin | Báo mất thiết bị | Chuyển asset sang Lost, gợi ý tạo phí đền bù | ⬜ TODO |
-| **15.10**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/complete` | Staff/Admin | Hoàn tất quy trình nhận đồ | Đóng phần kiểm kê thiết bị vật lý | ⬜ TODO |
-| **16.1**| Charges | `GET` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Danh sách phí phát sinh của đơn | Màn O26 bảng các khoản phí phạt | ⬜ TODO |
-| **16.2**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Lập biên bản phí phát sinh mới | Tạo khoản phí ở trạng thái `Draft` | ⬜ TODO |
-| **16.3**| Charges | `POST` | `/admin/charges/{chargeId}/assess` | Staff/Admin | Chốt phí phát sinh | Chuyển từ Draft sang `Assessed` để yêu cầu trả | ⬜ TODO |
-| **16.4**| Charges | `POST` | `/admin/charges/{chargeId}/void` | Admin | Hủy phí phát sinh | Chỉ Admin được duyệt xóa phí, bắt buộc lý do | ⬜ TODO |
-| **16.5**| Charges | `POST` | `/admin/rental-orders/{orderCode}/charges/request-payment` | Staff/Admin | Tạo yêu cầu thanh toán phí | Sinh giao dịch Collection AdditionalCharge SePay | ⬜ TODO |
-| **16.6**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/complete` | Staff/Admin | Nghiệm thu đóng toàn bộ đơn thuê | Kiểm tra hết đồ trả, hết phí nợ -> `Completed` | ⬜ TODO |
+| **15.1**| Rentals | `GET` | `/admin/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Xem mục 15.1 | ✅ Done |
+| **15.2**| Rentals | `GET` | `/admin/rental-orders/{orderId}` | Staff/Admin | Chi tiết đơn thuê vận hành | Xem mục 15.2 | ✅ Done |
+| **15.3**| Rentals | `POST` | `/admin/rental-orders/{orderId}/claim` | Staff/Admin | Nhận phụ trách đơn (Admin nhận lại được) | Xem mục 15.3 | ✅ Done |
+| **15.4**| Rentals | `POST` | `/admin/rental-orders/{orderId}/handover` | Staff/Admin | Giao toàn bộ / một phần thiết bị | Xem mục 15.4 | ✅ Done |
+| **15.5**| Rentals | `POST` | `/admin/rental-orders/{orderId}/handover/scan` | Staff/Admin | Quét / nhập mã giao từng thiết bị | Xem mục 15.5 | ✅ Done |
+| **15.6**| Rentals | `POST` | `/admin/rental-orders/{orderId}/returns` | Staff/Admin | Nhận trả từng thiết bị kèm tình trạng | Xem mục 15.6 | ✅ Done |
+| **16.1**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges` | Staff/Admin | Lập phí phát sinh | Xem mục 16.1 | ✅ Done |
+| **16.2**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/assess` | Staff/Admin | Xác nhận phí nháp | Xem mục 16.2 | ✅ Done |
+| **16.3**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/void` | Staff/Admin | Hủy phí | Xem mục 16.3 | ✅ Done |
+| **16.4**| Charges | `POST` | `/admin/rental-orders/{orderId}/complete` | Staff/Admin | Đóng đơn và quyết toán cọc | Xem mục 16.4 | ✅ Done |
 | **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ⬜ TODO |
 | **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Thất bại, Cần đối soát | ⬜ TODO |
 | **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền qua SePay | Gọi API cổng SePay thực hiện chuyển khoản | ⬜ TODO |
@@ -2791,284 +2785,43 @@ HTTP 400 Bad Request
 
 ---
 
-## 15. Admin: Đơn thuê & Quy trình Giao nhận (Màn O22, O23, O24, O25)
+## 15. Admin: Vận hành đơn thuê (Màn O22–O26)
 
-### 15.1. Danh sách đơn thuê vận hành
-`GET /admin/management/rental-orders` · **Auth:** Staff / Admin
+Một luồng duy nhất: `/admin/rental-orders` (`AdminRentalOrdersController` → `IRentalFulfillmentService`). **Auth:** Staff / Admin. Mọi thao tác ghi dùng khóa đơn (chống hai người thao tác cùng lúc), ghi `audit_logs` (`entity_type = Order`) và trả về chi tiết đơn mới nhất `AdminRentalOrderDetailResponse`.
 
-- **Mục đích:** Màn O22 — danh sách chuyên biệt để nhân viên kho và giao nhận theo dõi việc chuẩn bị đồ, giao đồ và nhận đồ hàng ngày.
-- **Tabs nhanh:**
-  - `PickupToday`: Cần giao hôm nay.
-  - `ReturnToday`: Cần nhận lại hôm nay.
-  - `Overdue`: Quá hạn trả đồ (now > `rental_end_at` nhưng còn tài sản chưa trả).
-  - `InFulfillment`: Đang trong thời gian khách thuê.
-  - `All`: Toàn bộ đơn thuê.
-- **Cột tiến độ giao/nhận:** Tỷ lệ số món đã giao/nhận (`Issued / Total` và `Returned / Total`).
-- **Query params:** `pageNumber`, `pageSize`, `tab`, `handledByUserId` (lọc đơn mình phụ trách hoặc `unassigned`), `search`.
+### 15.1. Danh sách đơn thuê
+`GET /admin/rental-orders?status=&overdueOnly=&search=&pageNumber=&pageSize=` → `PagedResponse<AdminRentalOrderListItemResponse>` (`orderId`, `orderCode`, `customerName`, `status`, `paymentStatus`, `rentalStartAt`, `rentalEndAt`, `totalAmount`, `assetsCount`, `issuedCount`, `returnedCount`, `draftChargesCount`, `isOverdue`).
 
-**Response `200 OK`**
+### 15.2. Chi tiết đơn thuê
+`GET /admin/rental-orders/{orderId}` → `customer`, `lines`, `assignments` (`assignmentId`, `assetCode`, `status`, `assetStatus`, `issuedAt`, `returnedAt`, `returnCondition`), `charges`, `amounts`, `overdue`, `settlement`, `allowedActions`, `handledByName`, `serverNow`.
 
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Thành công",
-  "data": {
-    "items": [
-      {
-        "orderId": "22223333-4444-5555-6666-777788889999",
-        "orderCode": "RENT-2026-0089",
-        "customer": {
-          "fullName": "Trần Văn Cường",
-          "phone": "0933444555"
-        },
-        "rentalPeriod": {
-          "startAt": "2026-11-01T08:00:00Z",
-          "endAt": "2026-11-03T18:00:00Z"
-        },
-        "totalItemsCount": 5,
-        "issuedItemsCount": 5,
-        "returnedItemsCount": 0,
-        "totalAmount": 1250000,
-        "handlerFullName": "Lê Nhân Viên Kho",
-        "status": "InFulfillment",
-        "paymentStatus": "Paid",
-        "isOverdue": false
-      }
-    ],
-    "pageNumber": 1,
-    "pageSize": 10,
-    "totalItems": 24,
-    "totalPages": 3,
-    "hasPrevious": false,
-    "hasNext": true
-  },
-  "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
-}
-```
+### 15.3. Nhận phụ trách (FR-R05)
+`POST /admin/rental-orders/{orderId}/claim` — không body. Đơn ở `PendingPayment` / `Confirmed` / `InFulfillment`. Staff chỉ nhận được đơn chưa ai phụ trách (đơn của người khác → `409`). Admin được nhận lại đơn của người khác. Audit `RentalClaim` ghi `previousHandledByUserId`.
 
----
+### 15.4. Giao toàn bộ / một phần thiết bị (FR-R06)
+`POST /admin/rental-orders/{orderId}/handover` — body `{ "assignmentIds": ["guid"] }`; bỏ trống = giao mọi thiết bị đang `Reserved` của đơn.
 
-### 15.2. Nhân viên tiếp nhận xử lý đơn thuê (Claim)
-`POST /admin/management/rental-orders/{orderCode}/claim` · **Auth:** Staff / Admin
+### 15.5. Quét / nhập mã giao từng thiết bị (FR-R06)
+`POST /admin/rental-orders/{orderId}/handover/scan` — body `{ "assetCode": "TENT-001" }` (bắt buộc, tối đa 100 ký tự, không phân biệt hoa thường). Chỉ nhận thiết bị đang `Reserved` cho chính đơn này; mã của đơn khác hoặc mã đã giao → `409`.
 
-- **Mục đích:** Nút "Nhận xử lý" trên màn O22 — gán `RENTAL_ORDERS.handled_by_user_id` thành tài khoản của nhân viên đang thao tác, ghi nhật ký kiểm toán `AUDIT_LOGS`.
+Quy tắc chung 15.4–15.5: đơn `Confirmed` / `InFulfillment`, `paymentStatus = Paid`, từ 24 giờ trước giờ bắt đầu thuê đến trước giờ kết thúc, thiết bị phải `Available` / `Good`. Giao xong: assignment `Issued`, đơn `InFulfillment`, người giao thành người phụ trách nếu đơn chưa có.
 
----
+### 15.6. Nhận trả từng thiết bị (FR-R07)
+`POST /admin/rental-orders/{orderId}/returns` — body `{ "items": [{ "assignmentId": "guid", "condition": "Normal|Damaged|MissingAccessory|Lost", "note": "..." }] }`. Đơn phải `InFulfillment`. `Lost` → assignment `LostOrException`, asset `Lost`. Trả trễ quá thời gian ân hạn (`SystemConfiguration` late grace hours) tự tạo phí `LateReturn` ở trạng thái `Draft`.
 
-### 15.3. Chi tiết đơn thuê vận hành
-`GET /admin/management/rental-orders/{orderCode}` · **Auth:** Staff / Admin
+## 16. Admin: Phí phát sinh & Đóng đơn thuê (FR-C02–C05, FR-R08)
 
-- **Mục đích:** Màn O23 — xem chi tiết từng món đồ thuê lẻ và thành phần combo (`RENTAL_BUNDLE_ITEM_SNAPSHOTS`), danh sách các mã thiết bị cụ thể (`EQUIPMENT_ASSETS`) đã được hệ thống giữ chỗ cho đơn này.
+### 16.1. Lập phí
+`POST /admin/rental-orders/{orderId}/charges` — body `{ "chargeType": "LateReturn|Damage|Loss|Other", "amount": 150000, "reason": "...", "assignmentId": "guid" }`. `assignmentId` bắt buộc với `Damage` / `Loss` và thiết bị phải từng được giao cho đơn. Phí tạo ở `Assessed`.
 
----
+### 16.2. Xác nhận phí nháp
+`POST /admin/rental-orders/{orderId}/charges/{chargeId}/assess` — `Draft` → `Assessed`; trạng thái khác → `409 CHARGE_NOT_REVIEWABLE`.
 
-### 15.4. Danh sách thiết bị cần bàn giao (Handover Checklist)
-`GET /admin/rental-orders/{orderCode}/handover-checklist` · **Auth:** Staff / Admin
+### 16.3. Hủy phí
+`POST /admin/rental-orders/{orderId}/charges/{chargeId}/void` — body `{ "reason": "..." }`. `Draft` / `Assessed` → `Voided`; không xóa, lý do nằm trong audit.
 
-- **Mục đích:** Màn O24 — hiển thị bảng kiểm tra trước khi giao đồ cho khách: từng món/combo cần bao nhiêu cái, đã quét mã barcode được bao nhiêu cái.
-
----
-
-### 15.5. Quét barcode kiểm tra & bàn giao từng thiết bị
-`POST /admin/rental-orders/{orderCode}/handover/scan` · **Auth:** Staff / Admin
-
-- **Mục đích:** Ô quét mã vạch trên màn O24 — mỗi khi nhân viên cầm đầu đọc barcode bấm "bíp" vào tem QR của một thiết bị:
-  - Hệ thống kiểm tra: Mã này có tồn tại không? Thuộc đúng biến thể SKU của đơn không? Có đang ở trạng thái `Reserved` cho đơn này không? Tình trạng kỹ thuật có tốt không?
-  - Nếu hợp lệ: Cập nhật `ASSET_ASSIGNMENTS.status = Issued`, ghi nhận `assigned_at = now`.
-- **Tại sao cần API này:** Phản hồi ngay lập tức cho nhân viên kho tại hiện trường nếu quét nhầm mã đồ hoặc đồ đang bị hỏng.
-
-**Request body**
-
-```json
-{
-  "assetCode": "TENT-4P-0015"
-}
-```
-
-**Response `200 OK`**
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Quét mã bàn giao hợp lệ",
-  "data": {
-    "assetCode": "TENT-4P-0015",
-    "sku": "TENT-EUREKA-4P-ORANGE",
-    "productName": "Lều cắm trại 4 người Eureka",
-    "scannedAt": "2026-11-01T08:35:00Z",
-    "progress": {
-      "scannedItems": 3,
-      "totalRequiredItems": 5,
-      "isCompleted": false
-    }
-  },
-  "errors": null,
-  "timestamp": "2026-11-01T08:35:00Z"
-}
-```
-
-**Lỗi (Error Responses)**
-
-```json
-HTTP 400 Bad Request
-{
-  "success": false,
-  "statusCode": 400,
-  "message": "Thiết bị 'TENT-4P-0099' không thuộc biến thể SKU cần bàn giao cho đơn này.",
-  "data": null,
-  "errors": {
-    "code": ["ASSET_VARIANT_MISMATCH"]
-  },
-  "timestamp": "2026-11-01T08:35:00Z"
-}
-```
-
-| Status | Khi nào | Code | Hành động của FE |
-|---|---|---|---|
-| `400` | Mã asset không khớp SKU cần giao | `ASSET_VARIANT_MISMATCH` | Phát âm thanh cảnh báo lỗi quét mã, toast báo sai món đồ |
-| `400` | Thiết bị đang ở trạng thái hỏng/bảo trì | `ASSET_NOT_AVAILABLE` | Báo thiết bị hỏng, yêu cầu đổi mã asset khác |
-| `404` | Mã asset không tồn tại trong hệ thống | `NOT_FOUND` | Báo mã vạch không hợp lệ |
-
----
-
-### 15.6. Hoàn tất bàn giao thiết bị
-`POST /admin/rental-orders/{orderCode}/handover/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Hoàn tất bàn giao" màn O24.
-- **Ràng buộc:** Chặn hoàn tất nếu vẫn còn thiết bị chưa được quét bàn giao đủ số lượng. (Trường hợp khách không nhận đủ đồ phải có ghi nhận lý do đặc biệt).
-- **Chuyển trạng thái:** Chuyển trạng thái đơn `ORDERS.status` từ `Confirmed` sang `InFulfillment`.
-
----
-
-### 15.7. Danh sách thiết bị cần thu hồi (Return Checklist)
-`GET /admin/rental-orders/{orderCode}/return-checklist` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O25 — hiển thị danh sách các thiết bị khách hàng đang giữ để đối chiếu khi khách mang đồ trả lại kho.
-
----
-
-### 15.8. Quét barcode nhận lại & kiểm tra tình trạng thiết bị
-`POST /admin/rental-orders/{orderCode}/return/scan` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O25 — quét mã thiết bị khách trả, ghi nhận `returned_at = now`, chuyển `ASSET_ASSIGNMENTS.status = Returned`.
-- **Đánh giá tình trạng (`returnCondition`):**
-  - `Normal`: Thiết bị bình thường, tự động đưa `EQUIPMENT_ASSETS.asset_status` về `Available`.
-  - `Damaged` / `MissingAccessory`: Thiết bị bị rách/hỏng/thiếu phụ kiện, đưa thiết bị sang trạng thái `Maintenance` hoặc `Damaged`, đồng thời gợi ý mở popup lập biên bản phạt hư hại (O26).
-  - Trả trễ (`now > rental_end_at`): Tự động tính số ngày trễ hạn và gợi ý số tiền phạt trễ hạn theo quy định.
-
-**Request body**
-
-```json
-{
-  "assetCode": "TENT-4P-0015",
-  "returnCondition": "Damaged",
-  "conditionNote": "Bị rách mặt lưới chống côn trùng cửa chính",
-  "autoCreateDamageCharge": true,
-  "suggestedDamageAmount": 150000
-}
-```
-
----
-
-### 15.9. Báo mất thiết bị (Report Lost)
-`POST /admin/rental-orders/{orderCode}/return/report-lost` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Báo mất" trên màn O25 khi khách làm mất thiết bị trong chuyến đi.
-- **Xử lý:** Cập nhật `ASSET_ASSIGNMENTS.status = LostOrException`, đưa `EQUIPMENT_ASSETS.asset_status = Lost` (tài sản bị loại khỏi danh mục sẵn sàng cho thuê), và tự động tạo một biên bản phạt mất đồ (`charge_type = Loss`) ở trạng thái `Draft`.
-
----
-
-### 15.10. Hoàn tất thu hồi thiết bị
-`POST /admin/rental-orders/{orderCode}/return/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Chốt việc bàn giao tài sản vật lý khi tất cả các thiết bị đã được quét nhận lại hoặc báo mất đầy đủ.
-
----
-
-## 16. Admin: Phí phát sinh & Quyết toán Đơn thuê (Màn O26)
-
-### 16.1. Danh sách phí phát sinh của đơn thuê
-`GET /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O26 — danh sách các khoản phạt phát sinh (Phí trả trễ, Phí làm hỏng thiết bị, Phí làm mất đồ, Phí vệ sinh bẩn nặng).
-
-**Response `200 OK`**
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Thành công",
-  "data": [
-    {
-      "chargeId": "cccc1111-2222-3333-4444-555566667777",
-      "chargeType": "Damage",
-      "equipmentAssetCode": "TENT-4P-0015",
-      "productName": "Lều cắm trại 4 người Eureka",
-      "amount": 150000,
-      "reason": "Rách lưới chống muỗi cửa chính cần thay mới",
-      "status": "Draft",
-      "createdByName": "Lê Nhân Viên Kho",
-      "createdAt": "2026-11-03T18:15:00Z"
-    }
-  ],
-  "errors": null,
-  "timestamp": "2026-11-03T18:30:00Z"
-}
-```
-
----
-
-### 16.2. Lập biên bản phí phát sinh mới
-`POST /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
-
-- **Mục đích:** Tạo một khoản phí phát sinh mới ở trạng thái `Draft` (nháp) để nhân viên thương lượng với khách.
-
-**Request body**
-
-```json
-{
-  "chargeType": "LateReturn",
-  "amount": 100000,
-  "equipmentAssetId": null,
-  "reason": "Trả trễ 1 ngày so với thời gian đăng ký trong hợp đồng"
-}
-```
-
----
-
-### 16.3. Chốt phí phát sinh (Draft -> Assessed)
-`POST /admin/charges/{chargeId}/assess` · **Auth:** Staff / Admin
-
-- **Mục đích:** Chốt khoản phí từ `Draft` sang `Assessed` để chính thức yêu cầu khách hàng thanh toán bồi thường.
-
----
-
-### 16.4. Admin hủy phí phát sinh (Void)
-`POST /admin/charges/{chargeId}/void` · **Auth:** Admin
-
-- **Mục đích:** Nút "Hủy phí" màn O26 — chỉ Quản trị viên (Admin) mới có thẩm quyền xóa/miễn giảm khoản phí phạt cho khách (ví dụ: xác định lỗi do thiết bị cũ tự rách). Bắt buộc nhập lý do hủy và lưu `AUDIT_LOGS`.
-
----
-
-### 16.5. Tạo yêu cầu thu phí bổ sung (Payment Request)
-`POST /admin/rental-orders/{orderCode}/charges/request-payment` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Tạo yêu cầu thanh toán phí" màn O26 — gom toàn bộ các khoản phí đang ở trạng thái `Assessed` chưa thu, tạo một giao dịch `PAYMENTS` (loại `Collection`, mục đích `AdditionalCharge`), cấp mã VietQR SePay để khách thanh toán online qua màn C04P. Khi thanh toán thành công, các khoản phí tự động chuyển sang `Settled`.
-
----
-
-### 16.6. Nghiệm thu đóng toàn bộ đơn thuê (Complete Order)
-`POST /admin/rental-orders/by-code/{orderCode}/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Đóng đơn hàng thuê, chuyển `ORDERS.status` sang `Completed`.
-- **Checklist điều kiện tiên quyết (Invariants):**
-  1. Toàn bộ thiết bị đã trả (`Returned`) hoặc báo mất (`LostOrException`), không còn thiết bị nào đang `Issued`.
-  2. Không còn khoản phí nào ở trạng thái `Draft`.
-  3. Mọi khoản phí ở trạng thái `Assessed` đã được thanh toán (`Settled`) hoặc đã được Admin duyệt miễn (`Voided`).
+### 16.4. Đóng đơn
+`POST /admin/rental-orders/{orderId}/complete` — đơn `InFulfillment`. Bị chặn (`409`) khi còn thiết bị chưa giao, chưa nhận trả, hoặc còn phí `Draft`. Quyết toán theo PRD §8.7: phí `Assessed` trừ vào cọc đã thu → `settlement.depositToRefund` / `settlement.additionalAmountDue`; đơn chuyển `Completed`.
 
 ---
 
@@ -4622,6 +4375,7 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-05 | Tri Tin | `/admin/rental-orders/{orderId}/claim`, `/admin/rental-orders/{orderId}/handover/scan` | Gộp vận hành đơn thuê về một luồng theo GUID: thêm nhận phụ trách và quét mã giao; bỏ `/admin/management/rental-orders*` và `/admin/rental-orders/by-code/*`. |
 | 2026-11-04 | Codex | `/admin/management/posts*`, `/admin/management/rental-orders*`, `/admin/rental-orders/by-code/{orderCode}/*` | Tách route quản trị mới và thao tác kho theo mã đơn để tránh trùng action; giữ URL frontend hiện có và khôi phục Swagger. |
 | 2026-10-31 | Antigravity | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping`, `/trip-bookings/{orderId}/cancel`, `/tours/{id}/group-settings`, `/tours/{id}/recurrence-rules`, `/trips*`, `/guide/trip-groups*` | Hoàn thiện triển khai BE cho Chia TripGroup (Section 7): migration DB, tự xếp sau webhook SePay, quản trị cấu hình group/lịch lặp, snapshot Staff/Guide, gán guide chống trùng lịch, chuyển/tách booking, tính lại đồ cấp chuyến, chốt group, hủy booking giữ lịch sử và lọc hiển thị theo quyền |
 | 2026-10-31 | Codex | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping` | Thêm contract dự kiến cho FE: cấu hình số group, snapshot Staff/Guide, gán guide, chuyển/tách booking, chốt và Customer xem group Published theo quyền |

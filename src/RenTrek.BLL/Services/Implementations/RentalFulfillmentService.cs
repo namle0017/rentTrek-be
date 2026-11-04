@@ -92,13 +92,58 @@ public sealed class RentalFulfillmentService(
         return MapDetail(detail, timeProvider.GetUtcNow().UtcDateTime, graceHours);
     }
 
+    // ---------- Người phụ trách (FR-R05) ----------
+
+    // Staff nhận đơn chưa có ai phụ trách; Admin được nhận lại đơn của người khác. Mọi lần đổi đều ghi audit.
+    public Task<AdminRentalOrderDetailResponse> ClaimAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => MutateAsync(orderId, "RentalClaim", (order, _, actorId) =>
+        {
+            EnsureStatus(order, OrderStatuses.PendingPayment, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
+            var rental = order.RentalOrder!;
+            var previous = rental.HandledByUserId;
+            if (previous is not null && previous != actorId && currentUser.Role != RoleNames.Admin)
+                throw new ConflictException("Đơn thuê đã có người phụ trách");
+
+            rental.HandledByUserId = actorId;
+            return new { previousHandledByUserId = previous, handledByUserId = actorId };
+        }, cancellationToken);
+
     // ---------- Giao đồ (FR-R06) ----------
 
     public Task<AdminRentalOrderDetailResponse> HandoverAsync(
         Guid orderId,
         HandoverRentalRequest request,
         CancellationToken cancellationToken = default)
-        => MutateAsync(orderId, "RentalHandover", (order, now, actorId) =>
+        => IssueAsync(orderId, "RentalHandover", reserved =>
+        {
+            if (request.AssignmentIds is not { Count: > 0 } ids)
+                return reserved;
+
+            var targets = reserved.Where(a => ids.Contains(a.AssetAssignmentId)).ToList();
+            if (targets.Count != ids.Distinct().Count())
+                throw new ConflictException("Có thiết bị không ở trạng thái chờ giao");
+            return targets;
+        }, cancellationToken);
+
+    // Quét từng mã: chỉ nhận thiết bị đang giữ cho chính đơn này; quét lại mã đã giao bị từ chối nên không giao trùng.
+    public Task<AdminRentalOrderDetailResponse> ScanHandoverAsync(
+        Guid orderId,
+        ScanHandoverRequest request,
+        CancellationToken cancellationToken = default)
+        => IssueAsync(orderId, "RentalHandoverScan", reserved =>
+        {
+            var code = request.AssetCode.Trim();
+            var match = reserved.FirstOrDefault(a => string.Equals(a.EquipmentAsset.AssetCode, code, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ConflictException($"Thiết bị {code} không nằm trong danh sách chờ giao của đơn này");
+            return [match];
+        }, cancellationToken);
+
+    private Task<AdminRentalOrderDetailResponse> IssueAsync(
+        Guid orderId,
+        string auditAction,
+        Func<List<AssetAssignment>, List<AssetAssignment>> pick,
+        CancellationToken cancellationToken)
+        => MutateAsync(orderId, auditAction, (order, now, actorId) =>
         {
             EnsureStatus(order, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
             if (order.PaymentStatus != OrderPaymentStatuses.Paid)
@@ -113,16 +158,9 @@ public sealed class RentalFulfillmentService(
                 throw new ConflictException("Đã quá thời gian thuê, không thể giao đồ");
 
             var reserved = Assignments(order).Where(a => a.Status == AssignmentStatuses.Reserved).ToList();
-            var targets = reserved;
-            if (request.AssignmentIds is { Count: > 0 } ids)
-            {
-                targets = reserved.Where(a => ids.Contains(a.AssetAssignmentId)).ToList();
-                if (targets.Count != ids.Distinct().Count())
-                    throw new ConflictException("Có thiết bị không ở trạng thái chờ giao");
-            }
-
-            if (targets.Count == 0)
+            if (reserved.Count == 0)
                 throw new ConflictException("Không còn thiết bị chờ giao");
+            var targets = pick(reserved);
 
             var unusable = targets
                 .Where(a => a.EquipmentAsset.AssetStatus is not (EquipmentAssetStatuses.Available or EquipmentAssetStatuses.Good))

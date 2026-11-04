@@ -10,7 +10,6 @@ public sealed class AdminQueryRequest : PagingRequest
     public string? OrderType { get; set; }
     public string? PaymentStatus { get; set; }
     public string? Tab { get; set; }
-    public string? HandledByUserId { get; set; }
     public string? AppliesTo { get; set; }
     public string? PostType { get; set; }
     public int? Rating { get; set; }

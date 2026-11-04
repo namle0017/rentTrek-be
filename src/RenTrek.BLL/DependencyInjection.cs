@@ -76,7 +76,6 @@ public static class DependencyInjection
         services.AddScoped<IRentalFulfillmentService, RentalFulfillmentService>();
         services.AddScoped<IAssetService, AssetService>();
         services.AddScoped<ITripProvidedItemService, TripProvidedItemService>();
-        services.AddScoped<IFulfillmentService, FulfillmentService>();
         services.AddScoped<IAdminRecurrenceRuleService, AdminRecurrenceRuleService>();
         services.AddScoped<IAdminTripService, AdminTripService>();
         services.AddScoped<IAdminTripGroupService, AdminTripGroupService>();

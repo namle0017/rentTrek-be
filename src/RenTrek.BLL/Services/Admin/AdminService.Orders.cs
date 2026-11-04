@@ -77,61 +77,6 @@ public sealed partial class AdminService
             rental == null ? null : new(rental.RentalStartAt, rental.RentalEndAt), rental?.HandledByUserId, rental?.HandlerFullName);
     }
 
-    public async Task<AdminOrderDetailResponse> GetRentalAsync(string orderCode, CancellationToken cancellationToken)
-    {
-        if (!await ScopedOrders().AnyAsync(x => x.OrderCode == orderCode && x.OrderType == "Rental", cancellationToken))
-            throw new NotFoundException("Không tìm thấy đơn thuê");
-        return await GetOrderAsync(orderCode, cancellationToken);
-    }
-
-    public Task<PagedResponse<AdminRentalResponse>> GetRentalsAsync(AdminQueryRequest request, CancellationToken cancellationToken)
-    {
-        var query = _unitOfWork.RentalOrders.Query().Where(x => !x.Order.IsDeleted);
-        if (!IsAdmin) query = query.Where(x => x.HandledByUserId == ActorId || x.HandledByUserId == null);
-        if (request.HandledByUserId == "unassigned") query = query.Where(x => x.HandledByUserId == null);
-        else if (request.HandledByUserId != null)
-        {
-            Check(Guid.TryParse(request.HandledByUserId, out var handlerId), "handledByUserId", "Mã người phụ trách không hợp lệ");
-            query = query.Where(x => x.HandledByUserId == handlerId);
-        }
-        // Business day is Vietnam time (UTC+7), timestamps stay UTC on the wire.
-        var start = Now.AddHours(7).Date.AddHours(-7); var end = start.AddDays(1);
-        if (request.Tab == "PickupToday") query = query.Where(x => x.RentalStartAt >= start && x.RentalStartAt < end && x.Order.Status == "Confirmed");
-        if (request.Tab == "ReturnToday") query = query.Where(x => x.RentalEndAt >= start && x.RentalEndAt < end && x.Order.Status == "InFulfillment");
-        if (request.Tab == "InFulfillment") query = query.Where(x => x.Order.Status == "InFulfillment");
-        if (request.Tab == "Overdue") query = query.Where(x => x.RentalEndAt < Now && x.RentalOrderItems.Any(i => i.AssetAssignments.Any(a => a.Status == "Issued")));
-        if (!string.IsNullOrWhiteSpace(request.Search))
-        {
-            var search = request.Search.Trim().ToLower();
-            query = query.Where(x => x.Order.OrderCode.ToLower().Contains(search) || x.Order.CustomerUser.Email.ToLower().Contains(search));
-        }
-        return PageAsync(query, request, x => new AdminRentalResponse(x.OrderId, x.Order.OrderCode,
-            new AdminCustomerResponse(x.Order.CustomerUserId, x.Order.CustomerUser.Profile == null ? null : x.Order.CustomerUser.Profile.UserCode,
-                x.Order.CustomerUser.FullName, x.Order.CustomerUser.Email, x.Order.CustomerUser.Phone),
-            new(x.RentalStartAt, x.RentalEndAt),
-            x.RentalOrderItems.Where(i => !i.IsDeleted).Sum(i => i.ProductVariantId != null ? i.Quantity : i.Quantity * i.RentalBundleItemSnapshots.Sum(s => s.QuantityPerBundle)),
-            x.RentalOrderItems.SelectMany(i => i.AssetAssignments).Count(a => a.Status == "Issued" || a.Status == "Returned"),
-            x.RentalOrderItems.SelectMany(i => i.AssetAssignments).Count(a => a.Status == "Returned"),
-            x.Order.TotalAmount, x.HandledByUser == null ? null : x.HandledByUser.FullName, x.Order.Status, x.Order.PaymentStatus,
-            x.RentalEndAt < Now && x.RentalOrderItems.Any(i => i.AssetAssignments.Any(a => a.Status == "Issued"))),
-            cancellationToken, "RentalStartAt", "RentalEndAt");
-    }
-
-    public async Task ClaimRentalAsync(string orderCode, CancellationToken cancellationToken)
-    {
-        await AtomicAsync("order:" + orderCode, async () =>
-        {
-            var rental = await _unitOfWork.RentalOrders.QueryTracking().Include(x => x.Order)
-                .SingleOrDefaultAsync(x => x.Order.OrderCode == orderCode && !x.Order.IsDeleted, cancellationToken)
-                ?? throw new NotFoundException("Không tìm thấy đơn thuê");
-            if (rental.HandledByUserId == ActorId) return;
-            if (rental.HandledByUserId.HasValue) throw new ConflictException("Đơn thuê đã có người phụ trách");
-            Check(rental.Order.Status is "PendingPayment" or "Confirmed" or "InFulfillment", "status", "Đơn thuê đã kết thúc");
-            rental.HandledByUserId = ActorId;
-            await AuditAsync("Claim", "Order", rental.OrderId, new { handledByUserId = ActorId }, cancellationToken);
-        }, cancellationToken);
-    }
-
     public async Task OverrideParticipantAsync(string orderCode, Guid participantId, ParticipantOverrideRequest request, CancellationToken cancellationToken)
     {
         var reason = Required(request.Reason, "reason", 500);

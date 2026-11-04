@@ -66,7 +66,7 @@ public sealed class AdminHttpTests
         using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         using var staff = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         await LoginAsync(admin, database.AdminId); await LoginAsync(staff, database.StaffId);
-        foreach (var endpoint in new[] { "users", "categories", "locations", "tags", "soft-skills", "orders", "management/rental-orders", "promotions", "posts", "settings", "audit-logs", "reviews", "dashboard/stats", "dashboard/alerts", "dashboard/kpis", "reports/revenue", "reports/trip-occupancy", "reports/asset-utilization", "reports/refunds-and-charges", "orders/TOUR-TEST" })
+        foreach (var endpoint in new[] { "users", "categories", "locations", "tags", "soft-skills", "orders", "rental-orders", "promotions", "posts", "settings", "audit-logs", "reviews", "dashboard/stats", "dashboard/alerts", "dashboard/kpis", "reports/revenue", "reports/trip-occupancy", "reports/asset-utilization", "reports/refunds-and-charges", "orders/TOUR-TEST" })
         {
             using var response = await admin.GetAsync("/api/v1/admin/" + endpoint);
             Assert.True(response.IsSuccessStatusCode, endpoint + ": " + await response.Content.ReadAsStringAsync());

@@ -37,9 +37,6 @@ public interface IAdminService
     Task DeleteSoftSkillAsync(Guid id, CancellationToken cancellationToken);
     Task<PagedResponse<AdminOrderResponse>> GetOrdersAsync(AdminQueryRequest request, CancellationToken cancellationToken);
     Task<AdminOrderDetailResponse> GetOrderAsync(string orderCode, CancellationToken cancellationToken);
-    Task<AdminOrderDetailResponse> GetRentalAsync(string orderCode, CancellationToken cancellationToken);
-    Task<PagedResponse<AdminRentalResponse>> GetRentalsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
-    Task ClaimRentalAsync(string orderCode, CancellationToken cancellationToken);
     Task OverrideParticipantAsync(string orderCode, Guid participantId, ParticipantOverrideRequest request, CancellationToken cancellationToken);
     Task ManualPaymentAsync(string orderCode, ManualPaymentRequest request, CancellationToken cancellationToken);
     Task CancelOrderAsync(string orderCode, ReasonRequest request, CancellationToken cancellationToken);
