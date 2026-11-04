@@ -295,12 +295,10 @@ public class PostService : IPostService
             .ToList()
     };
 
-    /// <summary>Bỏ dòng tiêu đề "## ", gộp khoảng trắng, cắt theo từ.</summary>
+    /// <summary>Bỏ cú pháp Markdown (tiêu đề, ảnh, in đậm...), gộp khoảng trắng, cắt theo từ.</summary>
     private static string MakeExcerpt(string content)
     {
-        var text = string.Join(' ', content
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(line => !line.StartsWith("##")));
+        var text = MarkdownHelper.ToPlainText(content);
 
         if (text.Length <= ExcerptLength)
             return text;
