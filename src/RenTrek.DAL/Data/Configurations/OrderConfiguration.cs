@@ -26,6 +26,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.DiscountAmount).HasColumnName("discount_amount").HasPrecision(18, 0);
         builder.Property(x => x.PaymentStatus).HasColumnName("payment_status").HasMaxLength(50);
         builder.Property(x => x.HoldExpiresAt).HasColumnName("hold_expires_at");
+        builder.Property(x => x.ReconciliationDeadlineAt).HasColumnName("reconciliation_deadline_at");
         builder.Property(x => x.CancelledAt).HasColumnName("cancelled_at");
         builder.Property(x => x.CancelReason).HasColumnName("cancel_reason").HasMaxLength(500);
         builder.Property(x => x.RefundPolicyId).HasColumnName("refund_policy_id");
