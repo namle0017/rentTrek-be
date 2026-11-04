@@ -519,6 +519,7 @@ uploads/
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Understand-Anything tool output
 .ua/
 =======
@@ -526,3 +527,7 @@ docs/RenTrekk Design System*
 docs/ADMIN-WORK-PLAN.md
 
 >>>>>>> feature/bach-warehouse-gantt-barcode
+=======
+# Understand-Anything tool output
+.ua/
+>>>>>>> feature/sepay-payment

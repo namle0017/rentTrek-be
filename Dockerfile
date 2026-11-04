@@ -4,10 +4,14 @@ WORKDIR /src
 
 # Copy csproj trước để cache layer restore (chỉ restore lại khi đổi package)
 COPY RenTrek.sln ./
+COPY global.json Directory.Build.props .editorconfig ./
 COPY src/RenTrek.API/RenTrek.API.csproj src/RenTrek.API/
 COPY src/RenTrek.BLL/RenTrek.BLL.csproj src/RenTrek.BLL/
 COPY src/RenTrek.DAL/RenTrek.DAL.csproj src/RenTrek.DAL/
-RUN dotnet restore src/RenTrek.API/RenTrek.API.csproj
+COPY src/RenTrek.API/packages.lock.json src/RenTrek.API/
+COPY src/RenTrek.BLL/packages.lock.json src/RenTrek.BLL/
+COPY src/RenTrek.DAL/packages.lock.json src/RenTrek.DAL/
+RUN dotnet restore src/RenTrek.API/RenTrek.API.csproj --locked-mode
 
 COPY src/ src/
 RUN dotnet publish src/RenTrek.API/RenTrek.API.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
