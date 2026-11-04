@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -18,6 +18,8 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .HasDefaultValueSql("gen_random_uuid()")
             .HasColumnName("review_id");
         builder.Property(e => e.Comment).HasColumnName("comment");
+        builder.Property(e => e.IsHidden).HasDefaultValue(false).HasColumnName("is_hidden");
+        builder.Property(e => e.HiddenReason).HasColumnName("hidden_reason");
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()")
             .HasColumnName("created_at");

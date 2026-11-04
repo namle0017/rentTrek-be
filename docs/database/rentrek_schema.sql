@@ -551,6 +551,8 @@ CREATE TABLE orders (
     payment_status      varchar(30)  NOT NULL,
     note                text,
     hold_expires_at     timestamptz,
+    reconciliation_deadline_at timestamptz,
+    idempotency_key      varchar(100),
     cancelled_at        timestamptz,
     cancel_reason       varchar(500),
     created_at          timestamptz  NOT NULL DEFAULT now(),
@@ -700,6 +702,8 @@ CREATE TABLE participant_post_reads (
 CREATE TABLE reviews (
     review_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     participant_id  uuid         NOT NULL UNIQUE REFERENCES booking_participants(participant_id),
+    is_hidden boolean NOT NULL DEFAULT false,
+    hidden_reason text,
     rating          integer      NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment         text,
     created_at      timestamptz  NOT NULL DEFAULT now(),
