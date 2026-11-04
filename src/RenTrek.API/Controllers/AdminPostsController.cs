@@ -5,6 +5,7 @@ using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Post.Requests;
 using RenTrek.BLL.DTOs.Post.Responses;
+using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -16,8 +17,30 @@ namespace RenTrek.API.Controllers;
 [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
 [Route("api/v1/admin/posts")]
 [Produces("application/json")]
-public sealed class AdminPostsController(IPostService postService) : ControllerBase
+public sealed class AdminPostsController(IPostService postService, IFileStorageService fileStorage) : ControllerBase
 {
+    private const long PostImageMaxBytes = 5 * 1024 * 1024;
+
+    /// <summary>Upload ảnh để chèn vào nội dung Markdown của bài viết.</summary>
+    [HttpPost("images")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(PostImageMaxBytes + 64 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<PostImageResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UploadImageAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            throw new ValidationException("Vui lòng chọn một file ảnh để tải lên");
+
+        await using var stream = file.OpenReadStream();
+        var url = await fileStorage.SaveImageAsync(
+            stream, file.FileName, file.ContentType, file.Length, "posts", PostImageMaxBytes, cancellationToken);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            ApiResponse<PostImageResponse>.Ok(new PostImageResponse(url), "Tải ảnh lên thành công", StatusCodes.Status201Created));
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<AdminPostListItemResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] AdminPostQueryRequest query, CancellationToken cancellationToken)
