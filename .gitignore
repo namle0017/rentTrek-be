@@ -518,5 +518,11 @@ logs/
 uploads/
 
 
+<<<<<<< HEAD
 # Understand-Anything tool output
 .ua/
+=======
+docs/RenTrekk Design System*
+docs/ADMIN-WORK-PLAN.md
+
+>>>>>>> feature/bach-warehouse-gantt-barcode

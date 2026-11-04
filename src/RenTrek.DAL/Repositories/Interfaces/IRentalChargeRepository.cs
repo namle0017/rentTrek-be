@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IRentalChargeRepository : IGenericRepository<RentalCharge>
 {
-    // Query đặc thù của RentalCharge khai báo tại đây
+    Task<List<RentalCharge>> GetChargesByOrderCodeAsync(string orderCode, CancellationToken cancellationToken = default);
+    Task<RentalCharge?> GetChargeByIdWithDetailsAsync(Guid chargeId, CancellationToken cancellationToken = default);
 }

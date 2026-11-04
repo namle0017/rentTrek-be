@@ -40,4 +40,7 @@ public interface IRentalOrderRepository : IGenericRepository<RentalOrder>
 
     /// <summary>Thêm cả đồ thị đơn (Order + RentalOrder + dòng + snapshot + khuyến mãi...) vào context; chưa SaveChanges.</summary>
     Task AddOrderAsync(Order order, CancellationToken cancellationToken = default);
+
+    /// <summary>Lấy thông tin đơn thuê kèm chi tiết phục vụ kiểm tra giao nhận và quyết toán phí phát sinh.</summary>
+    Task<RentalOrder?> GetByOrderCodeWithFulfillmentAsync(string orderCode, CancellationToken cancellationToken = default);
 }
