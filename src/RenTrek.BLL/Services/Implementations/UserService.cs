@@ -15,11 +15,16 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IFileStorageService _fileStorageService;
 
-    public UserService(IUnitOfWork unitOfWork, IPasswordHasher passwordHasher)
+    public UserService(
+        IUnitOfWork unitOfWork,
+        IPasswordHasher passwordHasher,
+        IFileStorageService fileStorageService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<UserDetailResponse> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -31,7 +36,8 @@ public class UserService : IUserService
             throw new NotFoundException($"Không tìm thấy người dùng với Id '{userId}'");
         }
 
-        return MapToDetailResponse(user);
+        var profile = user.Profile ?? await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: false, cancellationToken);
+        return MapToDetailResponse(user, profile);
     }
 
     public async Task<UserDetailResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)
@@ -46,11 +52,84 @@ public class UserService : IUserService
         user.FullName = request.FullName.Trim();
         user.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         user.UpdatedAt = DateTime.UtcNow;
-
         _unitOfWork.Accounts.Update(user);
+
+        var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
+        if (profile is null)
+        {
+            profile = new Profile
+            {
+                ProfileId = Guid.NewGuid(),
+                UserId = userId,
+                UserCode = $"RT-{userId:N}"[..10].ToUpperInvariant(),
+                Address = request.Address?.Trim(),
+                Bio = request.Bio?.Trim(),
+                DateOfBirth = request.DateOfBirth,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Profiles.AddAsync(profile, cancellationToken);
+        }
+        else
+        {
+            profile.Address = request.Address?.Trim();
+            profile.Bio = request.Bio?.Trim();
+            profile.DateOfBirth = request.DateOfBirth;
+            profile.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Profiles.Update(profile);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return MapToDetailResponse(user);
+        return MapToDetailResponse(user, profile);
+    }
+
+    public async Task<string> UploadAvatarAsync(
+        Guid userId,
+        Stream fileStream,
+        string originalFileName,
+        string contentType,
+        long fileLength,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: false, cancellationToken);
+        if (user is null)
+        {
+            throw new NotFoundException($"Không tìm thấy người dùng với Id '{userId}'");
+        }
+
+        var avatarUrl = await _fileStorageService.SaveAvatarAsync(
+            fileStream, originalFileName, contentType, fileLength, userId, cancellationToken);
+
+        var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
+        if (profile is null)
+        {
+            profile = new Profile
+            {
+                ProfileId = Guid.NewGuid(),
+                UserId = userId,
+                UserCode = $"RT-{userId:N}"[..10].ToUpperInvariant(),
+                AvatarUrl = avatarUrl,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Profiles.AddAsync(profile, cancellationToken);
+        }
+        else
+        {
+            var oldAvatar = profile.AvatarUrl;
+            profile.AvatarUrl = avatarUrl;
+            profile.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Profiles.Update(profile);
+
+            if (!string.IsNullOrWhiteSpace(oldAvatar) && oldAvatar.StartsWith("/uploads/avatars/"))
+            {
+                _fileStorageService.DeleteFile(oldAvatar);
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return avatarUrl;
     }
 
     public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, string? currentJti, CancellationToken cancellationToken = default)
@@ -98,7 +177,7 @@ public class UserService : IUserService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private static UserDetailResponse MapToDetailResponse(Account user)
+    private static UserDetailResponse MapToDetailResponse(Account user, Profile? profile)
     {
         return new UserDetailResponse
         {
@@ -109,6 +188,11 @@ public class UserService : IUserService
             Role = user.Role?.RoleName ?? "Customer",
             Status = user.Status,
             EmailConfirmed = user.EmailConfirmedAt is not null,
+            AvatarUrl = profile?.AvatarUrl ?? user.Profile?.AvatarUrl,
+            Address = profile?.Address ?? user.Profile?.Address,
+            Bio = profile?.Bio ?? user.Profile?.Bio,
+            DateOfBirth = profile?.DateOfBirth ?? user.Profile?.DateOfBirth,
+            UserCode = profile?.UserCode ?? user.Profile?.UserCode,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };

@@ -1,0 +1,100 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  validation:
+    name: ${{ matrix.phase }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [Quality, Architecture, Security, Tests, Build]
+    steps:
+      - name: Checkout full history for secret scanning
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up repository SDK and NuGet cache
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - name: Install checksum-verified workflow linter
+        if: matrix.phase == 'Quality'
+        shell: pwsh
+        run: ./scripts/ci/Install-Tools.ps1 -Tool actionlint
+      - name: Install checksum-verified secret scanner
+        if: matrix.phase == 'Security'
+        shell: pwsh
+        run: ./scripts/ci/Install-Tools.ps1 -Tool gitleaks
+      - name: Validate
+        shell: pwsh
+        run: ./scripts/ci/Validate.ps1 -Phase '${{ matrix.phase }}'
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: validation-${{ matrix.phase }}
+          path: |
+            artifacts/validation-*.json
+            artifacts/format/*.json
+            artifacts/warnings-current.json
+            artifacts/architecture/**/*.trx
+            artifacts/tests/**/*.trx
+            artifacts/tests/**/coverage.*.xml
+            artifacts/nuget-vulnerabilities.json
+            artifacts/security/*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate image without application credentials
+        shell: pwsh
+        run: ./scripts/ci/Validate.ps1 -Phase Docker
+
+  required:
+    name: CI Required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    needs: [validation, docker]
+    if: always()
+    steps:
+      - name: Require all validation jobs to succeed
+        env:
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+        shell: bash
+        run: |
+          test "$VALIDATION_RESULT" = success
+          test "$DOCKER_RESULT" = success

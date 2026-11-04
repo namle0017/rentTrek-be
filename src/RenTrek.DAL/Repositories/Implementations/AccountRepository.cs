@@ -20,6 +20,7 @@ public class AccountRepository : GenericRepository<Account>, IAccountRepository
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
         return await query
             .Include(u => u.Role)
+            .Include(u => u.Profile)
             .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
     }
 
@@ -28,6 +29,7 @@ public class AccountRepository : GenericRepository<Account>, IAccountRepository
         var query = tracking ? _dbSet : _dbSet.AsNoTracking();
         return await query
             .Include(u => u.Role)
+            .Include(u => u.Profile)
             .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
     }
 

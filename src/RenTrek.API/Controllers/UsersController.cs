@@ -49,6 +49,25 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<UserDetailResponse>.Ok(result, "Cập nhật thông tin tài khoản thành công"));
     }
 
+    [HttpPost("me/avatar")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadAvatar([FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.RequiredUserId;
+
+        if (file is null || file.Length == 0)
+        {
+            throw new ValidationException("Vui lòng chọn một file ảnh để tải lên");
+        }
+
+        using var stream = file.OpenReadStream();
+        var avatarUrl = await _userService.UploadAvatarAsync(
+            userId, stream, file.FileName, file.ContentType, file.Length, cancellationToken);
+
+        return Ok(ApiResponse<object>.Ok(new { avatarUrl }, "Tải lên ảnh đại diện thành công"));
+    }
+
     [HttpPut("me/password")]
     [Authorize]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
