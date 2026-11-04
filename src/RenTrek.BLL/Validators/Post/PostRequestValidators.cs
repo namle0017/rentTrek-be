@@ -47,15 +47,8 @@ public class UpsertPostRequestValidator : AbstractValidator<UpsertPostRequest>
             .NotEmpty().WithMessage("Nội dung không được để trống.")
             .MaximumLength(100_000).WithMessage("Nội dung quá dài.");
 
-        RuleFor(x => x.Status)
-            .Must(s => PostStatuses.All.Contains(s))
-            .WithMessage("Trạng thái bài viết không hợp lệ.");
-
-        RuleFor(x => x.TagNames)
+        RuleFor(x => x.TagIds)
             .Must(t => t.Count <= 10).WithMessage("Tối đa 10 tag cho một bài.");
-        RuleForEach(x => x.TagNames)
-            .NotEmpty().WithMessage("Tên tag không được để trống.")
-            .MaximumLength(100).WithMessage("Tên tag tối đa 100 ký tự.");
 
         RuleFor(x => x.SoftSkillIds)
             .Must(s => s.Count <= 20).WithMessage("Tối đa 20 kỹ năng cho một bài.");

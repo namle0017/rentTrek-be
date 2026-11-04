@@ -12,11 +12,6 @@ public interface IAdminService
     Task SetPromotionStatusAsync(Guid id, StatusRequest request, CancellationToken cancellationToken);
     Task SetPromotionTiersAsync(Guid id, PromotionTiersRequest request, CancellationToken cancellationToken);
     Task<PagedResponse<AdminPromotionUsageResponse>> GetPromotionUsageAsync(Guid id, AdminQueryRequest request, CancellationToken cancellationToken);
-    Task<PagedResponse<AdminPostResponse>> GetPostsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
-    Task<AdminPostDetailResponse> GetPostAsync(Guid id, CancellationToken cancellationToken);
-    Task<Guid> SavePostAsync(Guid? id, PostWriteRequest request, CancellationToken cancellationToken);
-    Task SetPostStatusAsync(Guid id, string status, CancellationToken cancellationToken);
-    Task<AdminReadAnalyticsResponse> GetReadAnalyticsAsync(Guid id, CancellationToken cancellationToken);
     Task<List<AdminSettingResponse>> GetSettingsAsync(CancellationToken cancellationToken);
     Task UpdateSettingAsync(string key, SettingWriteRequest request, CancellationToken cancellationToken);
     Task<PagedResponse<AdminReviewResponse>> GetReviewsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
