@@ -64,9 +64,11 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddSwaggerWithJwt();
 
+// Chỉ cho phép domain FE khai báo trong Cors__AllowedOrigins__N (.env / Render)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicyName, policy => policy
-        .SetIsOriginAllowed(_ => true)
+        .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
