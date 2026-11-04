@@ -10,7 +10,10 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
     {
         builder.HasKey(e => e.ReviewId).HasName("reviews_pkey");
 
-        builder.ToTable("reviews");
+        builder.ToTable("reviews", table =>
+        {
+            table.HasCheckConstraint("reviews_rating_check", "((rating >= 1) AND (rating <= 5))");
+        });
 
         builder.HasIndex(e => e.ParticipantId, "reviews_participant_id_key").IsUnique();
 

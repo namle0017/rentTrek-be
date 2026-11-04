@@ -97,6 +97,7 @@ public class TripProvidedItemServiceTests
 
     private class FakeUnitOfWork : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
 
         public FakeTripRepo TripsRepo { get; } = new();

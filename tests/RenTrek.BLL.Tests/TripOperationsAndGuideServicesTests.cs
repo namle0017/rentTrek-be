@@ -502,6 +502,7 @@ public sealed class TripOperationsAndGuideServicesTests
 
     private sealed class TestUnitOfWork : IUnitOfWork
     {
+        public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
 
         public FakeRecurrenceRuleRepo RecurrenceRepo { get; } = new();

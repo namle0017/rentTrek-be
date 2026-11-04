@@ -52,7 +52,7 @@ public class UsersController : ControllerBase
     [HttpPost("me/avatar")]
     [Authorize]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadAvatar([FromForm] IFormFile file, CancellationToken cancellationToken)
+    public async Task<IActionResult> UploadAvatar(IFormFile file, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.RequiredUserId;
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,11 @@ public class RentalOrderItemConfiguration : IEntityTypeConfiguration<RentalOrder
     {
         builder.HasKey(e => e.RentalOrderItemId).HasName("rental_order_items_pkey");
 
-        builder.ToTable("rental_order_items");
+        builder.ToTable("rental_order_items", table =>
+        {
+            table.HasCheckConstraint("rental_order_items_check", "((product_variant_id IS NULL) <> (bundle_id IS NULL))");
+            table.HasCheckConstraint("rental_order_items_quantity_check", "(quantity > 0)");
+        });
 
         builder.HasIndex(e => e.BundleId, "ix_rental_order_items_bundle_id");
         builder.HasIndex(e => e.ProductVariantId, "ix_rental_order_items_product_variant_id");

@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
     public DbSet<EquipmentAsset> EquipmentAssets => Set<EquipmentAsset>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ParticipantInvitation> ParticipantInvitations => Set<ParticipantInvitation>();
     public DbSet<ParticipantPostRead> ParticipantPostReads => Set<ParticipantPostRead>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Post> Posts => Set<Post>();
