@@ -33,10 +33,11 @@ public sealed class LayerDependencyTests
     [Fact]
     public void BllDoesNotDependOnPresentationOrDirectDataAccess()
     {
-        // EF IQueryable async extensions are explicitly allowed by conventions §6.8.
+        // Truy vấn nằm trong repository (conventions §6.8): BLL không dùng EF Core hay AutoMapper ProjectTo.
         AssertSuccessful(Types.InAssembly(Bll).ShouldNot().HaveDependencyOnAny(
             "RenTrek.API", "Microsoft.AspNetCore", "RenTrek.DAL.Data",
-            "RenTrek.DAL.Repositories.Implementations", "RenTrek.DAL.UnitOfWorks.UnitOfWork").GetResult());
+            "RenTrek.DAL.Repositories.Implementations", "RenTrek.DAL.UnitOfWorks.UnitOfWork",
+            "Microsoft.EntityFrameworkCore", "AutoMapper.QueryableExtensions").GetResult());
     }
 
     [Fact]

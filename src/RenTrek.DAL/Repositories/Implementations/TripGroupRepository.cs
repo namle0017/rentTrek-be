@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Repositories.Interfaces;
 

@@ -1,6 +1,8 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 
@@ -133,6 +135,108 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             ? query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.OrderId)
             : query.OrderBy(o => o.CreatedAt).ThenBy(o => o.OrderId);
     }
+
+    public Task<(IReadOnlyList<AdminOrderRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminOrderFilter filter, CancellationToken cancellationToken = default)
+    {
+        var query = Scoped(_dbSet.AsNoTracking(), filter.ScopeUserId);
+        if (filter.OrderType != null) query = query.Where(x => x.OrderType == filter.OrderType);
+        if (filter.Status != null) query = query.Where(x => x.Status == filter.Status);
+        if (filter.PaymentStatus != null) query = query.Where(x => x.PaymentStatus == filter.PaymentStatus);
+        if (filter.Tab is "PendingPayment" or "Cancelled") query = query.Where(x => x.Status == filter.Tab);
+        if (filter.Tab == "NeedsReconciliation") query = query.Where(x => x.PaymentStatus == "NeedsReconciliation");
+        if (filter.Tab == "PendingRefund")
+            query = query.Where(x => x.Payments.Any(p => p.PaymentType == "Refund" && (p.Status == "PendingApproval" || p.Status == "Pending")));
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(x => x.OrderCode.ToLower().Contains(search) || x.CustomerUser.Email.ToLower().Contains(search));
+        }
+
+        return query
+            .SortBy(filter.SortBy, filter.IsDescending, nameof(Order.CreatedAt), nameof(Order.OrderCode),
+                nameof(Order.TotalAmount), nameof(Order.Status), nameof(Order.HoldExpiresAt), nameof(Order.ReconciliationDeadlineAt))
+            .ToPageAsync(filter.PageNumber, filter.PageSize, ToAdminRow, cancellationToken);
+    }
+
+    public Task<AdminOrderRow?> GetAdminRowAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default)
+        => Scoped(_dbSet.AsNoTracking(), scopeUserId).Where(x => x.OrderCode == orderCode)
+            .Select(ToAdminRow).SingleOrDefaultAsync(cancellationToken);
+
+    public Task<Order?> GetAdminForUpdateAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default)
+        => Scoped(_dbSet, scopeUserId).Include(x => x.Payments)
+            .SingleOrDefaultAsync(x => x.OrderCode == orderCode, cancellationToken);
+
+    public Task<List<BookingParticipant>> GetParticipantsAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<BookingParticipant>().Where(x => !x.IsDeleted && x.BookingOrderId == orderId).ToListAsync(cancellationToken);
+
+    public Task<BookingParticipant?> GetParticipantForUpdateAsync(Guid orderId, Guid participantId, CancellationToken cancellationToken = default)
+        => _context.Set<BookingParticipant>().Include(x => x.Trip)
+            .SingleOrDefaultAsync(x => x.BookingOrderId == orderId && x.ParticipantId == participantId && !x.IsDeleted, cancellationToken);
+
+    public Task<List<Payment>> GetPaymentsAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<Payment>().AsNoTracking().Where(x => x.OrderId == orderId)
+            .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+
+    public Task<Payment?> GetManualCollectionAsync(string reference, CancellationToken cancellationToken = default)
+        => _context.Set<Payment>().AsNoTracking().SingleOrDefaultAsync(x => x.PaymentMethod == "Manual"
+            && x.PaymentType == "Collection" && x.ProviderTransactionId == reference, cancellationToken);
+
+    public Task<List<RentalOrderItem>> GetRentalLinesAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<RentalOrderItem>().AsNoTracking().AsSplitQuery()
+            .Where(x => !x.IsDeleted && x.RentalOrderId == orderId)
+            .Include(x => x.Bundle)
+            .Include(x => x.ProductVariant)
+            .Include(x => x.RentalBundleItemSnapshots).ThenInclude(x => x.ProductVariant)
+            .Include(x => x.AssetAssignments).ThenInclude(x => x.EquipmentAsset)
+            .ToListAsync(cancellationToken);
+
+    public Task<RentalOrder?> GetRentalWithHandlerAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<RentalOrder>().AsNoTracking().Include(x => x.HandledByUser)
+            .SingleOrDefaultAsync(x => x.OrderId == orderId, cancellationToken);
+
+    public Task<List<AppliedPromotion>> GetAppliedPromotionsAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<AppliedPromotion>().Where(x => x.OrderId == orderId).ToListAsync(cancellationToken);
+
+    public Task<List<AssetAssignment>> GetAssignmentsForUpdateAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<AssetAssignment>()
+            .Where(x => (x.RentalOrderItem != null && x.RentalOrderItem.RentalOrderId == orderId)
+                || (x.AppliedPromotion != null && x.AppliedPromotion.OrderId == orderId))
+            .ToListAsync(cancellationToken);
+
+    public Task<List<ParticipantInvitation>> GetOpenInvitationsForUpdateAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Set<ParticipantInvitation>()
+            .Where(x => x.BookingOrderId == orderId && x.RevokedAt == null && x.RedeemedAt == null)
+            .ToListAsync(cancellationToken);
+
+    private static readonly Expression<Func<Order, AdminOrderRow>> ToAdminRow = x => new AdminOrderRow
+    {
+        OrderId = x.OrderId,
+        OrderCode = x.OrderCode,
+        OrderType = x.OrderType,
+        CustomerUserId = x.CustomerUserId,
+        CustomerUserCode = x.CustomerUser.Profile == null ? null : x.CustomerUser.Profile.UserCode,
+        CustomerFullName = x.CustomerUser.FullName,
+        CustomerEmail = x.CustomerUser.Email,
+        CustomerPhone = x.CustomerUser.Phone,
+        TourName = x.TripBookingOrder == null ? null : x.TripBookingOrder.Trip.Tour.Name,
+        ParticipantCount = x.TripBookingOrder == null ? 0 : x.TripBookingOrder.ParticipantCount,
+        RentalItemQuantity = x.RentalOrder == null ? 0 : x.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted).Sum(i => i.Quantity),
+        TotalAmount = x.TotalAmount,
+        Status = x.Status,
+        PaymentStatus = x.PaymentStatus,
+        HoldExpiresAt = x.HoldExpiresAt,
+        ReconciliationDeadlineAt = x.ReconciliationDeadlineAt,
+        HasPendingRefund = x.Payments.Any(p => p.PaymentType == "Refund" && (p.Status == "PendingApproval" || p.Status == "Pending")),
+        CreatedAt = x.CreatedAt
+    };
+
+    /// <summary>null = mọi đơn; ngược lại chỉ đơn có chuyến do người này quản lý hoặc đơn thuê họ phụ trách.</summary>
+    /// <summary>Giới hạn đơn theo staff phụ trách (chuyến quản lý / đơn thuê xử lý); null = không giới hạn.</summary>
+    internal static IQueryable<Order> Scoped(IQueryable<Order> query, Guid? scopeUserId)
+        => scopeUserId is not { } userId ? query : query.Where(x =>
+            (x.OrderType == "TripBooking" && x.TripBookingOrder.Trip.ManagedByUserId == userId)
+            || (x.OrderType == "Rental" && x.RentalOrder != null && x.RentalOrder.HandledByUserId == userId));
 
     private static DateTimeOffset ToUtcOffset(DateTime value)
         => new(DateTime.SpecifyKind(value, DateTimeKind.Utc), TimeSpan.Zero);

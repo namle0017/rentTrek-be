@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -21,13 +20,6 @@ public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEnt
 
     public async Task<TEntity?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
         => await _dbSet.FindAsync([id], cancellationToken);
-
-    public IQueryable<TEntity> Query() => _dbSet.AsNoTracking();
-
-    public IQueryable<TEntity> QueryTracking() => _dbSet;
-
-    public Task<bool> AnyAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
-        => _dbSet.AnyAsync(predicate, cancellationToken);
 
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
         => await _dbSet.AddAsync(entity, cancellationToken);

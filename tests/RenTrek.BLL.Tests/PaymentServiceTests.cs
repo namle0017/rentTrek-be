@@ -378,9 +378,6 @@ public sealed class PaymentServiceTests
             return Task.CompletedTask;
         }
 
-        public IQueryable<Payment> Query() => throw new NotSupportedException();
-        public IQueryable<Payment> QueryTracking() => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<Payment, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Payment> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(Payment entity) => throw new NotSupportedException();
         public void Remove(Payment entity) => throw new NotSupportedException();

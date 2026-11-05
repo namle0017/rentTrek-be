@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.RentalOps.Requests;
@@ -36,56 +35,42 @@ public sealed class RentalFulfillmentService(
 
     // ---------- Đọc ----------
 
-    public Task<PagedResponse<AdminRentalOrderListItemResponse>> GetListAsync(
+    public async Task<PagedResponse<AdminRentalOrderListItemResponse>> GetListAsync(
         AdminRentalOrderQueryRequest query,
         CancellationToken cancellationToken = default)
     {
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        var orders = unitOfWork.Orders.Query()
-            .Where(o => !o.IsDeleted && o.OrderType == OrderTypes.Rental && o.RentalOrder != null);
-
-        if (!string.IsNullOrWhiteSpace(query.Status))
-            orders = orders.Where(o => o.Status == query.Status);
-
-        if (query.OverdueOnly)
-            orders = orders.Where(o => o.RentalOrder!.RentalEndAt < now
-                                       && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
-                                           && i.AssetAssignments.Any(a => a.Status == AssignmentStatuses.Issued)));
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        var (items, total) = await unitOfWork.RentalOrders.GetAdminPagedAsync(new AdminRentalOrderFilter
         {
-            var search = query.Search.Trim().ToLower();
-            orders = orders.Where(o => o.OrderCode.ToLower().Contains(search)
-                                       || o.CustomerUser.FullName.ToLower().Contains(search)
-                                       || o.CustomerUser.Email.ToLower().Contains(search));
-        }
+            Status = query.Status,
+            OverdueOnly = query.OverdueOnly,
+            Search = query.Search,
+            Now = timeProvider.GetUtcNow().UtcDateTime,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        }, cancellationToken);
 
-        return orders
-            .OrderByDescending(o => o.RentalOrder!.RentalStartAt)
-            .ThenBy(o => o.OrderId)
-            .Select(o => new AdminRentalOrderListItemResponse
+        return new PagedResponse<AdminRentalOrderListItemResponse>
+        {
+            Items = items.Select(o => new AdminRentalOrderListItemResponse
             {
                 OrderId = o.OrderId,
                 OrderCode = o.OrderCode,
-                CustomerName = o.CustomerUser.FullName,
+                CustomerName = o.CustomerName,
                 Status = o.Status,
                 PaymentStatus = o.PaymentStatus,
-                RentalStartAt = o.RentalOrder!.RentalStartAt,
-                RentalEndAt = o.RentalOrder.RentalEndAt,
+                RentalStartAt = o.RentalStartAt,
+                RentalEndAt = o.RentalEndAt,
                 TotalAmount = o.TotalAmount,
-                AssetsCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status != AssignmentStatuses.Cancelled),
-                IssuedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == AssignmentStatuses.Issued),
-                ReturnedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments)
-                    .Count(a => a.Status == AssignmentStatuses.Returned || a.Status == AssignmentStatuses.LostOrException),
-                DraftChargesCount = o.RentalOrder.RentalCharges.Count(c => c.Status == RentalChargeStatuses.Draft),
-                IsOverdue = o.RentalOrder.RentalEndAt < now
-                            && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
-                                && i.AssetAssignments.Any(a => a.Status == AssignmentStatuses.Issued))
-            })
-            .ToPagedResponseAsync(query, cancellationToken);
+                AssetsCount = o.AssetsCount,
+                IssuedCount = o.IssuedCount,
+                ReturnedCount = o.ReturnedCount,
+                DraftChargesCount = o.DraftChargesCount,
+                IsOverdue = o.IsOverdue
+            }).ToList(),
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalItems = total
+        };
     }
 
     public async Task<AdminRentalOrderDetailResponse> GetDetailAsync(Guid orderId, CancellationToken cancellationToken = default)

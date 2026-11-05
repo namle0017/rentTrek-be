@@ -1,6 +1,4 @@
-using System.Linq.Expressions;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
@@ -9,6 +7,7 @@ using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
@@ -82,41 +81,31 @@ public abstract class AdminServiceBase(IUnitOfWork unitOfWork, ICurrentUserServi
         catch (JsonException) { return JsonSerializer.SerializeToElement(details); }
     }
 
-    protected static async Task<PagedResponse<TResponse>> PageAsync<TEntity, TResponse>(
-        IQueryable<TEntity> query, AdminQueryRequest request, Expression<Func<TEntity, TResponse>> projection,
-        CancellationToken cancellationToken, string defaultSort = "CreatedAt", params string[] allowedSorts)
+    protected static AdminAuditResponse ToAuditResponse(AuditLogRow x)
+        => new(x.AuditLogId, x.ActorUserId, x.ActorFullName, x.Action, x.EntityType, x.EntityId,
+            AuditDetails(x.Details), x.CreatedAt);
+
+    /// <summary>Kiểm tra tham số phân trang admin.</summary>
+    protected static void CheckPaging(AdminQueryRequest request)
     {
         Check(request.PageNumber >= 1 && request.PageSize is >= 1 and <= 100, "pageNumber", "Phân trang không hợp lệ");
         Check(request.PageNumber <= int.MaxValue / request.PageSize, "pageNumber", "Số trang vượt giới hạn");
-        var property = typeof(TEntity).GetProperties().FirstOrDefault(x =>
-            x.Name.Equals(request.SortBy, StringComparison.OrdinalIgnoreCase) &&
-            (x.Name == defaultSort || allowedSorts.Contains(x.Name)))
-            ?? typeof(TEntity).GetProperty(defaultSort)!;
-        var parameter = Expression.Parameter(typeof(TEntity), "row");
-        var selector = Expression.Lambda(Expression.Property(parameter, property), parameter);
-        var sorted = query.Provider.CreateQuery<TEntity>(Expression.Call(typeof(Queryable),
-            request.SortOrder == "asc" ? "OrderBy" : "OrderByDescending",
-            [typeof(TEntity), property.PropertyType], query.Expression, Expression.Quote(selector)));
-        var key = typeof(TEntity).GetProperty("Id") ?? typeof(TEntity).GetProperty(typeof(TEntity).Name + "Id")
-            ?? typeof(TEntity).GetProperties().First(x => x.Name.EndsWith("Id", StringComparison.Ordinal));
-        var keySelector = Expression.Lambda(Expression.Property(parameter, key), parameter);
-        sorted = sorted.Provider.CreateQuery<TEntity>(Expression.Call(typeof(Queryable), "ThenBy",
-            [typeof(TEntity), key.PropertyType], sorted.Expression, Expression.Quote(keySelector)));
-        return new PagedResponse<TResponse>
-        {
-            TotalItems = await query.CountAsync(cancellationToken),
-            PageNumber = request.PageNumber,
-            PageSize = request.PageSize,
-            Items = await sorted.Skip((request.PageNumber - 1) * request.PageSize)
-                .Take(request.PageSize).Select(projection).ToListAsync(cancellationToken)
-        };
     }
 
-    protected IQueryable<Order> ScopedOrders(bool tracking = false)
-    {
-        var query = tracking ? _unitOfWork.Orders.QueryTracking() : _unitOfWork.Orders.Query();
-        return IsAdmin ? query : query.Where(x =>
-            (x.OrderType == OrderTypes.TripBooking && x.TripBookingOrder.Trip.ManagedByUserId == ActorId) ||
-            (x.OrderType == OrderTypes.Rental && x.RentalOrder != null && x.RentalOrder.HandledByUserId == ActorId));
-    }
+    /// <summary>Admin chỉ sắp tăng dần khi SortOrder đúng "asc"; mọi giá trị khác là giảm dần.</summary>
+    protected static bool IsDescending(AdminQueryRequest request) => request.SortOrder != "asc";
+
+    /// <summary>Map một trang dòng từ repository sang <see cref="PagedResponse{T}"/>.</summary>
+    protected static PagedResponse<TResponse> ToPaged<TRow, TResponse>(
+        (IReadOnlyList<TRow> Items, int TotalCount) page, AdminQueryRequest request, Func<TRow, TResponse> map)
+        => new()
+        {
+            Items = page.Items.Select(map).ToList(),
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalItems = page.TotalCount
+        };
+
+    /// <summary>null = admin thấy mọi đơn; ngược lại chỉ đơn có chuyến do người này quản lý hoặc đơn thuê họ phụ trách.</summary>
+    protected Guid? OrderScope => IsAdmin ? null : ActorId;
 }

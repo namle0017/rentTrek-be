@@ -9,6 +9,7 @@ using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -228,10 +229,10 @@ public sealed class AuthServiceTests
             return Task.CompletedTask;
         }
 
-        public IQueryable<Account> Query() => throw new NotSupportedException();
-        public IQueryable<Account> QueryTracking() => throw new NotSupportedException();
+        public Task<(IReadOnlyList<AdminUserRow> Items, int TotalCount)> GetAdminPagedAsync(AdminUserFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AdminUserRow?> GetAdminRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AccountActivityRow> GetActivityAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Account?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<Account, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Account> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(Account entity) { }
         public void Remove(Account entity) => throw new NotSupportedException();
@@ -243,10 +244,7 @@ public sealed class AuthServiceTests
         public Task<Role?> GetByNameAsync(string roleName, bool tracking = false, CancellationToken cancellationToken = default)
             => Task.FromResult<Role?>(new Role { RoleId = Guid.NewGuid(), RoleName = roleName });
 
-        public IQueryable<Role> Query() => throw new NotSupportedException();
-        public IQueryable<Role> QueryTracking() => throw new NotSupportedException();
         public Task<Role?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<Role, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddAsync(Role entity, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Role> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(Role entity) => throw new NotSupportedException();
@@ -261,10 +259,10 @@ public sealed class AuthServiceTests
         public Task<RefreshToken?> GetByTokenHashWithAccessTokensAsync(string tokenHash, bool tracking = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<RefreshToken>> GetOtherActiveTokensAsync(Guid userId, Guid? excludeFamilyId, bool tracking = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RevokeFamilyTokensAsync(Guid familyId, string reason, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<RefreshToken> Query() => throw new NotSupportedException();
-        public IQueryable<RefreshToken> QueryTracking() => throw new NotSupportedException();
+        public Task<List<RefreshToken>> GetActiveByUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<RefreshToken>> GetByUserWithAccessTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<RefreshToken?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<RefreshToken, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<RefreshToken> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(RefreshToken entity) => throw new NotSupportedException();
         public void Remove(RefreshToken entity) => throw new NotSupportedException();
@@ -276,10 +274,8 @@ public sealed class AuthServiceTests
         public Task AddAsync(AccessToken entity, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> IsJtiRevokedAsync(string jti, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<AccessToken?> GetByJtiWithRefreshTokenAsync(string jti, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<AccessToken> Query() => throw new NotSupportedException();
-        public IQueryable<AccessToken> QueryTracking() => throw new NotSupportedException();
+        public Task<bool> IsSessionActiveAsync(Guid userId, string jti, string role, DateTime nowUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AccessToken?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<AccessToken, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<AccessToken> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(AccessToken entity) => throw new NotSupportedException();
         public void Remove(AccessToken entity) => throw new NotSupportedException();

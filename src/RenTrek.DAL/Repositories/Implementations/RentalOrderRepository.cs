@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -213,4 +214,57 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
 
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => _context.Orders.AddAsync(order, cancellationToken).AsTask();
+
+    public Task<(IReadOnlyList<AdminRentalOrderRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminRentalOrderFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        // Giá trị asset_assignments.status / rental_charges.status (xem RenTrek.BLL.Constants)
+        const string issued = "Issued", returned = "Returned", lost = "LostOrException", cancelled = "Cancelled", draft = "Draft";
+        var now = filter.Now;
+
+        var orders = _context.Orders.AsNoTracking()
+            .Where(o => !o.IsDeleted && o.OrderType == RentalOrderType && o.RentalOrder != null);
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+            orders = orders.Where(o => o.Status == filter.Status);
+
+        if (filter.OverdueOnly)
+            orders = orders.Where(o => o.RentalOrder!.RentalEndAt < now
+                                       && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
+                                           && i.AssetAssignments.Any(a => a.Status == issued)));
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            orders = orders.Where(o => o.OrderCode.ToLower().Contains(search)
+                                       || o.CustomerUser.FullName.ToLower().Contains(search)
+                                       || o.CustomerUser.Email.ToLower().Contains(search));
+        }
+
+        return orders
+            .OrderByDescending(o => o.RentalOrder!.RentalStartAt)
+            .ThenBy(o => o.OrderId)
+            .ToPageAsync(filter.PageNumber, filter.PageSize, o => new AdminRentalOrderRow
+            {
+                OrderId = o.OrderId,
+                OrderCode = o.OrderCode,
+                CustomerName = o.CustomerUser.FullName,
+                Status = o.Status,
+                PaymentStatus = o.PaymentStatus,
+                RentalStartAt = o.RentalOrder!.RentalStartAt,
+                RentalEndAt = o.RentalOrder.RentalEndAt,
+                TotalAmount = o.TotalAmount,
+                AssetsCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status != cancelled),
+                IssuedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == issued),
+                ReturnedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == returned || a.Status == lost),
+                DraftChargesCount = o.RentalOrder.RentalCharges.Count(c => c.Status == draft),
+                IsOverdue = o.RentalOrder.RentalEndAt < now
+                            && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
+                                && i.AssetAssignments.Any(a => a.Status == issued))
+            }, cancellationToken);
+    }
 }
