@@ -520,6 +520,8 @@ uploads/
 
 # Understand-Anything tool output
 .ua/
-docs/RenTrekk Design System*
 docs/ADMIN-WORK-PLAN.md
+
+# Bản thiết kế dùng chung, không thuộc repo BE (khớp ở mọi cấp thư mục)
+RenTrekk Design System*/
 
