@@ -10,4 +10,18 @@ CREATE TABLE IF NOT EXISTS public.auth_attempts (
 
 CREATE INDEX IF NOT EXISTS ix_auth_attempts_window_start ON public.auth_attempts (window_start);
 
+-- Chỉ backend dùng direct PostgreSQL connection được truy cập bảng bảo mật này.
+ALTER TABLE public.auth_attempts ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE
+    role_name text;
+BEGIN
+    FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+            EXECUTE format('REVOKE ALL ON public.auth_attempts FROM %I', role_name);
+        END IF;
+    END LOOP;
+END $$;
+
 COMMIT;
