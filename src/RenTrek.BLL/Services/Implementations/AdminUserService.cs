@@ -1,6 +1,4 @@
-using System.Linq.Expressions;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
@@ -9,6 +7,7 @@ using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
@@ -21,37 +20,31 @@ public sealed class AdminUserService(
 {
     private readonly IPasswordHasher _passwordHasher = passwordHasher;
 
-    private static readonly Expression<Func<Account, AdminUserResponse>> UserProjection = user => new(
-        user.UserId, user.Profile == null ? null : user.Profile.UserCode, user.Email, user.FullName,
-        user.Phone, user.Role.RoleName, user.Status, user.Profile == null ? null : user.Profile.AvatarUrl,
-        user.LastLoginAt, user.CreatedAt);
+    private static AdminUserResponse ToResponse(AdminUserRow x) => new(
+        x.UserId, x.UserCode, x.Email, x.FullName, x.Phone, x.RoleName, x.Status, x.AvatarUrl, x.LastLoginAt, x.CreatedAt);
 
-    public Task<PagedResponse<AdminUserResponse>> GetUsersAsync(AdminQueryRequest request, CancellationToken cancellationToken)
+    public async Task<PagedResponse<AdminUserResponse>> GetUsersAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin();
-        var query = _unitOfWork.Accounts.Query().Where(x => !x.IsDeleted);
-        if (!string.IsNullOrWhiteSpace(request.Search))
+        CheckPaging(request);
+        var page = await _unitOfWork.Accounts.GetAdminPagedAsync(new AdminUserFilter
         {
-            var search = request.Search.Trim().ToLower();
-            query = query.Where(x => x.FullName.ToLower().Contains(search) || x.Email.ToLower().Contains(search)
-                || (x.Phone != null && x.Phone.Contains(search)) || (x.Profile != null && x.Profile.UserCode.ToLower().Contains(search)));
-        }
-        if (request.Role != null) query = query.Where(x => x.Role.RoleName == request.Role);
-        if (request.Status != null) query = query.Where(x => x.Status == request.Status);
-        return PageAsync(query, request, UserProjection, cancellationToken, "CreatedAt", "FullName", "Email", "Status");
+            Search = request.Search, Role = request.Role, Status = request.Status, SortBy = request.SortBy,
+            IsDescending = IsDescending(request), PageNumber = request.PageNumber, PageSize = request.PageSize
+        }, cancellationToken);
+        return ToPaged(page, request, ToResponse);
     }
 
     public async Task<AdminUserDetailResponse> GetUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         RequireAdmin();
-        var user = await _unitOfWork.Accounts.Query().Where(x => !x.IsDeleted && x.UserId == userId)
-            .Select(UserProjection).SingleOrDefaultAsync(cancellationToken) ?? throw new NotFoundException("Không tìm thấy người dùng");
-        var profile = await _unitOfWork.Profiles.Query().SingleOrDefaultAsync(x => x.UserId == userId && !x.IsDeleted, cancellationToken);
-        return new(user, profile?.DateOfBirth, profile?.Address, profile?.CareerStartDate, profile?.Bio,
-            await _unitOfWork.Orders.Query().CountAsync(x => x.CustomerUserId == userId, cancellationToken),
-            await _unitOfWork.Trips.Query().CountAsync(x => !x.IsDeleted && x.ManagedByUserId == userId, cancellationToken),
-            await _unitOfWork.TripGroups.Query().Where(x => !x.IsDeleted && x.GuideUserId == userId)
-                .Select(x => x.TripId).Distinct().CountAsync(cancellationToken));
+        var user = await _unitOfWork.Accounts.GetAdminRowAsync(userId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy người dùng");
+        var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, cancellationToken: cancellationToken);
+        if (profile?.IsDeleted == true) profile = null;
+        var activity = await _unitOfWork.Accounts.GetActivityAsync(userId, cancellationToken);
+        return new(ToResponse(user), profile?.DateOfBirth, profile?.Address, profile?.CareerStartDate, profile?.Bio,
+            activity.OrderCount, activity.ManagedTripCount, activity.GuidedTripCount);
     }
 
     public async Task<AdminUserDetailResponse> CreateStaffAsync(CreateStaffRequest request, CancellationToken cancellationToken)
@@ -64,10 +57,9 @@ public sealed class AdminUserService(
         var userId = Guid.NewGuid();
         await AtomicAsync("account-email:" + email, async () =>
         {
-            if (await _unitOfWork.Accounts.Query().IgnoreQueryFilters().AnyAsync(x => x.Email.ToLower() == email, cancellationToken))
+            if (await _unitOfWork.Accounts.ExistsByEmailAsync(email, cancellationToken))
                 throw new ConflictException("Email đã được sử dụng");
-            var role = await _unitOfWork.Roles.Query().SingleOrDefaultAsync(x => x.RoleName == roleName && !x.IsDeleted, cancellationToken)
-                ?? throw new BadRequestException("Vai trò chưa được cấu hình");
+            var role = await FindRoleAsync(roleName, cancellationToken);
             await _unitOfWork.Accounts.AddAsync(new Account
             {
                 UserId = userId,
@@ -102,7 +94,8 @@ public sealed class AdminUserService(
             var user = await FindAccountAsync(userId, cancellationToken);
             var before = new { user.FullName, user.Phone };
             user.FullName = fullName; user.Phone = request.Phone?.Trim(); user.UpdatedAt = Now;
-            var profile = await _unitOfWork.Profiles.QueryTracking().SingleOrDefaultAsync(x => x.UserId == userId && !x.IsDeleted, cancellationToken);
+            var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
+            if (profile?.IsDeleted == true) profile = null;
             if (profile == null)
             {
                 profile = new Profile { ProfileId = Guid.NewGuid(), UserId = userId, UserCode = "USR-" + userId.ToString("N")[..12], CreatedAt = Now };
@@ -115,9 +108,16 @@ public sealed class AdminUserService(
     }
 
     private async Task<Account> FindAccountAsync(Guid userId, CancellationToken cancellationToken)
-        => await _unitOfWork.Accounts.QueryTracking().Include(x => x.Role)
-            .SingleOrDefaultAsync(x => !x.IsDeleted && x.UserId == userId, cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy người dùng");
+    {
+        var user = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken);
+        return user is { IsDeleted: false } ? user : throw new NotFoundException("Không tìm thấy người dùng");
+    }
+
+    private async Task<Role> FindRoleAsync(string roleName, CancellationToken cancellationToken)
+    {
+        var role = await _unitOfWork.Roles.GetByNameAsync(roleName, cancellationToken: cancellationToken);
+        return role is { IsDeleted: false } ? role : throw new BadRequestException("Vai trò chưa được cấu hình");
+    }
 
     public async Task ChangeRoleAsync(Guid userId, ChangeRoleRequest request, CancellationToken cancellationToken)
     {
@@ -128,8 +128,7 @@ public sealed class AdminUserService(
         {
             var user = await FindAccountAsync(userId, cancellationToken);
             Check(userId != ActorId && user.Role.RoleName != RoleNames.Admin, "role", "Không được đổi vai trò tài khoản quản trị viên");
-            var role = await _unitOfWork.Roles.Query().SingleOrDefaultAsync(x => !x.IsDeleted && x.RoleName == roleName, cancellationToken)
-                ?? throw new BadRequestException("Vai trò chưa được cấu hình");
+            var role = await FindRoleAsync(roleName, cancellationToken);
             var before = user.Role.RoleName;
             user.RoleId = role.RoleId; user.UpdatedAt = Now;
             await RevokeTokensAsync(userId, null, cancellationToken);
@@ -156,8 +155,8 @@ public sealed class AdminUserService(
     {
         RequireAdmin();
         await FindAccountAsync(userId, cancellationToken);
-        return await _unitOfWork.RefreshTokens.Query().Where(x => x.UserId == userId && x.RevokedAt == null && x.ExpiresAt > Now)
-            .OrderByDescending(x => x.CreatedAt).Select(x => new AdminSessionResponse(x.RefreshTokenId, x.FamilyId, x.CreatedAt, x.ExpiresAt)).ToListAsync(cancellationToken);
+        var tokens = await _unitOfWork.RefreshTokens.GetActiveByUserAsync(userId, Now, cancellationToken);
+        return tokens.Select(x => new AdminSessionResponse(x.RefreshTokenId, x.FamilyId, x.CreatedAt, x.ExpiresAt)).ToList();
     }
 
     public async Task RevokeSessionsAsync(Guid userId, Guid? sessionId, CancellationToken cancellationToken)
@@ -168,7 +167,7 @@ public sealed class AdminUserService(
             await FindAccountAsync(userId, cancellationToken);
             Guid? familyId = null;
             if (sessionId.HasValue)
-                familyId = (await _unitOfWork.RefreshTokens.Query().SingleOrDefaultAsync(x => x.UserId == userId && x.RefreshTokenId == sessionId, cancellationToken)
+                familyId = (await _unitOfWork.RefreshTokens.GetForUserAsync(userId, sessionId.Value, cancellationToken)
                     ?? throw new NotFoundException("Không tìm thấy phiên đăng nhập")).FamilyId;
             await RevokeTokensAsync(userId, familyId, cancellationToken);
             await AuditAsync("Revoke", "Account", userId, new { sessionId }, cancellationToken);
@@ -177,8 +176,7 @@ public sealed class AdminUserService(
 
     private async Task RevokeTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken)
     {
-        var tokens = await _unitOfWork.RefreshTokens.QueryTracking().Include(x => x.AccessTokens)
-            .Where(x => x.UserId == userId && (!familyId.HasValue || x.FamilyId == familyId)).ToListAsync(cancellationToken);
+        var tokens = await _unitOfWork.RefreshTokens.GetByUserWithAccessTokensAsync(userId, familyId, cancellationToken);
         foreach (var token in tokens)
         {
             token.RevokedAt ??= Now; token.RevokedReason = "Quản trị viên thu hồi phiên";

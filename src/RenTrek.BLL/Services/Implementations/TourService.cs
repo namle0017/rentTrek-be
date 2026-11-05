@@ -5,8 +5,9 @@ using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Tour.Requests;
 using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -26,14 +27,56 @@ public class TourService : ITourService
         _mapper = mapper;
     }
 
-    public Task<PagedResponse<AdminTourListItemResponse>> GetAdminToursAsync(
+    public async Task<PagedResponse<AdminTourListItemResponse>> GetAdminToursAsync(
         AdminTourQueryRequest query,
         CancellationToken cancellationToken = default)
-        => AdminCatalogQuery.BuildTours(
-                _unitOfWork.Repository<RenTrek.DAL.Entities.Tour>().Query(),
-                query,
-                DateTimeOffset.UtcNow)
-            .ToPagedResponseAsync(query, cancellationToken);
+    {
+        // Lọc theo trạng thái hiển thị: Active gộp vào Published, Expired gộp vào Archived; giá trị lạ → rỗng
+        IReadOnlyCollection<string>? statuses = string.IsNullOrWhiteSpace(query.Status)
+            ? null
+            : query.Status.Trim().ToLowerInvariant() switch
+            {
+                "published" => [TourStatuses.Published, TourStatuses.Active],
+                "archived" => [TourStatuses.Archived, TourStatuses.Expired],
+                "draft" => [TourStatuses.Draft],
+                _ => []
+            };
+
+        var (items, total) = await _unitOfWork.Tours.GetAdminPagedAsync(new AdminTourFilter
+        {
+            Search = query.Search,
+            CategoryId = query.CategoryId,
+            LocationId = query.LocationId,
+            Statuses = statuses,
+            Now = DateTimeOffset.UtcNow,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        }, cancellationToken);
+
+        return new PagedResponse<AdminTourListItemResponse>
+        {
+            Items = items.Select(tour => new AdminTourListItemResponse
+            {
+                TourId = tour.TourId,
+                TourFamilyId = tour.TourFamilyId,
+                Name = tour.Name,
+                CategoryName = tour.CategoryName,
+                MainLocationName = tour.MainLocationName,
+                DurationDays = tour.DurationDays,
+                DurationNights = tour.DurationNights,
+                BasePrice = tour.BasePrice,
+                Version = tour.Version,
+                IsItineraryLocked = tour.IsItineraryLocked,
+                Status = tour.Status == TourStatuses.Active ? "Published"
+                    : tour.Status == TourStatuses.Expired ? "Archived" : tour.Status,
+                PrimaryImageUrl = tour.PrimaryImageUrl,
+                UpcomingTripsCount = tour.UpcomingTripsCount
+            }).ToList(),
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalItems = total
+        };
+    }
 
     public async Task<PagedResponse<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
     {

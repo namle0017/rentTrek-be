@@ -16,9 +16,6 @@ public class TripProvidedItemServiceTests
     private class FakeGenericRepo<T> : IGenericRepository<T> where T : class
     {
         public Task<T?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => Task.FromResult<T?>(null);
-        public IQueryable<T> Query() => new List<T>().AsQueryable();
-        public IQueryable<T> QueryTracking() => new List<T>().AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task AddAsync(T entity, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Update(T entity) { }

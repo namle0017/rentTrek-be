@@ -12,4 +12,7 @@ public interface IProductVariantRepository : IGenericRepository<ProductVariant>
     Task<List<RentalVariantInfo>> GetActiveForRentalAsync(
         IReadOnlyCollection<Guid> variantIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Biến thể và sản phẩm chưa xoá, kèm Product, sắp theo tên sản phẩm rồi tên biến thể. Không tracking.</summary>
+    Task<List<ProductVariant>> GetOptionsAsync(CancellationToken cancellationToken = default);
 }

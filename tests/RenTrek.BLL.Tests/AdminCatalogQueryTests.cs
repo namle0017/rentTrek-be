@@ -1,169 +1,135 @@
-using Microsoft.EntityFrameworkCore;
-using RenTrek.BLL.DTOs.AdminCatalog.Requests;
-using RenTrek.BLL.Helpers;
-using RenTrek.DAL.Data;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Entities.Enums;
+using RenTrek.DAL.Models;
+using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Tests;
 
+/// <summary>
+/// Truy vấn danh mục cho vận hành (tour / sản phẩm) chạy trên Postgres thật qua repository.
+/// </summary>
 public sealed class AdminCatalogQueryTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 11, 3, 8, 0, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void BuildTours_ReturnsOnlyLatestVersionAndProjectsOperationalFields()
+    [AdminPostgresFact]
+    public async Task Tours_ReturnsOnlyLatestVersionAndProjectsOperationalFields()
     {
+        await using var db = new AdminTestDatabase();
+        await db.InitializeAsync();
+        var now = db.Now;
         var familyId = Guid.NewGuid();
-        var category = new Category { Id = Guid.NewGuid(), Name = "Săn mây" };
-        var location = new Location { Id = Guid.NewGuid(), Name = "Bắc Yên", Address = "Sơn La" };
-        var oldVersion = CreateTour(familyId, 1, "Tà Xùa cũ", category, location);
-        var latestVersion = CreateTour(familyId, 2, "Tà Xùa săn mây", category, location);
-        latestVersion.Status = "Active";
-        latestVersion.ItineraryLockedAt = Now.UtcDateTime;
-        latestVersion.Images.Add(new TourImage
+        Guid latestId;
+        await using (var context = db.Context())
         {
-            Id = Guid.NewGuid(),
-            TourId = latestVersion.Id,
-            Tour = latestVersion,
-            ImageUrl = "secondary.jpg",
-            DisplayOrder = 0,
-            IsPrimary = false
-        });
-        latestVersion.Images.Add(new TourImage
+            var category = new Category { Name = "Săn mây", CategoryType = "TOUR" };
+            var location = new Location { Name = "Bắc Yên", Address = "Sơn La" };
+            var oldVersion = NewTour(familyId, 1, "Tà Xùa cũ", category, location, db.AdminId);
+            var latest = NewTour(familyId, 2, "Tà Xùa săn mây", category, location, db.AdminId);
+            latest.Status = "Active";
+            latest.ItineraryLockedAt = now.UtcDateTime;
+            latest.Images.Add(new TourImage { ImageUrl = "secondary.jpg", DisplayOrder = 0, IsPrimary = false });
+            latest.Images.Add(new TourImage { ImageUrl = "primary.jpg", DisplayOrder = 1, IsPrimary = true });
+            latest.Trips.Add(NewTrip(now.AddDays(2), false, db));
+            latest.Trips.Add(NewTrip(now.AddDays(-2), false, db));
+            latest.Trips.Add(NewTrip(now.AddDays(3), true, db));
+            context.Tours.AddRange(oldVersion, latest);
+            await context.SaveChangesAsync();
+            latestId = latest.Id;
+        }
+
+        await using var read = db.Context();
+        var (items, total) = await new UnitOfWork(read).Tours.GetAdminPagedAsync(new AdminTourFilter
         {
-            Id = Guid.NewGuid(),
-            TourId = latestVersion.Id,
-            Tour = latestVersion,
-            ImageUrl = "primary.jpg",
-            DisplayOrder = 1,
-            IsPrimary = true
+            Search = "Tà Xùa",
+            Statuses = ["Published", "Active"],
+            Now = now
         });
-        latestVersion.Trips.Add(CreateTrip(latestVersion, Now.AddDays(2), isDeleted: false));
-        latestVersion.Trips.Add(CreateTrip(latestVersion, Now.AddDays(-2), isDeleted: false));
-        latestVersion.Trips.Add(CreateTrip(latestVersion, Now.AddDays(3), isDeleted: true));
 
-        var result = AdminCatalogQuery.BuildTours(
-                new[] { oldVersion, latestVersion }.AsQueryable(),
-                new AdminTourQueryRequest(),
-                Now)
-            .ToList();
-
-        var tour = Assert.Single(result);
-        Assert.Equal(latestVersion.Id, tour.TourId);
-        Assert.Equal("Tà Xùa săn mây", tour.Name);
-        Assert.Equal("Published", tour.Status);
+        var tour = Assert.Single(items);
+        Assert.Equal(1, total);
+        Assert.Equal(latestId, tour.TourId);
+        Assert.Equal("Active", tour.Status);
         Assert.True(tour.IsItineraryLocked);
         Assert.Equal("primary.jpg", tour.PrimaryImageUrl);
         Assert.Equal(1, tour.UpcomingTripsCount);
     }
 
-    [Fact]
-    public void BuildProducts_FiltersStatusAndCountsOnlyCurrentInventory()
+    [AdminPostgresFact]
+    public async Task Products_FiltersStatusAndCountsOnlyCurrentInventory()
     {
-        var category = new Category { Id = Guid.NewGuid(), Name = "Lều trại" };
-        var active = new Product
+        await using var db = new AdminTestDatabase();
+        await db.InitializeAsync();
+        await using (var context = db.Context())
         {
-            Id = Guid.NewGuid(),
-            CategoryId = category.Id,
-            Category = category,
-            Name = "Lều Naturehike",
-            Status = CatalogStatus.Active,
-            CreatedAt = new DateTime(2026, 10, 20, 0, 0, 0, DateTimeKind.Utc)
-        };
-        var variant = new ProductVariant
-        {
-            Id = Guid.NewGuid(),
-            ProductId = active.Id,
-            Product = active,
-            Name = "Xanh rêu",
-            Sku = "LEU-NH-XR",
-            Status = CatalogStatus.Active
-        };
-        variant.Images.Add(new ProductVariantImage
-        {
-            Id = Guid.NewGuid(),
-            ProductVariantId = variant.Id,
-            ProductVariant = variant,
-            ImageUrl = "tent.jpg",
-            IsPrimary = true
-        });
-        variant.EquipmentAssets.Add(CreateAsset(variant, "Available", isDeleted: false));
-        variant.EquipmentAssets.Add(CreateAsset(variant, "Maintenance", isDeleted: false));
-        variant.EquipmentAssets.Add(CreateAsset(variant, "Available", isDeleted: true));
-        active.Variants.Add(variant);
-        active.Variants.Add(new ProductVariant
-        {
-            Id = Guid.NewGuid(),
-            ProductId = active.Id,
-            Product = active,
-            Name = "Đã xóa",
-            Sku = "DELETED",
-            IsDeleted = true
-        });
+            var category = new Category { Name = "Lều trại", CategoryType = "PRODUCT" };
+            var product = new Product { Name = "Lều Naturehike", Category = category, Status = CatalogStatus.Active, CreatedByUserId = db.AdminId };
+            var variant = new ProductVariant { Product = product, Name = "Xanh rêu", Sku = "LEU-NH-XR", Status = CatalogStatus.Active };
+            variant.Images.Add(new ProductVariantImage { ImageUrl = "tent.jpg", IsPrimary = true });
+            variant.RentalPriceTiers.Add(new RentalPriceTier { MinDays = 1, MaxDays = 3, DailyPrice = 100000 });
+            variant.EquipmentAssets.Add(NewAsset("Available", false));
+            variant.EquipmentAssets.Add(NewAsset("Maintenance", false));
+            variant.EquipmentAssets.Add(NewAsset("Available", true));
+            context.ProductVariants.AddRange(variant,
+                new ProductVariant { Product = product, Name = "Đã xóa", Sku = "DELETED", IsDeleted = true });
+            await context.SaveChangesAsync();
+        }
 
-        var result = AdminCatalogQuery.BuildProducts(
-                new[] { active }.AsQueryable(),
-                new AdminProductQueryRequest { Status = "Active", Search = "Naturehike" })
-            .ToList();
+        await using var read = db.Context();
+        var products = new UnitOfWork(read).Products;
+        var (items, total) = await products.GetAdminPagedAsync(new AdminProductFilter { Search = "Naturehike", Status = CatalogStatus.Active });
 
-        var product = Assert.Single(result);
-        Assert.Equal(1, product.VariantsCount);
-        Assert.Equal(2, product.TotalAssetsCount);
-        Assert.Equal(1, product.AvailableAssetsCount);
-        Assert.Equal("tent.jpg", product.PrimaryImageUrl);
-        Assert.Equal("Active", product.Status);
+        var row = Assert.Single(items);
+        Assert.Equal(1, total);
+        Assert.Equal(1, row.VariantsCount);
+        Assert.Equal(2, row.TotalAssetsCount);
+        Assert.Equal(1, row.AvailableAssetsCount);
+        Assert.Equal("tent.jpg", row.PrimaryImageUrl);
+
+        var detail = await products.GetAdminDetailAsync(row.ProductId);
+        var variantDetail = Assert.Single(detail!.Variants);
+        Assert.Equal(2, variantDetail.EquipmentAssets.Count);
+
+        // Các truy vấn công khai dịch được sang SQL (sort theo giá dùng subquery)
+        var (publicItems, _) = await products.GetPublicPagedAsync(new ProductFilter { SortBy = "priceperday", IsDescending = true });
+        Assert.Contains(publicItems, p => p.Id == row.ProductId);
+        Assert.NotNull(await products.GetPublicDetailAsync(row.ProductId));
+        Assert.Contains(await products.GetPublicCategoriesAsync(), c => c.Name == "Lều trại");
     }
 
-    [Fact]
-    public void AdminCatalogQueries_AreTranslatableByNpgsql()
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Database=translation_only;Username=test;Password=test")
-            .Options;
-        using var context = new AppDbContext(options);
-
-        var tourSql = AdminCatalogQuery.BuildTours(context.Tours, new AdminTourQueryRequest(), Now).ToQueryString();
-        var productSql = AdminCatalogQuery.BuildProducts(context.Products, new AdminProductQueryRequest()).ToQueryString();
-
-        Assert.False(string.IsNullOrWhiteSpace(tourSql));
-        Assert.False(string.IsNullOrWhiteSpace(productSql));
-    }
-
-    private static Tour CreateTour(Guid familyId, int version, string name, Category category, Location location)
+    private static Tour NewTour(Guid familyId, int version, string name, Category category, Location location, Guid createdBy)
         => new()
         {
-            Id = Guid.NewGuid(),
             TourFamilyId = familyId,
             Version = version,
             Name = name,
-            CategoryId = category.Id,
             Category = category,
-            MainLocationId = location.Id,
             MainLocation = location,
             DurationDays = 2,
             DurationNights = 1,
             BasePrice = 2_450_000m,
-            Status = "Draft"
+            Status = "Draft",
+            CreatedByUserId = createdBy
         };
 
-    private static Trip CreateTrip(Tour tour, DateTimeOffset startAt, bool isDeleted)
+    private static Trip NewTrip(DateTimeOffset startAt, bool isDeleted, AdminTestDatabase db)
         => new()
         {
             TripId = Guid.NewGuid(),
-            TourId = tour.Id,
-            Tour = tour,
+            RefundPolicyId = db.PolicyId,
+            ManagedByUserId = db.StaffId,
             StartAt = startAt,
             EndAt = startAt.AddDays(2),
+            TotalSlots = 10,
+            MinParticipants = 3,
+            Status = "Open",
+            CreatedAt = db.Now,
+            UpdatedAt = db.Now,
             IsDeleted = isDeleted
         };
 
-    private static EquipmentAsset CreateAsset(ProductVariant variant, string status, bool isDeleted)
+    private static EquipmentAsset NewAsset(string status, bool isDeleted)
         => new()
         {
             EquipmentAssetId = Guid.NewGuid(),
-            ProductVariantId = variant.Id,
-            ProductVariant = variant,
             AssetCode = Guid.NewGuid().ToString("N"),
             AssetStatus = status,
             IsDeleted = isDeleted

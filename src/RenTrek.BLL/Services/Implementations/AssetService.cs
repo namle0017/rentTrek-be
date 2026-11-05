@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Warehouse.Requests;
@@ -271,21 +270,14 @@ public class AssetService : IAssetService
 
     public async Task<IReadOnlyList<AssetVariantOptionResponse>> GetProductVariantsAsync(CancellationToken cancellationToken = default)
     {
-        var variants = await _unitOfWork.ProductVariants.Query()
-            .AsNoTracking()
-            .Include(v => v.Product)
-            .Where(v => !v.IsDeleted && !v.Product.IsDeleted)
-            .OrderBy(v => v.Product.Name)
-            .ThenBy(v => v.Name)
-            .Select(v => new AssetVariantOptionResponse
-            {
-                Id = v.Id,
-                ProductName = v.Product.Name,
-                VariantName = v.Name,
-                Sku = v.Sku
-            })
-            .ToListAsync(cancellationToken);
+        var variants = await _unitOfWork.ProductVariants.GetOptionsAsync(cancellationToken);
 
-        return variants;
+        return variants.Select(v => new AssetVariantOptionResponse
+        {
+            Id = v.Id,
+            ProductName = v.Product.Name,
+            VariantName = v.Name,
+            Sku = v.Sku
+        }).ToList();
     }
 }

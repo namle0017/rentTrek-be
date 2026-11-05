@@ -1,4 +1,5 @@
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 
 namespace RenTrek.DAL.Repositories.Interfaces;
 
@@ -25,4 +26,27 @@ public interface IPromotionRepository : IGenericRepository<Promotion>
     /// không bị vượt khi đặt đơn đồng thời. BẮT BUỘC gọi trong transaction đã mở.
     /// </summary>
     Task AcquireLockAsync(Guid promotionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách khuyến mãi chưa xoá trang quản trị.</summary>
+    Task<(IReadOnlyList<AdminPromotionRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminPromotionFilter filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Một khuyến mãi chưa xoá (chỉ đọc) kèm số đơn đã dùng; null nếu không có.</summary>
+    Task<AdminPromotionRow?> GetAdminRowAsync(Guid promotionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Có khuyến mãi khác (kể cả đã xoá) đang dùng mã này.</summary>
+    Task<bool> CodeExistsAsync(string code, Guid exceptPromotionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Khuyến mãi chưa xoá (tracking).</summary>
+    Task<Promotion?> GetForUpdateAsync(Guid promotionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Các bậc chưa xoá của khuyến mãi (tracking), tăng dần theo ngưỡng.</summary>
+    Task<List<PromotionTier>> GetTiersAsync(Guid promotionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Số biến thể chưa xoá trong <paramref name="productVariantIds"/> (kiểm tra quà tặng).</summary>
+    Task<int> CountActiveVariantsAsync(IReadOnlyCollection<Guid> productVariantIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Lịch sử áp dụng khuyến mãi vào đơn (mọi bậc).</summary>
+    Task<(IReadOnlyList<PromotionUsageRow> Items, int TotalCount)> GetUsagePagedAsync(
+        PromotionUsageFilter filter, CancellationToken cancellationToken = default);
 }

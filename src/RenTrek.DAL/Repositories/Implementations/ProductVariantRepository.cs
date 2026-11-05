@@ -40,4 +40,12 @@ public class ProductVariantRepository : GenericRepository<ProductVariant>, IProd
             })
             .ToListAsync(cancellationToken);
     }
+
+    public Task<List<ProductVariant>> GetOptionsAsync(CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking()
+            .Include(v => v.Product)
+            .Where(v => !v.IsDeleted && !v.Product.IsDeleted)
+            .OrderBy(v => v.Product.Name)
+            .ThenBy(v => v.Name)
+            .ToListAsync(cancellationToken);
 }

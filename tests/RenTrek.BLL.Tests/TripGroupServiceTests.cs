@@ -11,6 +11,7 @@ using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -1509,9 +1510,6 @@ public sealed class TripGroupServiceTests
         }
 
         public Task<TripGroup?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<TripGroup> Query() => store.Groups.AsQueryable();
-        public IQueryable<TripGroup> QueryTracking() => store.Groups.AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<TripGroup, bool>> predicate, CancellationToken cancellationToken = default) => Task.FromResult(store.Groups.AsQueryable().Any(predicate));
         public void Update(TripGroup entity) { }
         public void Remove(TripGroup entity) => store.Groups.Remove(entity);
         public void RemoveRange(IEnumerable<TripGroup> entities) { foreach (var e in entities) store.Groups.Remove(e); }
@@ -1637,9 +1635,8 @@ public sealed class TripGroupServiceTests
             => Task.FromResult<string?>(key == TripGroupConfigKeys.GroupOverflowSlots ? store.OverflowSlots.ToString() : null);
 
         public Task<SystemConfiguration?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<SystemConfiguration> Query() => throw new NotSupportedException();
-        public IQueryable<SystemConfiguration> QueryTracking() => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<SystemConfiguration, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<SystemConfiguration>> GetActiveAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SystemConfiguration?> GetForUpdateAsync(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddAsync(SystemConfiguration entity, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<SystemConfiguration> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(SystemConfiguration entity) => throw new NotSupportedException();
@@ -1698,9 +1695,6 @@ public sealed class TripGroupServiceTests
         Task<Trip?> ITripRepository.GetTripWithTourAndRequirementsAsync(Guid tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         Task<TourRecurrenceRule?> IGenericRepository<TourRecurrenceRule>.GetByIdAsync(object id, CancellationToken cancellationToken) => throw new NotSupportedException();
-        IQueryable<TourRecurrenceRule> IGenericRepository<TourRecurrenceRule>.Query() => ((List<TourRecurrenceRule>)(object)list).AsQueryable();
-        IQueryable<TourRecurrenceRule> IGenericRepository<TourRecurrenceRule>.QueryTracking() => ((List<TourRecurrenceRule>)(object)list).AsQueryable();
-        Task<bool> IGenericRepository<TourRecurrenceRule>.AnyAsync(Expression<Func<TourRecurrenceRule, bool>> predicate, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task IGenericRepository<TourRecurrenceRule>.AddAsync(TourRecurrenceRule entity, CancellationToken cancellationToken)
         {
             ((List<TourRecurrenceRule>)(object)list).Add(entity);
@@ -1716,9 +1710,6 @@ public sealed class TripGroupServiceTests
         void IGenericRepository<TourRecurrenceRule>.RemoveRange(IEnumerable<TourRecurrenceRule> entities) { }
 
         Task<Trip?> IGenericRepository<Trip>.GetByIdAsync(object id, CancellationToken cancellationToken) => throw new NotSupportedException();
-        IQueryable<Trip> IGenericRepository<Trip>.Query() => ((List<Trip>)(object)list).AsQueryable();
-        IQueryable<Trip> IGenericRepository<Trip>.QueryTracking() => ((List<Trip>)(object)list).AsQueryable();
-        Task<bool> IGenericRepository<Trip>.AnyAsync(Expression<Func<Trip, bool>> predicate, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task IGenericRepository<Trip>.AddAsync(Trip entity, CancellationToken cancellationToken)
         {
             ((List<Trip>)(object)list).Add(entity);
@@ -1746,9 +1737,6 @@ public sealed class TripGroupServiceTests
             return Task.CompletedTask;
         }
         public Task<TripProvidedItem?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<TripProvidedItem> Query() => items.AsQueryable();
-        public IQueryable<TripProvidedItem> QueryTracking() => items.AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<TripProvidedItem, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<TripProvidedItem> entities, CancellationToken cancellationToken = default) { items.AddRange(entities); return Task.CompletedTask; }
         public void Update(TripProvidedItem entity) { }
         public void Remove(TripProvidedItem entity) => items.Remove(entity);
@@ -1767,9 +1755,8 @@ public sealed class TripGroupServiceTests
         }
 
         public Task<AuditLog?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<AuditLog> Query() => logs.AsQueryable();
-        public IQueryable<AuditLog> QueryTracking() => logs.AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<AuditLog, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<(IReadOnlyList<AuditLogRow> Items, int TotalCount)> GetPagedAsync(AuditLogFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<AuditLogRow>> GetForOrderAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<AuditLog> entities, CancellationToken cancellationToken = default) { lock (logs) logs.AddRange(entities); return Task.CompletedTask; }
         public void Update(AuditLog entity) { }
         public void Remove(AuditLog entity) { lock (logs) logs.Remove(entity); }
@@ -1784,9 +1771,6 @@ public sealed class TripGroupServiceTests
             return Task.CompletedTask;
         }
         public Task<Notification?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IQueryable<Notification> Query() => notifications.AsQueryable();
-        public IQueryable<Notification> QueryTracking() => notifications.AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<Notification, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Notification> entities, CancellationToken cancellationToken = default) { notifications.AddRange(entities); return Task.CompletedTask; }
         public void Update(Notification entity) { }
         public void Remove(Notification entity) => notifications.Remove(entity);

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using RenTrek.DAL.Data;
 
-namespace RenTrek.DAL.Repositories.Implementations;
+namespace RenTrek.DAL.Extensions;
 
 /// <summary>
 /// Khoá advisory theo transaction của PostgreSQL, dùng chung cho các repository cần tuần tự hoá nghiệp vụ.

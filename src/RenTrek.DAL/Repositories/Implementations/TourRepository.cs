@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Extensions;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
@@ -12,6 +14,68 @@ public class TourRepository : GenericRepository<Tour>, ITourRepository
 {
     public TourRepository(AppDbContext context) : base(context)
     {
+    }
+
+    public Task<int> CountByIdsAsync(IReadOnlyCollection<Guid> tourIds, CancellationToken cancellationToken = default)
+        => _dbSet.CountAsync(t => tourIds.Contains(t.Id), cancellationToken);
+
+    public Task<bool> AnyByMainLocationAsync(Guid locationId, CancellationToken cancellationToken = default)
+        => _dbSet.AnyAsync(t => t.MainLocationId == locationId, cancellationToken);
+
+    public Task<(IReadOnlyList<AdminTourRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminTourFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var now = filter.Now;
+        var tours = _dbSet.AsNoTracking().Where(tour => !tour.IsDeleted);
+        var latestVersions = tours
+            .GroupBy(tour => tour.TourFamilyId)
+            .Select(group => new { TourFamilyId = group.Key, Version = group.Max(tour => tour.Version) });
+
+        var query = tours.Where(tour => latestVersions.Any(latest =>
+            latest.TourFamilyId == tour.TourFamilyId && latest.Version == tour.Version));
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(tour => tour.Name.ToLower().Contains(search));
+        }
+
+        if (filter.CategoryId.HasValue)
+            query = query.Where(tour => tour.CategoryId == filter.CategoryId.Value);
+
+        if (filter.LocationId.HasValue)
+            query = query.Where(tour => tour.MainLocationId == filter.LocationId.Value);
+
+        if (filter.Statuses is not null)
+        {
+            var statuses = filter.Statuses;
+            query = query.Where(tour => statuses.Contains(tour.Status));
+        }
+
+        return query
+            .OrderByDescending(tour => tour.UpdatedAt)
+            .ThenBy(tour => tour.Id)
+            .ToPageAsync(filter.PageNumber, filter.PageSize, tour => new AdminTourRow
+            {
+                TourId = tour.Id,
+                TourFamilyId = tour.TourFamilyId,
+                Name = tour.Name,
+                CategoryName = tour.Category.Name,
+                MainLocationName = tour.MainLocation.Name,
+                DurationDays = tour.DurationDays,
+                DurationNights = tour.DurationNights,
+                BasePrice = tour.BasePrice,
+                Version = tour.Version,
+                IsItineraryLocked = tour.ItineraryLockedAt.HasValue,
+                Status = tour.Status,
+                PrimaryImageUrl = tour.Images
+                    .OrderByDescending(image => image.IsPrimary)
+                    .ThenBy(image => image.DisplayOrder)
+                    .Select(image => image.ImageUrl)
+                    .FirstOrDefault(),
+                UpcomingTripsCount = tour.Trips.Count(trip => !trip.IsDeleted && trip.StartAt > now)
+            }, cancellationToken);
     }
 
     public async Task<(IReadOnlyList<Tour> Items, int TotalCount)> GetPagedToursAsync(
