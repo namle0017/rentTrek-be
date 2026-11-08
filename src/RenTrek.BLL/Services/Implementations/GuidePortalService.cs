@@ -1,3 +1,4 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Guide.Requests;
 using RenTrek.BLL.DTOs.Guide.Responses;
@@ -138,7 +139,7 @@ public sealed class GuidePortalService(
                     ActivityId = currentActivity.Id,
                     Name = currentActivity.Name,
                     DayNumber = currentActivity.DayNumber,
-                    StartTime = currentActivity.StartTime.ToString(@"hh\:mm\:ss")
+                    StartTime = currentActivity.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
                 },
             Participants = roster
         };
@@ -196,7 +197,7 @@ public sealed class GuidePortalService(
             DateOfBirth = participant.DateOfBirth,
             Age = CalculateAge(participant.DateOfBirth, today),
             Phone = participant.Phone,
-            Email = participant.Email,
+            Email = participant.Email ?? string.Empty,
             EmergencyContact = new GuideEmergencyContactResponse
             {
                 Name = participant.EmergencyContactName,
@@ -420,7 +421,7 @@ public sealed class GuidePortalService(
                         {
                             ActivityId = a.Id,
                             Name = a.Name,
-                            StartTime = a.StartTime.ToString(@"hh\:mm\:ss"),
+                            StartTime = a.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture),
                             DurationMinutes = a.DurationMinutes,
                             Description = a.Description,
                             IsCurrent = currentActivity?.Id == a.Id,

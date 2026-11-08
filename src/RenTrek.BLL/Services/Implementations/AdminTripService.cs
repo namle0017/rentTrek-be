@@ -676,7 +676,7 @@ public sealed class AdminTripService(
                 {
                     ParticipantId = p.ParticipantId,
                     FullName = p.FullName,
-                    Email = p.Email,
+                    Email = p.Email ?? string.Empty,
                     Phone = p.Phone,
                     DateOfBirth = p.DateOfBirth,
                     EmergencyContactName = p.EmergencyContactName,
@@ -704,7 +704,7 @@ public sealed class AdminTripService(
             {
                 ParticipantId = p.ParticipantId,
                 FullName = p.FullName,
-                Email = p.Email,
+                Email = p.Email ?? string.Empty,
                 Phone = p.Phone,
                 DateOfBirth = p.DateOfBirth,
                 EmergencyContactName = p.EmergencyContactName,

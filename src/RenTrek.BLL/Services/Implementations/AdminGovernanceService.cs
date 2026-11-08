@@ -17,7 +17,7 @@ public sealed class AdminGovernanceService(
     public async Task<List<AdminSettingResponse>> GetSettingsAsync(CancellationToken cancellationToken)
     {
         RequireAdmin();
-        var settings = await _unitOfWork.SystemConfigurations.GetActiveAsync(cancellationToken);
+        var settings = await UnitOfWork.SystemConfigurations.GetActiveAsync(cancellationToken);
         return settings.Select(x => new AdminSettingResponse(x.ConfigKey, x.ConfigValue, x.ValueType, x.Description, x.UpdatedAt)).ToList();
     }
 
@@ -26,7 +26,7 @@ public sealed class AdminGovernanceService(
         RequireAdmin(); var reason = request.Reason.Trim(); var value = request.ConfigValue.Trim();
         await AtomicAsync("setting:" + key, async () =>
         {
-            var setting = await _unitOfWork.SystemConfigurations.GetForUpdateAsync(key, cancellationToken)
+            var setting = await UnitOfWork.SystemConfigurations.GetForUpdateAsync(key, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy cấu hình");
             var type = setting.ValueType.ToLowerInvariant();
             if (type is "int" or "integer") Check(int.TryParse(value, out var number) && number >= 0, "configValue", "Giá trị phải là số nguyên không âm");
@@ -47,7 +47,7 @@ public sealed class AdminGovernanceService(
     public async Task<PagedResponse<AdminReviewResponse>> GetReviewsAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         CheckPaging(request);
-        var page = await _unitOfWork.Reviews.GetAdminPagedAsync(new AdminReviewFilter
+        var page = await UnitOfWork.Reviews.GetAdminPagedAsync(new AdminReviewFilter
         {
             Rating = request.Rating,
             TourId = request.TourId,
@@ -68,7 +68,7 @@ public sealed class AdminGovernanceService(
         RequireAdmin(); if (hidden) reason = Required(reason, "reason", 500);
         await AtomicAsync("review:" + id, async () =>
         {
-            var review = await _unitOfWork.Reviews.GetForUpdateAsync(id, cancellationToken)
+            var review = await UnitOfWork.Reviews.GetForUpdateAsync(id, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đánh giá");
             var before = new { review.IsHidden, review.HiddenReason };
             review.IsHidden = hidden; review.HiddenReason = hidden ? reason : null; review.UpdatedAt = Now;
@@ -80,7 +80,7 @@ public sealed class AdminGovernanceService(
     {
         RequireAdmin();
         CheckPaging(request);
-        var page = await _unitOfWork.AuditLogs.GetPagedAsync(new AuditLogFilter
+        var page = await UnitOfWork.AuditLogs.GetPagedAsync(new AuditLogFilter
         {
             RelatedUserId = userId,
             ActorUserId = request.ActorUserId,

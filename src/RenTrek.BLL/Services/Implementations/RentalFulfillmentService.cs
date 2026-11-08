@@ -570,7 +570,7 @@ public sealed class RentalFulfillmentService(
             : RentalConfigKeys.DefaultLateGraceHours;
     }
 
-    private static string Format(DateTime utc) => new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm");
+    private static string Format(DateTime utc) => new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 
     private static AdminRentalOrderDetailResponse MapDetail(RentalOrderDetailRow detail, DateTime now, decimal graceHours)
     {

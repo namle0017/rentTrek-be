@@ -1,3 +1,4 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
@@ -418,7 +419,7 @@ public sealed class AdminRecurrenceRuleService(
             Frequency = rule.Frequency,
             IntervalValue = rule.IntervalValue,
             DaysOfWeek = rule.DaysOfWeek,
-            StartTime = rule.StartTime.ToString("HH:mm:ss"),
+            StartTime = rule.StartTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
             StartDate = rule.StartDate,
             EndDate = rule.EndDate,
             DefaultTotalSlots = rule.DefaultTotalSlots,

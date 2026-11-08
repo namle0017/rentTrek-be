@@ -599,7 +599,7 @@ HTTP 500 Internal Server Error
 ```json
 {
   "email": "customer@gmail.com",
-  "password": "Password123@",
+  "password": "<password>",
   "fullName": "Nguyễn Văn A",
   "phone": "0987654321"
 }
@@ -638,7 +638,7 @@ HTTP 500 Internal Server Error
 ```json
 {
   "email": "admin@rentrek.vn",
-  "password": "Password123@"
+  "password": "<password>"
 }
 ```
 
@@ -1336,7 +1336,7 @@ Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ 
   "fullName": "Lê Văn Nam",
   "phone": "0988776655",
   "role": "Guide",
-  "password": "TemporaryPassword123@",
+  "password": "<temporary-password>",
   "careerStartDate": "2020-01-01"
 }
 ```

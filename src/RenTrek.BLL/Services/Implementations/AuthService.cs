@@ -1,3 +1,4 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 using System.Net;
 using Microsoft.Extensions.Logging;
@@ -314,7 +315,7 @@ public class AuthService : IAuthService
         await _unitOfWork.PasswordResetTokens.InvalidateTokensByUserIdAsync(account.UserId, cancellationToken);
 
         // Sinh mã OTP 6 chữ số ngẫu nhiên cryptographically secure
-        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString(CultureInfo.InvariantCulture);
         var otpHash = _jwtHelper.HashToken(otp);
 
         var resetToken = new PasswordResetToken

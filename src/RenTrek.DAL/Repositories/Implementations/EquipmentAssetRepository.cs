@@ -187,8 +187,8 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
     }
 
     public async Task<IReadOnlyList<EquipmentAsset>> GetAssetsForGanttAsync(
-        DateTime from,
-        DateTime to,
+        DateTime fromDate,
+        DateTime toDate,
         Guid? categoryId,
         Guid? productVariantId,
         CancellationToken cancellationToken = default)
@@ -198,15 +198,15 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
             .Include(a => a.ProductVariant)
                 .ThenInclude(v => v.Product)
                 .ThenInclude(p => p.Category)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.RentalOrderItem!)
                 .ThenInclude(roi => roi.RentalOrder)
                 .ThenInclude(ro => ro.Order)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.TripProvidedItem!)
                 .ThenInclude(tpi => tpi.Trip)
                 .ThenInclude(t => t.Tour)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.AppliedPromotion!)
                 .ThenInclude(ap => ap.PromotionTier)
                 .ThenInclude(pt => pt.Promotion)

@@ -29,7 +29,7 @@ public sealed class AdminTourService(
         {
             await EnsureCategoryAsync(request.CategoryId, cancellationToken);
             await EnsureLocationAsync(request.MainLocationId, cancellationToken);
-            await _unitOfWork.Tours.AddAsync(new Tour
+            await UnitOfWork.Tours.AddAsync(new Tour
             {
                 Id = tourId,
                 TourFamilyId = Guid.NewGuid(),
@@ -147,15 +147,15 @@ public sealed class AdminTourService(
         RequireAdmin();
         await AtomicAsync(LockKey, async () =>
         {
-            var tour = await _unitOfWork.Tours.GetByIdAsync(tourId, cancellationToken)
+            var tour = await UnitOfWork.Tours.GetByIdAsync(tourId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy tour", ErrorCodes.NotFound);
-            var versions = await _unitOfWork.Tours.GetFamilyVersionsAsync(tour.TourFamilyId,
-                _timeProvider.GetUtcNow(), cancellationToken);
+            var versions = await UnitOfWork.Tours.GetFamilyVersionsAsync(tour.TourFamilyId,
+                Clock.GetUtcNow(), cancellationToken);
             Check(versions.All(v => v.TripsCount == 0), "tourId", "Tour đã có chuyến, hãy lưu trữ thay vì xoá");
             // Xoá cả họ để không còn bản nào clone tiếp, tránh trùng version với bản đã xoá.
             foreach (var row in versions)
             {
-                var version = await _unitOfWork.Tours.GetByIdAsync(row.TourId, cancellationToken);
+                var version = await UnitOfWork.Tours.GetByIdAsync(row.TourId, cancellationToken);
                 if (version is null) continue;
                 version.IsDeleted = true;
                 version.UpdatedAt = Now;
@@ -191,7 +191,7 @@ public sealed class AdminTourService(
             var isPrimary = request.IsPrimary || tour.Images.Count == 0;
             if (isPrimary)
                 foreach (var image in tour.Images) image.IsPrimary = false;
-            await _unitOfWork.TourImages.AddAsync(new TourImage
+            await UnitOfWork.TourImages.AddAsync(new TourImage
             {
                 Id = imageId,
                 TourId = tourId,
@@ -275,7 +275,7 @@ public sealed class AdminTourService(
             var tour = await LoadAsync(tourId, cancellationToken);
             await EnsureUnlockedAsync(tour, cancellationToken);
             CheckDay(tour, request.DayNumber);
-            await _unitOfWork.TourActivities.AddAsync(new TourActivity
+            await UnitOfWork.TourActivities.AddAsync(new TourActivity
             {
                 Id = activityId,
                 TourId = tourId,
@@ -400,7 +400,7 @@ public sealed class AdminTourService(
                 item.IsDeleted = true;
                 item.UpdatedAt = Now;
             }
-            await _unitOfWork.TourPreparationItems.AddRangeAsync(request.Items.Select(item => new TourPreparationItem
+            await UnitOfWork.TourPreparationItems.AddRangeAsync(request.Items.Select(item => new TourPreparationItem
             {
                 Id = Guid.NewGuid(),
                 TourId = tourId,
@@ -445,7 +445,7 @@ public sealed class AdminTourService(
             var tour = await LoadAsync(tourId, cancellationToken);
             await EnsureUnlockedAsync(tour, cancellationToken);
             CheckVariantFree(tour, request.ProductVariantId, null);
-            await _unitOfWork.TourProvidedItems.AddAsync(new TourProvidedItem
+            await UnitOfWork.TourProvidedItems.AddAsync(new TourProvidedItem
             {
                 Id = itemId,
                 TourId = tourId,
@@ -509,9 +509,9 @@ public sealed class AdminTourService(
     public async Task<IReadOnlyList<AdminTourVersionResponse>> GetVersionsAsync(Guid tourId,
         CancellationToken cancellationToken)
     {
-        var tour = await _unitOfWork.Tours.GetByIdAsync(tourId, cancellationToken)
+        var tour = await UnitOfWork.Tours.GetByIdAsync(tourId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy tour", ErrorCodes.NotFound);
-        var rows = await _unitOfWork.Tours.GetFamilyVersionsAsync(tour.TourFamilyId, _timeProvider.GetUtcNow(),
+        var rows = await UnitOfWork.Tours.GetFamilyVersionsAsync(tour.TourFamilyId, Clock.GetUtcNow(),
             cancellationToken);
         return rows.Select(r => new AdminTourVersionResponse
         {
@@ -533,10 +533,10 @@ public sealed class AdminTourService(
         {
             var source = await LoadAsync(tourId, cancellationToken);
             // Tour chỉ xoá theo cả họ, nên max của các bản còn sống luôn là max thật (không đụng unique index).
-            var versions = await _unitOfWork.Tours.GetFamilyVersionsAsync(source.TourFamilyId,
-                _timeProvider.GetUtcNow(), cancellationToken);
+            var versions = await UnitOfWork.Tours.GetFamilyVersionsAsync(source.TourFamilyId,
+                Clock.GetUtcNow(), cancellationToken);
             var version = versions.Max(v => v.Version) + 1;
-            await _unitOfWork.Tours.AddAsync(new Tour
+            await UnitOfWork.Tours.AddAsync(new Tour
             {
                 Id = newId,
                 TourFamilyId = source.TourFamilyId,
@@ -558,7 +558,7 @@ public sealed class AdminTourService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             }, cancellationToken);
-            await _unitOfWork.TourImages.AddRangeAsync(source.Images.Select(i => new TourImage
+            await UnitOfWork.TourImages.AddRangeAsync(source.Images.Select(i => new TourImage
             {
                 Id = Guid.NewGuid(),
                 TourId = newId,
@@ -568,7 +568,7 @@ public sealed class AdminTourService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             }).ToList(), cancellationToken);
-            await _unitOfWork.TourActivities.AddRangeAsync(source.Activities.Select(a => new TourActivity
+            await UnitOfWork.TourActivities.AddRangeAsync(source.Activities.Select(a => new TourActivity
             {
                 Id = Guid.NewGuid(),
                 TourId = newId,
@@ -582,7 +582,7 @@ public sealed class AdminTourService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             }).ToList(), cancellationToken);
-            await _unitOfWork.TourPreparationItems.AddRangeAsync(source.PreparationItems.Select(p => new TourPreparationItem
+            await UnitOfWork.TourPreparationItems.AddRangeAsync(source.PreparationItems.Select(p => new TourPreparationItem
             {
                 Id = Guid.NewGuid(),
                 TourId = newId,
@@ -591,7 +591,7 @@ public sealed class AdminTourService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             }).ToList(), cancellationToken);
-            await _unitOfWork.TourProvidedItems.AddRangeAsync(source.ProvidedItems.Select(p => new TourProvidedItem
+            await UnitOfWork.TourProvidedItems.AddRangeAsync(source.ProvidedItems.Select(p => new TourProvidedItem
             {
                 Id = Guid.NewGuid(),
                 TourId = newId,
@@ -603,7 +603,7 @@ public sealed class AdminTourService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             }).ToList(), cancellationToken);
-            await _unitOfWork.TourPosts.AddRangeAsync(ActivePosts(source).Select(tp => new TourPost
+            await UnitOfWork.TourPosts.AddRangeAsync(ActivePosts(source).Select(tp => new TourPost
             {
                 TourPostId = Guid.NewGuid(),
                 TourId = newId,
@@ -669,14 +669,14 @@ public sealed class AdminTourService(
         {
             var tour = await LoadAsync(tourId, cancellationToken);
             var wanted = request.Items.ToDictionary(i => i.PostId, i => i.DisplayOrder);
-            Check(await _unitOfWork.Posts.CountByIdsAsync(wanted.Keys.ToList(), cancellationToken) == wanted.Count,
+            Check(await UnitOfWork.Posts.CountByIdsAsync(wanted.Keys.ToList(), cancellationToken) == wanted.Count,
                 "items", "Có bài viết không tồn tại hoặc đã bị xoá");
             var before = ActivePosts(tour).Select(tp => new { tp.PostId, tp.DisplayOrder }).ToList();
             // TourPost không có cờ xoá mềm: bỏ gắn là xoá hẳn dòng liên kết (giống PostService).
             foreach (var link in tour.TourPosts.Where(tp => !wanted.ContainsKey(tp.PostId)).ToList())
             {
                 tour.TourPosts.Remove(link);
-                _unitOfWork.TourPosts.Remove(link);
+                UnitOfWork.TourPosts.Remove(link);
             }
             foreach (var (postId, order) in wanted)
             {
@@ -744,12 +744,12 @@ public sealed class AdminTourService(
 
     /// <summary>Tour kèm cây con (tracked) hoặc 404.</summary>
     private async Task<Tour> LoadAsync(Guid tourId, CancellationToken cancellationToken)
-        => await _unitOfWork.Tours.GetForEditAsync(tourId, cancellationToken)
+        => await UnitOfWork.Tours.GetForEditAsync(tourId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy tour", ErrorCodes.NotFound);
 
     /// <summary>Đã đóng dấu khóa hoặc đã có đơn đặt trên chuyến của tour.</summary>
     private async Task<bool> IsLockedAsync(Tour tour, CancellationToken cancellationToken)
-        => tour.ItineraryLockedAt.HasValue || await _unitOfWork.Tours.HasBookingsAsync(tour.Id, cancellationToken);
+        => tour.ItineraryLockedAt.HasValue || await UnitOfWork.Tours.HasBookingsAsync(tour.Id, cancellationToken);
 
     /// <summary>400 ITINERARY_LOCKED nếu lịch trình đã khóa.</summary>
     private async Task EnsureUnlockedAsync(Tour tour, CancellationToken cancellationToken)
@@ -762,7 +762,7 @@ public sealed class AdminTourService(
     /// <summary>Danh mục phải tồn tại và là danh mục tour.</summary>
     private async Task EnsureCategoryAsync(Guid categoryId, CancellationToken cancellationToken)
     {
-        var category = await _unitOfWork.Categories.GetByIdAsync(categoryId, cancellationToken);
+        var category = await UnitOfWork.Categories.GetByIdAsync(categoryId, cancellationToken);
         Check(category is { IsDeleted: false, CategoryType: "TOUR" }, "categoryId",
             "Danh mục không tồn tại hoặc không phải danh mục tour");
     }
@@ -770,16 +770,16 @@ public sealed class AdminTourService(
     /// <summary>Địa điểm chính phải tồn tại.</summary>
     private async Task EnsureLocationAsync(Guid locationId, CancellationToken cancellationToken)
     {
-        var location = await _unitOfWork.Locations.GetByIdAsync(locationId, cancellationToken);
+        var location = await UnitOfWork.Locations.GetByIdAsync(locationId, cancellationToken);
         Check(location is { IsDeleted: false }, "mainLocationId", "Địa điểm không tồn tại");
     }
 
     /// <summary>Tên đồ cấp "Sản phẩm - Biến thể"; biến thể phải tồn tại.</summary>
     private async Task<string> VariantNameAsync(Guid variantId, CancellationToken cancellationToken)
     {
-        var variant = await _unitOfWork.ProductVariants.GetByIdAsync(variantId, cancellationToken);
+        var variant = await UnitOfWork.ProductVariants.GetByIdAsync(variantId, cancellationToken);
         Check(variant is { IsDeleted: false }, "productVariantId", "Biến thể không tồn tại");
-        var product = await _unitOfWork.Products.GetByIdAsync(variant!.ProductId, cancellationToken);
+        var product = await UnitOfWork.Products.GetByIdAsync(variant!.ProductId, cancellationToken);
         return product is null ? variant.Name : $"{product.Name} - {variant.Name}";
     }
 

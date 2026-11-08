@@ -31,7 +31,7 @@ public sealed class AdminProductCatalogService(
         await AtomicAsync(LockKey, async () =>
         {
             await EnsureCategoryAsync(request.CategoryId, cancellationToken);
-            await _unitOfWork.Products.AddAsync(new Product
+            await UnitOfWork.Products.AddAsync(new Product
             {
                 Id = productId,
                 CategoryId = request.CategoryId,
@@ -84,7 +84,7 @@ public sealed class AdminProductCatalogService(
         {
             await GetProductAsync(productId, cancellationToken);
             var sku = await EnsureSkuFreeAsync(request.Sku, null, cancellationToken);
-            await _unitOfWork.ProductVariants.AddAsync(new ProductVariant
+            await UnitOfWork.ProductVariants.AddAsync(new ProductVariant
             {
                 Id = variantId,
                 ProductId = productId,
@@ -134,9 +134,9 @@ public sealed class AdminProductCatalogService(
     public async Task<IReadOnlyList<AdminPriceTierItemResponse>> GetVariantPriceTiersAsync(Guid variantId,
         CancellationToken cancellationToken)
     {
-        _ = await _unitOfWork.ProductVariants.GetByIdAsync(variantId)
+        _ = await UnitOfWork.ProductVariants.GetByIdAsync(variantId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy biến thể", ErrorCodes.NotFound);
-        return ToTierResponses(await _unitOfWork.RentalPriceTiers.GetForVariantsAsync([variantId], cancellationToken));
+        return ToTierResponses(await UnitOfWork.RentalPriceTiers.GetForVariantsAsync([variantId], cancellationToken));
     }
 
     public async Task SetVariantPriceTiersAsync(Guid variantId, PriceTiersRequest request, CancellationToken cancellationToken)
@@ -158,7 +158,7 @@ public sealed class AdminProductCatalogService(
         await AtomicAsync(LockKey, async () =>
         {
             var variant = await GetVariantAsync(variantId, cancellationToken);
-            var images = await _unitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
+            var images = await UnitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
             // Ảnh đầu tiên luôn là ảnh đại diện; chỉ giữ một ảnh đại diện mỗi biến thể
             var isPrimary = request.IsPrimary || images.Count == 0;
             if (isPrimary)
@@ -167,7 +167,7 @@ public sealed class AdminProductCatalogService(
                     image.IsPrimary = false;
                     image.UpdatedAt = Now;
                 }
-            await _unitOfWork.ProductVariantImages.AddAsync(new ProductVariantImage
+            await UnitOfWork.ProductVariantImages.AddAsync(new ProductVariantImage
             {
                 Id = imageId,
                 ProductVariantId = variantId,
@@ -189,7 +189,7 @@ public sealed class AdminProductCatalogService(
         await AtomicAsync(LockKey, async () =>
         {
             var variant = await GetVariantAsync(variantId, cancellationToken);
-            var images = await _unitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
+            var images = await UnitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
             var image = images.FirstOrDefault(x => x.Id == imageId)
                 ?? throw new NotFoundException("Không tìm thấy ảnh", ErrorCodes.NotFound);
             image.IsDeleted = true;
@@ -212,7 +212,7 @@ public sealed class AdminProductCatalogService(
 
     public async Task<IReadOnlyList<AdminPricingItemResponse>> GetPricingAsync(Guid? categoryId, CancellationToken cancellationToken)
     {
-        var rows = await _unitOfWork.RentalPriceTiers.GetPricingOverviewAsync(categoryId, cancellationToken);
+        var rows = await UnitOfWork.RentalPriceTiers.GetPricingOverviewAsync(categoryId, cancellationToken);
         return rows
             .GroupBy(x => (x.VariantId, x.BundleId))
             .Select(g =>
@@ -243,7 +243,7 @@ public sealed class AdminProductCatalogService(
         CancellationToken cancellationToken)
     {
         CheckPaging(request);
-        var page = await _unitOfWork.ProductBundles.GetAdminPagedAsync(request.Search, request.Status, request.CategoryId,
+        var page = await UnitOfWork.ProductBundles.GetAdminPagedAsync(request.Search, request.Status, request.CategoryId,
             request.PageNumber, request.PageSize, cancellationToken);
         return ToPaged(page, request, (AdminBundleRow x) => new AdminBundleListItemResponse
         {
@@ -260,12 +260,12 @@ public sealed class AdminProductCatalogService(
     public async Task<AdminBundleDetailResponse> GetBundleAsync(Guid bundleId, CancellationToken cancellationToken)
     {
         var bundle = await GetBundleEntityAsync(bundleId, cancellationToken);
-        var category = await _unitOfWork.Categories.GetByIdAsync(bundle.CategoryId);
-        var items = await _unitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken);
-        var variants = (await _unitOfWork.ProductVariants.GetActiveForRentalAsync(
+        var category = await UnitOfWork.Categories.GetByIdAsync(bundle.CategoryId, cancellationToken);
+        var items = await UnitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken);
+        var variants = (await UnitOfWork.ProductVariants.GetActiveForRentalAsync(
                 items.Select(i => i.ProductVariantId).ToList(), cancellationToken))
             .ToDictionary(v => v.VariantId);
-        var tiers = await _unitOfWork.RentalPriceTiers.GetForBundlesAsync([bundleId], cancellationToken);
+        var tiers = await UnitOfWork.RentalPriceTiers.GetForBundlesAsync([bundleId], cancellationToken);
 
         return new AdminBundleDetailResponse
         {
@@ -304,7 +304,7 @@ public sealed class AdminProductCatalogService(
         await AtomicAsync(LockKey, async () =>
         {
             await EnsureCategoryAsync(request.CategoryId, cancellationToken);
-            await _unitOfWork.ProductBundles.AddAsync(new ProductBundle
+            await UnitOfWork.ProductBundles.AddAsync(new ProductBundle
             {
                 BundleId = bundleId,
                 CategoryId = request.CategoryId,
@@ -328,7 +328,7 @@ public sealed class AdminProductCatalogService(
             if (bundle.CategoryId != request.CategoryId) await EnsureCategoryAsync(request.CategoryId, cancellationToken);
             var status = ToBundleStatus(request.Status);
             if (status == ActiveStatus)
-                Check((await _unitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken)).Count > 0,
+                Check((await UnitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken)).Count > 0,
                     "status", "Combo cần ít nhất 1 thành phần trước khi bán");
             var before = new { bundle.Name, bundle.CategoryId, bundle.Description, bundle.Status };
             bundle.Name = request.Name.Trim();
@@ -359,17 +359,17 @@ public sealed class AdminProductCatalogService(
         {
             var bundle = await GetBundleEntityAsync(bundleId, cancellationToken);
             var ids = request.Items.Select(i => i.ProductVariantId).ToList();
-            var active = (await _unitOfWork.ProductVariants.GetActiveForRentalAsync(ids, cancellationToken))
+            var active = (await UnitOfWork.ProductVariants.GetActiveForRentalAsync(ids, cancellationToken))
                 .Where(v => v.IsActive).Select(v => v.VariantId).ToHashSet();
             var missing = ids.Where(id => !active.Contains(id)).ToList();
             Check(missing.Count == 0, "items", $"Biến thể không tồn tại hoặc ngừng bán: {string.Join(", ", missing)}");
 
-            foreach (var old in await _unitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken))
+            foreach (var old in await UnitOfWork.ProductBundleItems.GetByBundleForUpdateAsync(bundleId, cancellationToken))
             {
                 old.IsDeleted = true;
                 old.UpdatedAt = Now;
             }
-            await _unitOfWork.ProductBundleItems.AddRangeAsync(request.Items.Select(i => new ProductBundleItem
+            await UnitOfWork.ProductBundleItems.AddRangeAsync(request.Items.Select(i => new ProductBundleItem
             {
                 BundleItemId = Guid.NewGuid(),
                 BundleId = bundleId,
@@ -387,7 +387,7 @@ public sealed class AdminProductCatalogService(
         CancellationToken cancellationToken)
     {
         await GetBundleEntityAsync(bundleId, cancellationToken);
-        return ToTierResponses(await _unitOfWork.RentalPriceTiers.GetForBundlesAsync([bundleId], cancellationToken));
+        return ToTierResponses(await UnitOfWork.RentalPriceTiers.GetForBundlesAsync([bundleId], cancellationToken));
     }
 
     public async Task SetBundlePriceTiersAsync(Guid bundleId, PriceTiersRequest request, CancellationToken cancellationToken)
@@ -405,7 +405,7 @@ public sealed class AdminProductCatalogService(
     /// <summary>Sản phẩm chưa xoá (tracking); 404 nếu không có.</summary>
     private async Task<Product> GetProductAsync(Guid productId, CancellationToken cancellationToken)
     {
-        var product = await _unitOfWork.Products.GetByIdAsync(productId);
+        var product = await UnitOfWork.Products.GetByIdAsync(productId, cancellationToken);
         return product is { IsDeleted: false }
             ? product
             : throw new NotFoundException("Không tìm thấy sản phẩm", ErrorCodes.NotFound);
@@ -414,7 +414,7 @@ public sealed class AdminProductCatalogService(
     /// <summary>Biến thể chưa xoá, sản phẩm cha chưa xoá (tracking); 404 nếu không có.</summary>
     private async Task<ProductVariant> GetVariantAsync(Guid variantId, CancellationToken cancellationToken)
     {
-        var variant = await _unitOfWork.ProductVariants.GetByIdAsync(variantId);
+        var variant = await UnitOfWork.ProductVariants.GetByIdAsync(variantId, cancellationToken);
         return variant is { IsDeleted: false }
             ? variant
             : throw new NotFoundException("Không tìm thấy biến thể", ErrorCodes.NotFound);
@@ -423,7 +423,7 @@ public sealed class AdminProductCatalogService(
     /// <summary>Combo chưa xoá (tracking); 404 nếu không có.</summary>
     private async Task<ProductBundle> GetBundleEntityAsync(Guid bundleId, CancellationToken cancellationToken)
     {
-        var bundle = await _unitOfWork.ProductBundles.GetByIdAsync(bundleId);
+        var bundle = await UnitOfWork.ProductBundles.GetByIdAsync(bundleId, cancellationToken);
         return bundle is { IsDeleted: false }
             ? bundle
             : throw new NotFoundException("Không tìm thấy combo", ErrorCodes.NotFound);
@@ -432,7 +432,7 @@ public sealed class AdminProductCatalogService(
     /// <summary>Danh mục phải tồn tại, chưa xoá và không phải danh mục tour.</summary>
     private async Task EnsureCategoryAsync(Guid categoryId, CancellationToken cancellationToken)
     {
-        var category = await _unitOfWork.Categories.GetByIdAsync(categoryId);
+        var category = await UnitOfWork.Categories.GetByIdAsync(categoryId, cancellationToken);
         Check(category is { IsDeleted: false } && category.CategoryType != "TOUR", "categoryId",
             "Danh mục không tồn tại hoặc không phải danh mục sản phẩm");
     }
@@ -441,7 +441,7 @@ public sealed class AdminProductCatalogService(
     private async Task<string> EnsureSkuFreeAsync(string sku, Guid? excludeVariantId, CancellationToken cancellationToken)
     {
         var normalized = sku.Trim().ToUpperInvariant();
-        if (await _unitOfWork.ProductVariants.SkuExistsAsync(normalized, excludeVariantId, cancellationToken))
+        if (await UnitOfWork.ProductVariants.SkuExistsAsync(normalized, excludeVariantId, cancellationToken))
             throw new ConflictException($"SKU '{normalized}' đã tồn tại", ErrorCodes.SkuAlreadyExists);
         return normalized;
     }
@@ -450,12 +450,12 @@ public sealed class AdminProductCatalogService(
     private async Task ReplaceTiersAsync(Guid? variantId, Guid? bundleId, PriceTiersRequest request,
         CancellationToken cancellationToken)
     {
-        foreach (var old in await _unitOfWork.RentalPriceTiers.GetForUpdateAsync(variantId, bundleId, cancellationToken))
+        foreach (var old in await UnitOfWork.RentalPriceTiers.GetForUpdateAsync(variantId, bundleId, cancellationToken))
         {
             old.IsDeleted = true;
             old.UpdatedAt = Now;
         }
-        await _unitOfWork.RentalPriceTiers.AddRangeAsync(request.Tiers.OrderBy(t => t.MinDays).Select(t => new RentalPriceTier
+        await UnitOfWork.RentalPriceTiers.AddRangeAsync(request.Tiers.OrderBy(t => t.MinDays).Select(t => new RentalPriceTier
         {
             Id = Guid.NewGuid(),
             ProductVariantId = variantId,
@@ -468,7 +468,7 @@ public sealed class AdminProductCatalogService(
         }), cancellationToken);
     }
 
-    private static IReadOnlyList<AdminPriceTierItemResponse> ToTierResponses(IEnumerable<RentalPriceTierRow> rows)
+    private static List<AdminPriceTierItemResponse> ToTierResponses(IEnumerable<RentalPriceTierRow> rows)
         => rows.Select(t => new AdminPriceTierItemResponse
         {
             PriceTierId = t.Id,

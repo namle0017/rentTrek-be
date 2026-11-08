@@ -26,7 +26,7 @@ public sealed class AdminUserService(
     {
         RequireAdmin();
         CheckPaging(request);
-        var page = await _unitOfWork.Accounts.GetAdminPagedAsync(new AdminUserFilter
+        var page = await UnitOfWork.Accounts.GetAdminPagedAsync(new AdminUserFilter
         {
             Search = request.Search,
             Role = request.Role,
@@ -42,11 +42,11 @@ public sealed class AdminUserService(
     public async Task<AdminUserDetailResponse> GetUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         RequireAdmin();
-        var user = await _unitOfWork.Accounts.GetAdminRowAsync(userId, cancellationToken)
+        var user = await UnitOfWork.Accounts.GetAdminRowAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy người dùng");
-        var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, cancellationToken: cancellationToken);
+        var profile = await UnitOfWork.Profiles.GetByUserIdAsync(userId, cancellationToken: cancellationToken);
         if (profile?.IsDeleted == true) profile = null;
-        var activity = await _unitOfWork.Accounts.GetActivityAsync(userId, cancellationToken);
+        var activity = await UnitOfWork.Accounts.GetActivityAsync(userId, cancellationToken);
         return new(ToResponse(user), profile?.DateOfBirth, profile?.Address, profile?.CareerStartDate, profile?.Bio,
             activity.OrderCount, activity.ManagedTripCount, activity.GuidedTripCount);
     }
@@ -56,26 +56,25 @@ public sealed class AdminUserService(
         RequireAdmin();
         var email = request.Email.Trim().ToLowerInvariant();
         var roleName = request.Role;
-        var password = request.Password;
         var fullName = request.FullName.Trim();
         var userId = Guid.NewGuid();
         await AtomicAsync("account-email:" + email, async () =>
         {
-            if (await _unitOfWork.Accounts.ExistsByEmailAsync(email, cancellationToken))
+            if (await UnitOfWork.Accounts.ExistsByEmailAsync(email, cancellationToken))
                 throw new ConflictException("Email đã được sử dụng");
             var role = await FindRoleAsync(roleName, cancellationToken);
-            await _unitOfWork.Accounts.AddAsync(new Account
+            await UnitOfWork.Accounts.AddAsync(new Account
             {
                 UserId = userId,
                 Email = email,
                 FullName = fullName,
                 Phone = request.Phone?.Trim(),
                 RoleId = role.RoleId,
-                PasswordHash = _passwordHasher.Hash(password!),
+                PasswordHash = _passwordHasher.Hash(request.Password!),
                 CreatedAt = Now,
                 UpdatedAt = Now
             }, cancellationToken);
-            await _unitOfWork.Profiles.AddAsync(new Profile
+            await UnitOfWork.Profiles.AddAsync(new Profile
             {
                 ProfileId = Guid.NewGuid(),
                 UserId = userId,
@@ -98,12 +97,12 @@ public sealed class AdminUserService(
             var user = await FindAccountAsync(userId, cancellationToken);
             var before = new { user.FullName, user.Phone };
             user.FullName = fullName; user.Phone = request.Phone?.Trim(); user.UpdatedAt = Now;
-            var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
+            var profile = await UnitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
             if (profile?.IsDeleted == true) profile = null;
             if (profile == null)
             {
                 profile = new Profile { ProfileId = Guid.NewGuid(), UserId = userId, UserCode = "USR-" + userId.ToString("N")[..12], CreatedAt = Now };
-                await _unitOfWork.Profiles.AddAsync(profile, cancellationToken);
+                await UnitOfWork.Profiles.AddAsync(profile, cancellationToken);
             }
             profile.Address = request.Address?.Trim(); profile.Bio = request.Bio?.Trim();
             profile.DateOfBirth = request.DateOfBirth; profile.CareerStartDate = request.CareerStartDate; profile.UpdatedAt = Now;
@@ -113,13 +112,13 @@ public sealed class AdminUserService(
 
     private async Task<Account> FindAccountAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var user = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken);
+        var user = await UnitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken);
         return user is { IsDeleted: false } ? user : throw new NotFoundException("Không tìm thấy người dùng");
     }
 
     private async Task<Role> FindRoleAsync(string roleName, CancellationToken cancellationToken)
     {
-        var role = await _unitOfWork.Roles.GetByNameAsync(roleName, cancellationToken: cancellationToken);
+        var role = await UnitOfWork.Roles.GetByNameAsync(roleName, cancellationToken: cancellationToken);
         return role is { IsDeleted: false } ? role : throw new BadRequestException("Vai trò chưa được cấu hình");
     }
 
@@ -159,7 +158,7 @@ public sealed class AdminUserService(
     {
         RequireAdmin();
         await FindAccountAsync(userId, cancellationToken);
-        var tokens = await _unitOfWork.RefreshTokens.GetActiveByUserAsync(userId, Now, cancellationToken);
+        var tokens = await UnitOfWork.RefreshTokens.GetActiveByUserAsync(userId, Now, cancellationToken);
         return tokens.Select(x => new AdminSessionResponse(x.RefreshTokenId, x.FamilyId, x.CreatedAt, x.ExpiresAt)).ToList();
     }
 
@@ -171,7 +170,7 @@ public sealed class AdminUserService(
             await FindAccountAsync(userId, cancellationToken);
             Guid? familyId = null;
             if (sessionId.HasValue)
-                familyId = (await _unitOfWork.RefreshTokens.GetForUserAsync(userId, sessionId.Value, cancellationToken)
+                familyId = (await UnitOfWork.RefreshTokens.GetForUserAsync(userId, sessionId.Value, cancellationToken)
                     ?? throw new NotFoundException("Không tìm thấy phiên đăng nhập")).FamilyId;
             await RevokeTokensAsync(userId, familyId, cancellationToken);
             await AuditAsync("Revoke", "Account", userId, new { sessionId }, cancellationToken);
@@ -180,7 +179,7 @@ public sealed class AdminUserService(
 
     private async Task RevokeTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken)
     {
-        var tokens = await _unitOfWork.RefreshTokens.GetByUserWithAccessTokensAsync(userId, familyId, cancellationToken);
+        var tokens = await UnitOfWork.RefreshTokens.GetByUserWithAccessTokensAsync(userId, familyId, cancellationToken);
         foreach (var token in tokens)
         {
             token.RevokedAt ??= Now; token.RevokedReason = "Quản trị viên thu hồi phiên";

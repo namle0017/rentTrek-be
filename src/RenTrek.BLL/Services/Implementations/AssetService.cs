@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using AutoMapper;
 using RenTrek.BLL.Constants;
@@ -209,7 +210,7 @@ public class AssetService : IAssetService
                 var availableCount = Math.Max(0, totalCount - inUseCount);
                 dailySummaries.Add(new GanttDailySummaryResponse
                 {
-                    Date = day.ToString("yyyy-MM-dd"),
+                    Date = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     TotalCount = totalCount,
                     InUseCount = inUseCount,
                     AvailableCount = availableCount,

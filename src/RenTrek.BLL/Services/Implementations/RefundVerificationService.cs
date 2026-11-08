@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.Constants;
@@ -38,7 +39,7 @@ public sealed class RefundVerificationService(
         foreach (var open in await unitOfWork.RefundCases.GetOpenChallengesAsync(adminUserId, cancellationToken))
             open.UsedAt = utcNow;
 
-        var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+        var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
         var challenge = new RefundActionChallenge
         {
             ChallengeId = Guid.NewGuid(),

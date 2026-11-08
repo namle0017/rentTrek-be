@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using System.Text;
@@ -578,7 +579,7 @@ public sealed class TripBookingService(
             throw new ConflictException(
                 "Số tiền hoàn đã thay đổi, vui lòng xem lại",
                 ErrorCodes.RefundAmountChanged,
-                new Dictionary<string, string[]> { ["estimatedRefundAmount"] = [quote.RefundAmount.ToString("0")] });
+                new Dictionary<string, string[]> { ["estimatedRefundAmount"] = [quote.RefundAmount.ToString("0", CultureInfo.InvariantCulture)] });
         }
 
         if (quote.RefundAmount <= 0)

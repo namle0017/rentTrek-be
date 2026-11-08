@@ -1,3 +1,4 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
@@ -35,7 +36,7 @@ public sealed class AdminTripAttendanceService(
                 ActivityId = a.Id,
                 DayNumber = a.DayNumber,
                 Name = a.Name,
-                StartTime = a.StartTime.ToString(@"hh\:mm\:ss")
+                StartTime = a.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
             })
             .ToList();
 

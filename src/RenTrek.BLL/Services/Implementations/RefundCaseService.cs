@@ -538,7 +538,7 @@ public sealed class RefundCaseService(
             CompletedAt = refund.CompletedAt
         };
 
-    private static IReadOnlyList<RefundTimelineEventResponse> BuildTimeline(RefundCase refund)
+    private static List<RefundTimelineEventResponse> BuildTimeline(RefundCase refund)
     {
         (string Status, DateTimeOffset? At)[] events =
         [

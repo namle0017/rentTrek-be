@@ -18,7 +18,7 @@ public sealed class AdminReportService(
 
     public async Task<AdminDashboardStatsResponse> GetStatsAsync(CancellationToken cancellationToken)
     {
-        var x = await _unitOfWork.AdminOperations.GetDashboardStatsAsync(OrderScope, _timeProvider.GetUtcNow(), cancellationToken);
+        var x = await UnitOfWork.AdminOperations.GetDashboardStatsAsync(OrderScope, Clock.GetUtcNow(), cancellationToken);
         return new(x.PendingPaymentExpiringCount, x.TripsDepartingIn7DaysCount, x.UnassignedParticipantsCount, x.MissingProvidedItemsCount,
             x.UnderCapacityTripsCount, x.OverdueRentalAssetsCount, x.PendingApprovalRefundsCount, x.FailedRefundsCount,
             x.NeedsReconciliationOrdersCount, x.DraftRentalChargesCount);
@@ -26,8 +26,8 @@ public sealed class AdminReportService(
 
     public async Task<List<AdminAlertResponse>> GetAlertsAsync(CancellationToken cancellationToken)
     {
-        var now = _timeProvider.GetUtcNow();
-        var reports = _unitOfWork.AdminOperations;
+        var now = Clock.GetUtcNow();
+        var reports = UnitOfWork.AdminOperations;
         var alerts = new List<AdminAlertResponse>();
         var missing = await reports.GetMissingGearAsync(OrderScope, now, AlertLimit, cancellationToken);
         alerts.AddRange(missing.Select(x => new AdminAlertResponse("TripMissingGear", "High", $"Chuyến {x.TourName} thiếu đồ cấp", $"Cần chuẩn bị thêm {x.RequiredQuantity - x.AssignedQuantity} thiết bị", "Trip", x.TripId.ToString(), $"/ops/trips/{x.TripId}/provided-items")));
@@ -45,10 +45,10 @@ public sealed class AdminReportService(
 
     public async Task<AdminKpisResponse> GetKpisAsync(CancellationToken cancellationToken)
     {
-        RequireAdmin(); var now = _timeProvider.GetUtcNow(); var since = now.AddDays(-7);
+        RequireAdmin(); var now = Clock.GetUtcNow(); var since = now.AddDays(-7);
         var occupancy = await GetOccupancyAsync(new AdminQueryRequest { From = since.UtcDateTime, To = now.UtcDateTime }, cancellationToken);
-        var payments = await _unitOfWork.AdminOperations.GetPaymentTotalsAsync(since, now, cancellationToken);
-        var counts = await _unitOfWork.AdminOperations.GetKpiCountsAsync(since, now, cancellationToken);
+        var payments = await UnitOfWork.AdminOperations.GetPaymentTotalsAsync(since, now, cancellationToken);
+        var counts = await UnitOfWork.AdminOperations.GetKpiCountsAsync(since, now, cancellationToken);
         return new(counts.BookingCount,
             occupancy.Count == 0 ? 0 : Math.Round(occupancy.Average(x => x.OccupancyRate), 2), payments.Collections - payments.Refunds,
             counts.IssuedAssetCount, counts.AvailableAssetCount);
@@ -65,7 +65,7 @@ public sealed class AdminReportService(
     public async Task<List<AdminRevenueResponse>> GetRevenueAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin(); var (from, to) = ReportPeriod(request);
-        var rows = await _unitOfWork.AdminOperations.GetSucceededPaymentsAsync(from, to, cancellationToken);
+        var rows = await UnitOfWork.AdminOperations.GetSucceededPaymentsAsync(from, to, cancellationToken);
         DateTime Period(DateTimeOffset date)
         {
             var day = date.ToOffset(TimeSpan.FromHours(7)).Date;
@@ -83,7 +83,7 @@ public sealed class AdminReportService(
     public async Task<List<AdminOccupancyResponse>> GetOccupancyAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin(); var (from, to) = ReportPeriod(request);
-        var rows = await _unitOfWork.AdminOperations.GetOccupancyAsync(from, to, request.TourId, cancellationToken);
+        var rows = await UnitOfWork.AdminOperations.GetOccupancyAsync(from, to, request.TourId, cancellationToken);
         return rows.Select(x => new AdminOccupancyResponse(x.TripId, x.TourName, x.StartAt, x.TotalSlots, x.BookedCount,
             x.TotalSlots == 0 ? 0 : Math.Round(100m * x.BookedCount / x.TotalSlots, 2))).OrderBy(x => x.StartAt).ToList();
     }
@@ -91,7 +91,7 @@ public sealed class AdminReportService(
     public async Task<List<AdminUtilizationResponse>> GetUtilizationAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin(); var (from, to) = ReportPeriod(request);
-        var assets = await _unitOfWork.AdminOperations.GetAssetUsageAsync(from, to, request.CategoryId, cancellationToken);
+        var assets = await UnitOfWork.AdminOperations.GetAssetUsageAsync(from, to, request.CategoryId, cancellationToken);
         var days = (decimal)(to - from).TotalDays;
         return assets.Select(x =>
         {
@@ -112,7 +112,7 @@ public sealed class AdminReportService(
     public async Task<AdminRefundChargeResponse> GetRefundChargesAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin(); var (from, to) = ReportPeriod(request);
-        var totals = await _unitOfWork.AdminOperations.GetPaymentTotalsAsync(from, to, cancellationToken);
+        var totals = await UnitOfWork.AdminOperations.GetPaymentTotalsAsync(from, to, cancellationToken);
         return new(totals.Refunds, totals.AdditionalCharges);
     }
 
@@ -138,7 +138,7 @@ public sealed class AdminReportService(
                 .Append("\r\n");
         }
 
-        var todayVn = DateOnly.FromDateTime(_timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
+        var todayVn = DateOnly.FromDateTime(Clock.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
             .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"revenue-{todayVn}.csv");
     }
@@ -154,7 +154,7 @@ public sealed class AdminReportService(
                 report.CollectedChargesAmount.ToString("0.##", CultureInfo.InvariantCulture)))
             .Append("\r\n");
 
-        var todayVn = DateOnly.FromDateTime(_timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
+        var todayVn = DateOnly.FromDateTime(Clock.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
             .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"refunds-and-charges-{todayVn}.csv");
     }

@@ -21,7 +21,7 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
     private IQueryable<Product> PublicProducts => _dbSet.AsNoTracking()
         .Where(product => product.Status == CatalogStatus.Active && product.Category.Status == "Active"
             && product.Variants.Any(variant => variant.Status == CatalogStatus.Active
-                && variant.RentalPriceTiers.Any()));
+                && variant.RentalPriceTiers.Count > 0));
 
     public Task<(IReadOnlyList<AdminProductRow> Items, int TotalCount)> GetAdminPagedAsync(
         AdminProductFilter filter,

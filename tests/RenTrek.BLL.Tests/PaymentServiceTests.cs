@@ -15,7 +15,7 @@ namespace RenTrek.BLL.Tests;
 
 public sealed class PaymentServiceTests
 {
-    private const string ApiKey = "test-api-key";
+    private const string ApiKey = "<test-api-key>";
     private static readonly DateTimeOffset Now = new(2026, 10, 28, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class PaymentServiceTests
             Microsoft.Extensions.Options.Options.Create(new EmailSettings
             {
                 Username = "rentrek@gmail.com",
-                Password = "app-password",
+                Password = "<app-password>",
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             tripGroups,

@@ -97,12 +97,12 @@ public sealed class AdminHttpTests
         await using var database = new AdminTestDatabase(); await database.InitializeAsync();
         await using var factory = new Factory(database.ConnectionString);
         using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await LoginAsync(admin, database.AdminId);
-        using var created = await admin.PostAsJsonAsync("/api/v1/admin/users/staff", new { email = "guide-new@test.invalid", fullName = "Guide mới", phone = "0912345678", role = "Guide", password = "TestPassword123!", careerStartDate = "2020-01-01" });
+        using var created = await admin.PostAsJsonAsync("/api/v1/admin/users/staff", new { email = "guide-new@test.invalid", fullName = "Guide mới", phone = "0912345678", role = "Guide", password = "<TestPassword123!>", careerStartDate = "2020-01-01" });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var envelope = await created.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(201, envelope.GetProperty("statusCode").GetInt32());
         Assert.Equal("Guide", envelope.GetProperty("data").GetProperty("user").GetProperty("role").GetString());
-        using var invalid = await admin.PostAsJsonAsync("/api/v1/admin/users/staff", new { email = "bad", fullName = "Guide mới", role = "Guide", password = "weak" });
+        using var invalid = await admin.PostAsJsonAsync("/api/v1/admin/users/staff", new { email = "bad", fullName = "Guide mới", role = "Guide", password = "<weak>" });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         var error = await invalid.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(error.GetProperty("errors").TryGetProperty("email", out _));
@@ -110,7 +110,7 @@ public sealed class AdminHttpTests
 
     private static async Task LoginAsync(HttpClient client, Guid userId)
     {
-        using var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = userId + "@test.invalid", password = "TestPassword123!" });
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = userId + "@test.invalid", password = "<TestPassword123!>" });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", envelope.GetProperty("data").GetProperty("accessToken").GetString());
@@ -125,7 +125,7 @@ public sealed class AdminHttpTests
             foreach (var (key, value) in new Dictionary<string, string>
             {
                 ["ConnectionStrings:DefaultConnection"] = connectionString,
-                ["Jwt:SecretKey"] = "disposable-admin-http-tests-only-key-at-least-32-characters",
+                ["Jwt:SecretKey"] = "<disposable-admin-http-tests-only-key-at-least-32-characters>",
                 ["Jwt:Issuer"] = "rentrek-tests",
                 ["Jwt:Audience"] = "rentrek-tests",
                 ["Jwt:AccessTokenExpirationMinutes"] = "15",
@@ -142,13 +142,13 @@ public sealed class AdminHttpTests
                 services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
                 services.PostConfigure<JwtSettings>(options =>
                 {
-                    options.SecretKey = "disposable-admin-http-tests-only-key-at-least-32-characters";
+                    options.SecretKey = "<disposable-admin-http-tests-only-key-at-least-32-characters>";
                     options.Issuer = "rentrek-tests"; options.Audience = "rentrek-tests";
                     options.AccessTokenExpirationMinutes = 15; options.RefreshTokenExpirationDays = 7;
                 });
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
                 {
-                    options.TokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("disposable-admin-http-tests-only-key-at-least-32-characters"));
+                    options.TokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("<disposable-admin-http-tests-only-key-at-least-32-characters>"));
                     options.TokenValidationParameters.ValidIssuer = "rentrek-tests";
                     options.TokenValidationParameters.ValidAudience = "rentrek-tests";
                 });
