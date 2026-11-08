@@ -11,10 +11,13 @@ using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Services.Implementations;
 
-/// <summary>Danh sách / chi tiết đơn, override participant, thanh toán tay và hủy đơn.</summary>
+/// <summary>Danh sách / chi tiết đơn, override participant, thanh toán tay, hủy đơn và đối soát tiền chuyển sai.</summary>
 /// <remarks>Logic gốc: TIGER.ER (commit 6cf600b "Task Admin"). Tri Tin chỉ tách từ partial AdminService, không đổi hành vi.</remarks>
 public sealed class AdminOrderService(
-    IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider timeProvider)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUser,
+    TimeProvider timeProvider,
+    INotificationService notificationService)
     : AdminServiceBase(unitOfWork, currentUser, timeProvider), IAdminOrderService
 {
     private static AdminOrderResponse ToResponse(AdminOrderRow x) => new(
@@ -125,6 +128,16 @@ public sealed class AdminOrderService(
                 var promotions = await _unitOfWork.Orders.GetAppliedPromotionsAsync(order.OrderId, cancellationToken);
                 foreach (var promotion in promotions.Where(x => x.Status == AppliedPromotionStatuses.Reserved))
                 { promotion.Status = AppliedPromotionStatuses.Applied; promotion.AppliedAt = Now; }
+
+                await notificationService.QueueAsync(
+                    order.CustomerUserId,
+                    NotificationTypes.OrderConfirmed,
+                    "Đơn hàng đã được xác nhận",
+                    BuildOrderNotificationContent(order, "đã được xác nhận"),
+                    "Order",
+                    order.OrderId,
+                    $"OrderConfirmed:{order.OrderId}",
+                    cancellationToken);
             }
             order.UpdatedAt = _timeProvider.GetUtcNow();
             await AuditAsync("ManualPayment", "Order", order.OrderId, new { request.Amount, request.PaymentMethod, reference, reason }, cancellationToken);
@@ -150,26 +163,180 @@ public sealed class AdminOrderService(
             var promotions = await _unitOfWork.Orders.GetAppliedPromotionsAsync(order.OrderId, cancellationToken);
             foreach (var promotion in promotions.Where(x => x.Status is AppliedPromotionStatuses.Reserved or AppliedPromotionStatuses.Applied))
                 promotion.Status = AppliedPromotionStatuses.Reversed;
-            foreach (var payment in order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded).ToList())
-            {
-                var pendingOrPaidRefund = order.Payments.Where(x => x.OriginalPaymentId == payment.PaymentId && x.PaymentType == "Refund" && x.Status != PaymentStatuses.Cancelled).Sum(x => x.Amount);
-                if (payment.Amount > pendingOrPaidRefund)
-                    await _unitOfWork.Payments.AddAsync(new Payment
-                    {
-                        PaymentId = Guid.NewGuid(),
-                        OrderId = order.OrderId,
-                        OriginalPaymentId = payment.PaymentId,
-                        PaymentType = "Refund",
-                        Purpose = payment.Purpose,
-                        PaymentMethod = payment.PaymentMethod,
-                        Amount = payment.Amount - pendingOrPaidRefund,
-                        Status = PaymentStatuses.PendingApproval,
-                        CreatedAt = _timeProvider.GetUtcNow()
-                    }, cancellationToken);
-            }
+            await AddFullRefundsAsync(order, cancellationToken);
             order.Status = OrderStatuses.Cancelled; order.CancelReason = reason; order.CancelledAt = _timeProvider.GetUtcNow();
             order.HoldExpiresAt = null; order.ReconciliationDeadlineAt = null; order.UpdatedAt = _timeProvider.GetUtcNow();
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderCancelled,
+                "Đơn hàng đã bị hủy",
+                BuildOrderNotificationContent(order, "đã bị hủy"),
+                "Order",
+                order.OrderId,
+                $"OrderCancelled:{order.OrderId}",
+                cancellationToken);
             await AuditAsync("Cancel", "Order", order.OrderId, new { reason }, cancellationToken);
         }, cancellationToken);
+    }
+
+    public Task ReconcileAcceptAsync(Guid orderId, CancellationToken cancellationToken)
+        => ReconcileAsync(orderId, "ReconcileAccept", async (order, received) =>
+        {
+            var holdValid = order.Status == OrderStatuses.PendingPayment
+                && (order.HoldExpiresAt == null || order.HoldExpiresAt > _timeProvider.GetUtcNow());
+            if (order.Status != OrderStatuses.Confirmed && !holdValid)
+                throw new ConflictException(
+                    "Đơn đã hết hạn giữ chỗ hoặc đã đóng, không thể xác nhận. Vui lòng dùng Hoàn toàn bộ (reconcile-refund).",
+                    ErrorCodes.OrderNotReconcilable);
+
+            var receivedAmount = received.Sum(x => x.Amount);
+            var paid = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && x.Purpose != "AdditionalCharge").Sum(x => x.Amount)
+                + receivedAmount;
+            if (paid < order.TotalAmount)
+                throw new ConflictException(
+                    "Tổng tiền đã nhận chưa đủ giá trị đơn. Vui lòng dùng Hoàn toàn bộ (reconcile-refund).",
+                    ErrorCodes.OrderNotReconcilable);
+
+            MarkReceived(received);
+            var wasPending = order.Status == OrderStatuses.PendingPayment;
+            order.Status = OrderStatuses.Confirmed;
+            order.PaymentStatus = OrderPaymentStatuses.Paid;
+            var promotions = await _unitOfWork.Orders.GetAppliedPromotionsAsync(order.OrderId, cancellationToken);
+            foreach (var promotion in promotions.Where(x => x.Status == AppliedPromotionStatuses.Reserved))
+            { promotion.Status = AppliedPromotionStatuses.Applied; promotion.AppliedAt = Now; }
+
+            // Tiền thừa: sinh lệnh hoàn chờ duyệt, gắn với lần chuyển vừa nhận
+            var excess = paid - order.TotalAmount;
+            if (excess > 0)
+            {
+                var source = received[^1];
+                await AddRefundAsync(order, source, excess, cancellationToken);
+            }
+
+            if (wasPending)
+                await notificationService.QueueAsync(
+                    order.CustomerUserId,
+                    NotificationTypes.OrderConfirmed,
+                    "Đơn hàng đã được xác nhận",
+                    BuildOrderNotificationContent(order, "đã được xác nhận"),
+                    "Order",
+                    order.OrderId,
+                    $"OrderConfirmed:{order.OrderId}",
+                    cancellationToken);
+            return new { receivedAmount, paid, excess };
+        }, cancellationToken);
+
+    public Task ReconcileRefundAsync(Guid orderId, CancellationToken cancellationToken)
+        => ReconcileAsync(orderId, "ReconcileRefund", async (order, received) =>
+        {
+            if (order.Status == OrderStatuses.Confirmed)
+                throw new ConflictException(
+                    "Đơn đã xác nhận: dùng Chấp nhận khoản tiền (reconcile-accept) để hoàn phần thừa, hoặc hủy đơn để hoàn toàn bộ.",
+                    ErrorCodes.OrderNotReconcilable);
+
+            MarkReceived(received);
+            var previousStatus = order.Status;
+            if (order.Status == OrderStatuses.PendingPayment)
+            {
+                // Giải phóng giữ chỗ như khi hủy đơn, rồi đóng đơn ở Expired
+                var assignments = await _unitOfWork.Orders.GetAssignmentsForUpdateAsync(order.OrderId, cancellationToken);
+                foreach (var assignment in assignments.Where(x => x.Status == AssignmentStatuses.Reserved)) assignment.Status = AssignmentStatuses.Cancelled;
+                var participants = await _unitOfWork.Orders.GetParticipantsAsync(order.OrderId, cancellationToken);
+                foreach (var participant in participants) { participant.Status = BookingParticipantStatuses.Cancelled; participant.UpdatedAt = _timeProvider.GetUtcNow(); }
+                var invitations = await _unitOfWork.Orders.GetOpenInvitationsForUpdateAsync(order.OrderId, cancellationToken);
+                foreach (var invitation in invitations) invitation.RevokedAt = _timeProvider.GetUtcNow();
+                var promotions = await _unitOfWork.Orders.GetAppliedPromotionsAsync(order.OrderId, cancellationToken);
+                foreach (var promotion in promotions.Where(x => x.Status is AppliedPromotionStatuses.Reserved or AppliedPromotionStatuses.Applied))
+                    promotion.Status = AppliedPromotionStatuses.Reversed;
+                order.Status = OrderStatuses.Expired;
+            }
+
+            await AddFullRefundsAsync(order, cancellationToken);
+            // Thoát NeedsReconciliation để mark-manual / hồ sơ hoàn tiền xử lý tiếp; mark-manual sẽ chuyển sang Refunded
+            var collected = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && x.Purpose != "AdditionalCharge").Sum(x => x.Amount);
+            order.PaymentStatus = collected >= order.TotalAmount ? OrderPaymentStatuses.Paid : "PartiallyPaid";
+            return new { receivedAmount = received.Sum(x => x.Amount), previousStatus, status = order.Status };
+        }, cancellationToken);
+
+    /// <summary>
+    /// Khung chung cho đối soát: khoá thanh toán của đơn trước rồi mới khoá đơn (cùng thứ tự với webhook SePay để không deadlock),
+    /// chỉ cho đơn đang NeedsReconciliation, chạy <paramref name="resolve"/> với các khoản tiền đã nhận (Collection Pending có mã giao dịch) và ghi audit.
+    /// </summary>
+    private async Task ReconcileAsync(
+        Guid orderId,
+        string action,
+        Func<Order, List<Payment>, Task<object>> resolve,
+        CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        var orderCode = await _unitOfWork.Orders.GetOrderCodeAsync(orderId, OrderScope, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy đơn hàng");
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
+            await _unitOfWork.AdminOperations.AcquireLockAsync("order:" + orderCode, cancellationToken);
+            var order = await _unitOfWork.Orders.GetAdminForUpdateAsync(orderCode, OrderScope, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy đơn hàng");
+            if (order.PaymentStatus != OrderPaymentStatuses.NeedsReconciliation)
+                throw new ConflictException("Đơn không ở trạng thái cần đối soát hoặc đã được xử lý", ErrorCodes.OrderNotReconcilable);
+
+            var received = order.Payments
+                .Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Pending && x.ProviderTransactionId != null)
+                .OrderBy(x => x.CreatedAt)
+                .ToList();
+            var details = await resolve(order, received);
+            order.HoldExpiresAt = null; order.ReconciliationDeadlineAt = null; order.UpdatedAt = _timeProvider.GetUtcNow();
+            await AuditAsync(action, "Order", order.OrderId, details, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    /// <summary>Ghi nhận các khoản tiền chờ đối soát là đã thu (Succeeded).</summary>
+    private void MarkReceived(List<Payment> received)
+    {
+        foreach (var payment in received) { payment.Status = PaymentStatuses.Succeeded; payment.ProcessedAt = _timeProvider.GetUtcNow(); }
+    }
+
+    /// <summary>Sinh lệnh hoàn PendingApproval cho phần còn lại (chưa hoàn / chưa chờ hoàn) của mọi khoản thu thành công.</summary>
+    private async Task AddFullRefundsAsync(Order order, CancellationToken cancellationToken)
+    {
+        foreach (var payment in order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded).ToList())
+        {
+            var pendingOrPaidRefund = order.Payments.Where(x => x.OriginalPaymentId == payment.PaymentId && x.PaymentType == "Refund" && x.Status != PaymentStatuses.Cancelled).Sum(x => x.Amount);
+            if (payment.Amount > pendingOrPaidRefund)
+                await AddRefundAsync(order, payment, payment.Amount - pendingOrPaidRefund, cancellationToken);
+        }
+    }
+
+    /// <summary>Thêm một lệnh hoàn PendingApproval (lưu số dương) gắn với khoản thu gốc.</summary>
+    private Task AddRefundAsync(Order order, Payment original, decimal amount, CancellationToken cancellationToken)
+        => _unitOfWork.Payments.AddAsync(new Payment
+        {
+            PaymentId = Guid.NewGuid(),
+            OrderId = order.OrderId,
+            OriginalPaymentId = original.PaymentId,
+            PaymentType = "Refund",
+            Purpose = original.Purpose,
+            PaymentMethod = original.PaymentMethod,
+            Amount = amount,
+            Status = PaymentStatuses.PendingApproval,
+            CreatedAt = _timeProvider.GetUtcNow()
+        }, cancellationToken);
+
+    private static string BuildOrderNotificationContent(Order order, string statusText)
+    {
+        var tourName = order.TripBookingOrder?.Trip?.Tour?.Name;
+        if (!string.IsNullOrWhiteSpace(tourName))
+            return $"Đơn {order.OrderCode} cho chuyến đi {tourName.Trim()} {statusText}.";
+
+        return order.OrderType == OrderTypes.Rental
+            ? $"Đơn thuê thiết bị {order.OrderCode} {statusText}."
+            : $"Đơn {order.OrderCode} {statusText}.";
     }
 }

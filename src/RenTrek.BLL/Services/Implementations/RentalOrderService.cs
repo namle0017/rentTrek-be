@@ -40,17 +40,20 @@ public class RentalOrderService : IRentalOrderService
     private readonly IRentalAvailabilityService _availabilityService;
     private readonly IPromotionService _promotionService;
     private readonly TimeProvider _timeProvider;
+    private readonly INotificationService _notificationService;
 
     public RentalOrderService(
         IUnitOfWork unitOfWork,
         IRentalAvailabilityService availabilityService,
         IPromotionService promotionService,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        INotificationService notificationService)
     {
         _unitOfWork = unitOfWork;
         _availabilityService = availabilityService;
         _promotionService = promotionService;
         _timeProvider = timeProvider;
+        _notificationService = notificationService;
     }
 
     public async Task<RentalQuoteResponse> QuoteAsync(
@@ -130,6 +133,15 @@ public class RentalOrderService : IRentalOrderService
             var order = BuildOrder(userId, request, normalizedKey, orderCode, computation, assetsByVariant, now);
 
             await _unitOfWork.RentalOrders.AddOrderAsync(order, cancellationToken);
+            await _notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderPlaced,
+                "Tạo đơn thuê thành công",
+                $"Đơn thuê thiết bị {order.OrderCode} đã được tạo và đang chờ thanh toán.",
+                "Order",
+                order.OrderId,
+                $"OrderPlaced:{order.OrderId}",
+                cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
             orderId = order.OrderId;
@@ -153,6 +165,416 @@ public class RentalOrderService : IRentalOrderService
 
         return MapDetail(detail, _timeProvider.GetUtcNow());
     }
+
+    public async Task<RentalExtensionQuoteResponse> QuoteExtensionAsync(
+        Guid userId,
+        Guid orderId,
+        ExtendRentalQuoteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var newEndUtc = RentalPeriodCalculator.ToUtc(request.NewEndAt);
+        var detail = await _unitOfWork.RentalOrders.GetOwnedDetailAsync(orderId, userId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy đơn hàng", ErrorCodes.OrderNotFound);
+
+        if (detail.Status != OrderStatuses.Confirmed && detail.Status != OrderStatuses.InFulfillment)
+        {
+            throw new ConflictException("Đơn hàng không thể gia hạn", ErrorCodes.RentalNotExtendable);
+        }
+
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        if (nowUtc >= detail.RentalEndAt)
+        {
+            throw new ConflictException("Đơn thuê đã quá hạn, không thể gia hạn", ErrorCodes.RentalNotExtendable);
+        }
+
+        if (newEndUtc == detail.RentalEndAt)
+        {
+            throw new ConflictException("Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại", ErrorCodes.RentalNotExtendable);
+        }
+
+        if (newEndUtc < detail.RentalEndAt)
+        {
+            throw new BadRequestException("Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại", ErrorCodes.InvalidRentalPeriod);
+        }
+
+        var newBillableDays = RentalPeriodCalculator.CalculateBillableDays(detail.RentalStartAt, newEndUtc);
+        if (newBillableDays > RentalPeriodCalculator.MaxRentalDays)
+        {
+            throw new BadRequestException($"Thời gian thuê không được vượt quá {RentalPeriodCalculator.MaxRentalDays} ngày", ErrorCodes.InvalidRentalPeriod);
+        }
+
+        var oldBillableDays = RentalPeriodCalculator.CalculateBillableDays(detail.RentalStartAt, detail.RentalEndAt);
+
+        // Kiểm tra xung đột tài sản trên khoảng [RentalEndAt, newEndUtc)
+        var activeAssignments = detail.Assignments
+            .Where(a => a.Status == AssignmentStatuses.Reserved || a.Status == AssignmentStatuses.Issued)
+            .ToList();
+        var assetIds = activeAssignments.Select(a => a.EquipmentAssetId).Distinct().ToList();
+        var excludedAssignmentIds = activeAssignments.Select(a => a.AssignmentId).Distinct().ToList();
+
+        if (assetIds.Count > 0)
+        {
+            var filter = new AssetAvailabilityFilter
+            {
+                WindowStart = detail.RentalEndAt,
+                WindowEnd = newEndUtc,
+                BlockingAssignmentStatuses = [AssignmentStatuses.Reserved, AssignmentStatuses.Issued],
+                IssuedStatus = AssignmentStatuses.Issued,
+                // BR-20: tài sản đơn khác đang Issued quá hạn chưa trả vẫn chặn
+                NowUtc = nowUtc
+            };
+
+            var blockedAssetIds = await _unitOfWork.EquipmentAssets.GetBlockedAssetIdsAsync(
+                assetIds, excludedAssignmentIds, filter, cancellationToken);
+
+            if (blockedAssetIds.Count > 0)
+            {
+                var blockedCodes = activeAssignments
+                    .Where(a => blockedAssetIds.Contains(a.EquipmentAssetId))
+                    .Select(a => a.AssetCode)
+                    .Distinct()
+                    .ToArray();
+
+                throw new ConflictException(
+                    "Một hoặc nhiều thiết bị không khả dụng trong khoảng thời gian gia hạn",
+                    ErrorCodes.ResourceUnavailable,
+                    new Dictionary<string, string[]>
+                    {
+                        ["assetCodes"] = blockedCodes
+                    });
+            }
+        }
+
+        // Tính lại giá từng dòng theo bậc giá mới
+        var variantIds = detail.Lines.Where(l => l.VariantId.HasValue).Select(l => l.VariantId!.Value).Distinct().ToList();
+        var bundleIds = detail.Lines.Where(l => l.BundleId.HasValue).Select(l => l.BundleId!.Value).Distinct().ToList();
+
+        var variantTiers = variantIds.Count == 0
+            ? []
+            : await _unitOfWork.RentalPriceTiers.GetForVariantsAsync(variantIds, cancellationToken);
+        var bundleTiers = bundleIds.Count == 0
+            ? []
+            : await _unitOfWork.RentalPriceTiers.GetForBundlesAsync(bundleIds, cancellationToken);
+
+        var tiersByVariant = variantTiers
+            .Where(t => t.VariantId.HasValue)
+            .GroupBy(t => t.VariantId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(ToTierOption).ToList());
+        var tiersByBundle = bundleTiers
+            .Where(t => t.BundleId.HasValue)
+            .GroupBy(t => t.BundleId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(ToTierOption).ToList());
+
+        decimal totalOldLineAmount = 0m;
+        decimal totalNewLineAmount = 0m;
+        var quoteLines = new List<RentalExtensionQuoteLineResponse>(detail.Lines.Count);
+
+        foreach (var line in detail.Lines)
+        {
+            var options = line.VariantId.HasValue
+                ? tiersByVariant.GetValueOrDefault(line.VariantId.Value)
+                : (line.BundleId.HasValue ? tiersByBundle.GetValueOrDefault(line.BundleId.Value) : null);
+
+            var tier = options is null ? null : RentalPricingCalculator.SelectTier(options, newBillableDays);
+            if (tier is null)
+            {
+                var name = line.BundleId.HasValue ? (line.BundleName ?? string.Empty) : $"{line.ProductName} — {line.VariantName}";
+                throw new BadRequestException($"'{name}' chưa có giá cho {newBillableDays} ngày thuê", ErrorCodes.PriceTierNotFound);
+            }
+
+            var newLineAmount = RentalPricingCalculator.CalculateLineAmount(line.Quantity, newBillableDays, tier.DailyPrice);
+            totalOldLineAmount += line.LineAmount;
+            totalNewLineAmount += newLineAmount;
+
+            quoteLines.Add(new RentalExtensionQuoteLineResponse
+            {
+                RentalOrderItemId = line.ItemId,
+                DisplayName = line.BundleId.HasValue ? (line.BundleName ?? string.Empty) : $"{line.ProductName} — {line.VariantName}",
+                Quantity = line.Quantity,
+                OldBillableDays = line.BillableDays,
+                NewBillableDays = newBillableDays,
+                OldDailyPrice = line.DailyPrice,
+                NewDailyPrice = tier.DailyPrice,
+                OldLineAmount = line.LineAmount,
+                NewLineAmount = newLineAmount
+            });
+        }
+
+        var extraAmount = Math.Max(0m, totalNewLineAmount - totalOldLineAmount);
+
+        return new RentalExtensionQuoteResponse
+        {
+            OrderId = orderId,
+            OldEndAt = detail.RentalEndAt,
+            NewEndAt = newEndUtc,
+            OldBillableDays = oldBillableDays,
+            NewBillableDays = newBillableDays,
+            ExtraAmount = extraAmount,
+            Lines = quoteLines
+        };
+    }
+
+    public async Task<RentalExtensionResultResponse> ExtendAsync(
+        Guid userId,
+        Guid orderId,
+        ExtendRentalOrderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var newEndUtc = RentalPeriodCalculator.ToUtc(request.NewEndAt);
+
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.RentalOrders.AcquireFulfillmentLockAsync(orderId, cancellationToken);
+            var order = await _unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken);
+            if (order is null || order.CustomerUserId != userId || order.RentalOrder is null || (!string.IsNullOrEmpty(order.OrderType) && order.OrderType != OrderTypes.Rental))
+            {
+                throw new NotFoundException("Không tìm thấy đơn hàng", ErrorCodes.OrderNotFound);
+            }
+
+            if (order.Status != OrderStatuses.Confirmed && order.Status != OrderStatuses.InFulfillment)
+            {
+                throw new ConflictException("Đơn hàng không thể gia hạn", ErrorCodes.RentalNotExtendable);
+            }
+
+            var rental = order.RentalOrder;
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+            if (nowUtc >= rental.RentalEndAt)
+            {
+                throw new ConflictException("Đơn thuê đã quá hạn, không thể gia hạn", ErrorCodes.RentalNotExtendable);
+            }
+
+            if (newEndUtc == rental.RentalEndAt)
+            {
+                throw new ConflictException("Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại", ErrorCodes.RentalNotExtendable);
+            }
+
+            if (newEndUtc < rental.RentalEndAt)
+            {
+                throw new BadRequestException("Thời gian kết thúc mới phải sau thời gian kết thúc hiện tại", ErrorCodes.InvalidRentalPeriod);
+            }
+
+            var newBillableDays = RentalPeriodCalculator.CalculateBillableDays(rental.RentalStartAt, newEndUtc);
+            if (newBillableDays > RentalPeriodCalculator.MaxRentalDays)
+            {
+                throw new BadRequestException($"Thời gian thuê không được vượt quá {RentalPeriodCalculator.MaxRentalDays} ngày", ErrorCodes.InvalidRentalPeriod);
+            }
+
+            var variantIds = rental.RentalOrderItems
+                .Where(i => i.ProductVariantId.HasValue)
+                .Select(i => i.ProductVariantId!.Value)
+                .Distinct()
+                .ToList();
+
+            var activeAssignments = rental.RentalOrderItems
+                .SelectMany(i => i.AssetAssignments)
+                .Where(a => a.Status == AssignmentStatuses.Reserved || a.Status == AssignmentStatuses.Issued)
+                .ToList();
+
+            // Khoá cả biến thể thành phần của combo (theo tài sản đang giữ) giống CreateAsync, tránh tạo đơn song song giữ trùng tài sản
+            await _availabilityService.LockVariantsAsync(
+                variantIds.Concat(activeAssignments.Select(a => a.EquipmentAsset.ProductVariantId)).Distinct(),
+                cancellationToken);
+            var assetIds = activeAssignments.Select(a => a.EquipmentAssetId).Distinct().ToList();
+            var excludedAssignmentIds = activeAssignments.Select(a => a.AssetAssignmentId).Distinct().ToList();
+
+            if (assetIds.Count > 0)
+            {
+                var filter = new AssetAvailabilityFilter
+                {
+                    WindowStart = rental.RentalEndAt,
+                    WindowEnd = newEndUtc,
+                    BlockingAssignmentStatuses = [AssignmentStatuses.Reserved, AssignmentStatuses.Issued],
+                    IssuedStatus = AssignmentStatuses.Issued,
+                    // BR-20: tài sản đơn khác đang Issued quá hạn chưa trả vẫn chặn
+                    NowUtc = nowUtc
+                };
+
+                var blockedAssetIds = await _unitOfWork.EquipmentAssets.GetBlockedAssetIdsAsync(
+                    assetIds, excludedAssignmentIds, filter, cancellationToken);
+
+                if (blockedAssetIds.Count > 0)
+                {
+                    var blockedCodes = activeAssignments
+                        .Where(a => blockedAssetIds.Contains(a.EquipmentAssetId))
+                        .Select(a => a.EquipmentAsset?.AssetCode ?? a.EquipmentAssetId.ToString("D"))
+                        .Distinct()
+                        .ToArray();
+
+                    throw new ConflictException(
+                        "Một hoặc nhiều thiết bị không khả dụng trong khoảng thời gian gia hạn",
+                        ErrorCodes.ResourceUnavailable,
+                        new Dictionary<string, string[]>
+                        {
+                            ["assetCodes"] = blockedCodes
+                        });
+                }
+            }
+
+            var bundleIds = rental.RentalOrderItems
+                .Where(i => i.BundleId.HasValue)
+                .Select(i => i.BundleId!.Value)
+                .Distinct()
+                .ToList();
+
+            var variantTiers = variantIds.Count == 0
+                ? []
+                : await _unitOfWork.RentalPriceTiers.GetForVariantsAsync(variantIds, cancellationToken);
+            var bundleTiers = bundleIds.Count == 0
+                ? []
+                : await _unitOfWork.RentalPriceTiers.GetForBundlesAsync(bundleIds, cancellationToken);
+
+            var tiersByVariant = variantTiers
+                .Where(t => t.VariantId.HasValue)
+                .GroupBy(t => t.VariantId!.Value)
+                .ToDictionary(g => g.Key, g => g.Select(ToTierOption).ToList());
+            var tiersByBundle = bundleTiers
+                .Where(t => t.BundleId.HasValue)
+                .GroupBy(t => t.BundleId!.Value)
+                .ToDictionary(g => g.Key, g => g.Select(ToTierOption).ToList());
+
+            decimal totalOldLineAmount = 0m;
+            decimal totalNewLineAmount = 0m;
+            var itemUpdates = new List<(RentalOrderItem Item, decimal NewDailyPrice, decimal NewLineAmount)>();
+
+            foreach (var item in rental.RentalOrderItems)
+            {
+                var options = item.ProductVariantId.HasValue
+                    ? tiersByVariant.GetValueOrDefault(item.ProductVariantId.Value)
+                    : (item.BundleId.HasValue ? tiersByBundle.GetValueOrDefault(item.BundleId.Value) : null);
+
+                var tier = options is null ? null : RentalPricingCalculator.SelectTier(options, newBillableDays);
+                if (tier is null)
+                {
+                    throw new BadRequestException($"Thiết bị chưa có bậc giá cho {newBillableDays} ngày thuê", ErrorCodes.PriceTierNotFound);
+                }
+
+                var newLineAmount = RentalPricingCalculator.CalculateLineAmount(item.Quantity, newBillableDays, tier.DailyPrice);
+                totalOldLineAmount += item.LineAmount;
+                totalNewLineAmount += newLineAmount;
+                itemUpdates.Add((item, tier.DailyPrice, newLineAmount));
+            }
+
+            var extraAmount = Math.Max(0m, totalNewLineAmount - totalOldLineAmount);
+
+            if (request.AcceptedExtraAmount != extraAmount)
+            {
+                throw new ConflictException(
+                    $"Số tiền phụ phí gia hạn thay đổi (báo giá: {extraAmount:N0} đ, số tiền xác nhận: {request.AcceptedExtraAmount:N0} đ). Vui lòng lấy báo giá mới.",
+                    ErrorCodes.RentalExtensionPriceChanged);
+            }
+
+            var oldEndAt = rental.RentalEndAt;
+            rental.RentalEndAt = newEndUtc;
+
+            foreach (var (item, newDailyPrice, newLineAmount) in itemUpdates)
+            {
+                item.BillableDays = newBillableDays;
+                item.DailyPrice = newDailyPrice;
+                item.LineAmount = newLineAmount;
+
+                foreach (var assignment in item.AssetAssignments)
+                {
+                    if (assignment.Status == AssignmentStatuses.Reserved || assignment.Status == AssignmentStatuses.Issued)
+                    {
+                        assignment.ReservedUntil = newEndUtc;
+                    }
+                }
+            }
+
+            var adjustment = new RentalOrderAdjustment
+            {
+                RentalOrderAdjustmentId = Guid.NewGuid(),
+                RentalOrderId = order.OrderId,
+                AdjustmentType = RentalAdjustmentTypes.Extension,
+                OldEndAt = oldEndAt,
+                NewEndAt = newEndUtc,
+                ExtraAmount = extraAmount,
+                RequestedByUserId = userId,
+                CreatedAt = nowUtc
+            };
+            await _unitOfWork.RentalOrders.AddAdjustmentAsync(adjustment, cancellationToken);
+
+            if (extraAmount > 0)
+            {
+                var charge = new RentalCharge
+                {
+                    RentalChargeId = Guid.NewGuid(),
+                    RentalOrderId = order.OrderId,
+                    ChargeType = RentalChargeTypes.Extension,
+                    Amount = extraAmount,
+                    Reason = $"Phụ phí gia hạn đơn thuê từ {oldEndAt:dd/MM/yyyy HH:mm} đến {newEndUtc:dd/MM/yyyy HH:mm} UTC",
+                    Status = RentalChargeStatuses.Assessed,
+                    CreatedByUserId = userId,
+                    CreatedAt = nowUtc
+                };
+                await _unitOfWork.RentalCharges.AddAsync(charge, cancellationToken);
+            }
+
+            await _notificationService.QueueAsync(
+                userId,
+                NotificationTypes.RentalExtended,
+                "Gia hạn đơn thuê thành công",
+                $"Đơn hàng #{order.OrderCode} đã được gia hạn đến {newEndUtc:dd/MM/yyyy HH:mm}.",
+                "Order",
+                order.OrderId,
+                $"RentalExtended:{adjustment.RentalOrderAdjustmentId}",
+                cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            var updatedOrder = await GetByIdAsync(userId, orderId, cancellationToken);
+
+            return new RentalExtensionResultResponse
+            {
+                Adjustment = new RentalOrderAdjustmentResponse
+                {
+                    Id = adjustment.RentalOrderAdjustmentId,
+                    AdjustmentType = adjustment.AdjustmentType,
+                    OldEndAt = adjustment.OldEndAt,
+                    NewEndAt = adjustment.NewEndAt,
+                    ExtraAmount = adjustment.ExtraAmount,
+                    RequestedByUserId = adjustment.RequestedByUserId,
+                    RequestedByName = order.CustomerUser?.FullName ?? string.Empty,
+                    CreatedAt = adjustment.CreatedAt
+                },
+                Order = updatedOrder
+            };
+        }
+        catch
+        {
+            await _unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    public async Task<List<RentalOrderAdjustmentResponse>> GetAdjustmentsAsync(
+        Guid userId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await _unitOfWork.RentalOrders.GetAdjustmentsAsync(orderId, userId, cancellationToken);
+        if (rows is null)
+        {
+            throw new NotFoundException("Không tìm thấy đơn hàng", ErrorCodes.OrderNotFound);
+        }
+
+        return rows.Select(MapAdjustmentResponse).ToList();
+    }
+
+    private static RentalOrderAdjustmentResponse MapAdjustmentResponse(RentalOrderAdjustmentRow r) => new()
+    {
+        Id = r.Id,
+        AdjustmentType = r.AdjustmentType,
+        OldEndAt = RentalPeriodCalculator.ToUtc(r.OldEndAt),
+        NewEndAt = RentalPeriodCalculator.ToUtc(r.NewEndAt),
+        ExtraAmount = r.ExtraAmount,
+        RequestedByUserId = r.RequestedByUserId,
+        RequestedByName = r.RequestedByName,
+        CreatedAt = RentalPeriodCalculator.ToUtc(r.CreatedAt)
+    };
 
     // ---------------------------------------------------------------------------------------------------------
     // Tính toán dùng chung cho báo giá và tạo đơn
@@ -228,10 +650,10 @@ public class RentalOrderService : IRentalOrderService
             .Select(line => line.BundleId!.Value).Distinct().ToList();
 
         var variantTiers = variantIds.Count == 0
-            ? new List<RentalPriceTierRow>()
+            ? []
             : await _unitOfWork.RentalPriceTiers.GetForVariantsAsync(variantIds, cancellationToken);
         var bundleTiers = bundleIds.Count == 0
-            ? new List<RentalPriceTierRow>()
+            ? []
             : await _unitOfWork.RentalPriceTiers.GetForBundlesAsync(bundleIds, cancellationToken);
 
         var tiersByVariant = variantTiers

@@ -45,4 +45,28 @@ public interface IRentalOrderRepository : IGenericRepository<RentalOrder>
     Task<(IReadOnlyList<AdminRentalOrderRow> Items, int TotalCount)> GetAdminPagedAsync(
         AdminRentalOrderFilter filter,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách từng thiết bị Reserved cần giao trong khoảng thời gian UTC tương ứng ngày giờ Việt Nam.</summary>
+    Task<IReadOnlyList<AdminRentalScheduleRow>> GetHandoverScheduleAsync(
+        DateTime rangeStartUtc,
+        DateTime rangeEndUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách từng thiết bị Issued chưa trả cần nhận lại trong khoảng thời gian UTC tương ứng ngày giờ Việt Nam.</summary>
+    Task<IReadOnlyList<AdminRentalScheduleRow>> GetReturnScheduleAsync(
+        DateTime rangeStartUtc,
+        DateTime rangeEndUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Thêm một dòng lịch sử điều chỉnh đơn thuê vào context; chưa SaveChanges.</summary>
+    Task AddAdjustmentAsync(RentalOrderAdjustment adjustment, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lịch sử điều chỉnh của đơn thuê (cũ nhất trước). Trả null nếu đơn không tồn tại, đã xoá, không phải đơn thuê
+    /// hoặc không thuộc khách khi truyền <paramref name="customerUserId"/> (null = màn vận hành đọc mọi đơn).
+    /// </summary>
+    Task<List<RentalOrderAdjustmentRow>?> GetAdjustmentsAsync(
+        Guid orderId,
+        Guid? customerUserId,
+        CancellationToken cancellationToken = default);
 }

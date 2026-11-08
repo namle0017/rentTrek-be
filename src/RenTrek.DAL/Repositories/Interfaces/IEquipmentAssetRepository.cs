@@ -32,6 +32,17 @@ public interface IEquipmentAssetRepository : IGenericRepository<EquipmentAsset>
     Task AcquireVariantLocksAsync(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Id các tài sản trong <paramref name="equipmentAssetIds"/> đang bị một phân bổ khác chặn trong khoảng
+    /// [WindowStart, WindowEnd) của bộ lọc, cùng tập trạng thái chặn và quy tắc Issued quá hạn chưa trả như truy vấn khả dụng.
+    /// Bỏ qua các phân bổ có id thuộc <paramref name="excludedAssignmentIds"/> (phân bổ của chính đơn đang gia hạn).
+    /// </summary>
+    Task<List<Guid>> GetBlockedAssetIdsAsync(
+        IReadOnlyCollection<Guid> equipmentAssetIds,
+        IReadOnlyCollection<Guid> excludedAssignmentIds,
+        AssetAvailabilityFilter filter,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Lấy danh sách thiết bị phân trang kèm thông tin variant, product và assignment hiện tại (Màn O20).
     /// </summary>
     Task<(IReadOnlyList<EquipmentAsset> Items, int TotalCount)> GetPagedAssetsAsync(

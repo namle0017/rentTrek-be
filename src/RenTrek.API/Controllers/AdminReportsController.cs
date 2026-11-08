@@ -4,7 +4,6 @@ using RenTrek.BLL.Constants;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
-using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -18,9 +17,18 @@ public sealed class AdminReportsController(IAdminReportService service) : Contro
     [HttpGet("revenue")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<List<AdminRevenueResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> RevenueAsync([FromQuery] AdminQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> RevenueAsync(
+        [FromQuery] AdminQueryRequest request,
+        [FromQuery] string? format,
+        CancellationToken cancellationToken)
     {
         var result = await service.GetRevenueAsync(request, cancellationToken);
+        if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            var (fileBytes, fileName) = service.FormatRevenueCsv(result);
+            return File(fileBytes, "text/csv; charset=utf-8", fileName);
+        }
+
         return Ok(ApiResponse<List<AdminRevenueResponse>>.Ok(result, "Lấy báo cáo doanh thu thành công"));
     }
 
@@ -45,9 +53,18 @@ public sealed class AdminReportsController(IAdminReportService service) : Contro
     [HttpGet("refunds-and-charges")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<AdminRefundChargeResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> RefundChargesAsync([FromQuery] AdminQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> RefundChargesAsync(
+        [FromQuery] AdminQueryRequest request,
+        [FromQuery] string? format,
+        CancellationToken cancellationToken)
     {
         var result = await service.GetRefundChargesAsync(request, cancellationToken);
+        if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            var (fileBytes, fileName) = service.FormatRefundChargesCsv(result);
+            return File(fileBytes, "text/csv; charset=utf-8", fileName);
+        }
+
         return Ok(ApiResponse<AdminRefundChargeResponse>.Ok(result, "Lấy báo cáo hoàn tiền và phụ phí thành công"));
     }
 }

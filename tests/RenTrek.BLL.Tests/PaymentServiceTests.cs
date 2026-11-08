@@ -265,6 +265,7 @@ public sealed class PaymentServiceTests
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             tripGroups,
+            TestProxy.Create<INotificationService>(),
             NullLogger<PaymentService>.Instance);
         return new Fixture(service, repository, tripBookings, tripGroups, emailSender, order);
     }
@@ -369,6 +370,15 @@ public sealed class PaymentServiceTests
         public Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.Any(p => p.ProviderTransactionId == providerTransactionId));
 
+        public Task<(IReadOnlyList<RenTrek.DAL.Models.AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
+            RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Payment?> GetForUpdateAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<bool> HasRefundCaseAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<Payment?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.SingleOrDefault(p => p.PaymentId == (Guid)id));
 
@@ -446,6 +456,7 @@ public sealed class PaymentServiceTests
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public void Dispose()
         {

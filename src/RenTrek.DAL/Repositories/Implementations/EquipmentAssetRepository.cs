@@ -229,6 +229,33 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<List<Guid>> GetBlockedAssetIdsAsync(
+        IReadOnlyCollection<Guid> equipmentAssetIds,
+        IReadOnlyCollection<Guid> excludedAssignmentIds,
+        AssetAvailabilityFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var assetIds = equipmentAssetIds.ToArray();
+        var excludedIds = excludedAssignmentIds.ToArray();
+        var blockingStatuses = filter.BlockingAssignmentStatuses.ToArray();
+        var issuedStatus = filter.IssuedStatus;
+        var windowStart = filter.WindowStart;
+        var windowEnd = filter.WindowEnd;
+        var now = filter.NowUtc;
+
+        return await _context.AssetAssignments
+            .AsNoTracking()
+            .Where(x => assetIds.Contains(x.EquipmentAssetId)
+                        && !excludedIds.Contains(x.AssetAssignmentId)
+                        && blockingStatuses.Contains(x.Status)
+                        && x.ReservedFrom < windowEnd
+                        && (x.ReservedUntil > windowStart
+                            || (x.Status == issuedStatus && x.ReturnedAt == null && x.ReservedUntil <= now)))
+            .Select(x => x.EquipmentAssetId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     // Tài sản khả dụng: không có phân bổ chặn giao khoảng thuê; phân bổ Issued chưa trả mà đã quá hạn vẫn chặn (BR-20)
     private IQueryable<EquipmentAsset> AvailableAssets(AssetAvailabilityFilter filter)
     {

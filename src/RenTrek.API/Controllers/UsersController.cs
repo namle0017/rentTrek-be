@@ -4,6 +4,7 @@ using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Order.Requests;
 using RenTrek.BLL.DTOs.Order.Responses;
+using RenTrek.BLL.DTOs.Participation.Responses;
 using RenTrek.BLL.DTOs.Users.Requests;
 using RenTrek.BLL.DTOs.Users.Responses;
 using RenTrek.BLL.Exceptions;
@@ -20,12 +21,18 @@ public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly IOrderService _orderService;
+    private readonly IParticipationService _participationService;
     private readonly ICurrentUserService _currentUserService;
 
-    public UsersController(IUserService userService, IOrderService orderService, ICurrentUserService currentUserService)
+    public UsersController(
+        IUserService userService,
+        IOrderService orderService,
+        IParticipationService participationService,
+        ICurrentUserService currentUserService)
     {
         _userService = userService;
         _orderService = orderService;
+        _participationService = participationService;
         _currentUserService = currentUserService;
     }
 
@@ -91,5 +98,17 @@ public class UsersController : ControllerBase
 
         var result = await _orderService.GetMyOrdersAsync(userId, request, cancellationToken);
         return Ok(ApiResponse<PagedResponse<MyOrderResponse>>.Ok(result, "Lấy danh sách đơn hàng thành công"));
+    }
+
+    /// <summary>
+    /// Lấy danh sách các lượt tham gia chuyến đi đã được liên kết với tài khoản hiện tại, mới nhất trước.
+    /// </summary>
+    [HttpGet("me/participations")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<MyParticipationResponse>>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> GetMyParticipationsAsync(CancellationToken cancellationToken)
+    {
+        var result = await _participationService.GetMyParticipationsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<MyParticipationResponse>>.Ok(result, "Lấy danh sách chuyến tham gia thành công"));
     }
 }

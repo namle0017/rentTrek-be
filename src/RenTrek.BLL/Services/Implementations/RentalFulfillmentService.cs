@@ -1,9 +1,11 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.RentalOps.Requests;
 using RenTrek.BLL.DTOs.RentalOps.Responses;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -80,6 +82,127 @@ public sealed class RentalFulfillmentService(
 
         var graceHours = await GetGraceHoursAsync(cancellationToken);
         return MapDetail(detail, timeProvider.GetUtcNow().UtcDateTime, graceHours);
+    }
+
+    /// <summary>Lấy danh sách thiết bị cần giao theo ngày giờ Việt Nam (mặc định hôm nay UTC+7).</summary>
+    public async Task<AdminRentalScheduleResponse> GetHandoverListAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var (date, startUtc, endUtc) = ResolveVietnamDayRange(targetDate);
+        var rows = await unitOfWork.RentalOrders.GetHandoverScheduleAsync(startUtc, endUtc, cancellationToken);
+        return MapSchedule(date, rows);
+    }
+
+    /// <summary>Xuất CSV danh sách thiết bị cần giao theo ngày giờ Việt Nam, kèm UTF-8 BOM.</summary>
+    public async Task<(byte[] FileBytes, string FileName)> ExportHandoverListCsvAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var schedule = await GetHandoverListAsync(targetDate, cancellationToken);
+        var csv = BuildScheduleCsv("GioNhan", schedule.Items);
+        var fileName = $"handover-{schedule.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv";
+        return (CsvHelper.ToUtf8WithBom(csv), fileName);
+    }
+
+    /// <summary>Lấy danh sách thiết bị cần nhận lại theo ngày giờ Việt Nam (mặc định hôm nay UTC+7).</summary>
+    public async Task<AdminRentalScheduleResponse> GetReturnListAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var (date, startUtc, endUtc) = ResolveVietnamDayRange(targetDate);
+        var rows = await unitOfWork.RentalOrders.GetReturnScheduleAsync(startUtc, endUtc, cancellationToken);
+        return MapSchedule(date, rows);
+    }
+
+    /// <summary>Xuất CSV danh sách thiết bị cần nhận lại theo ngày giờ Việt Nam, kèm UTF-8 BOM.</summary>
+    public async Task<(byte[] FileBytes, string FileName)> ExportReturnListCsvAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var schedule = await GetReturnListAsync(targetDate, cancellationToken);
+        var csv = BuildScheduleCsv("GioTra", schedule.Items);
+        var fileName = $"return-{schedule.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv";
+        return (CsvHelper.ToUtf8WithBom(csv), fileName);
+    }
+
+    /// <summary>Lịch sử điều chỉnh (gia hạn) của đơn thuê cho màn vận hành, cũ nhất trước.</summary>
+    public async Task<List<RentalOrderAdjustmentResponse>> GetAdjustmentsAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var rows = await unitOfWork.RentalOrders.GetAdjustmentsAsync(orderId, null, cancellationToken);
+        if (rows is null)
+        {
+            throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
+        }
+
+        return rows.Select(MapAdjustmentResponse).ToList();
+    }
+
+    private static RentalOrderAdjustmentResponse MapAdjustmentResponse(RentalOrderAdjustmentRow r) => new()
+    {
+        Id = r.Id,
+        AdjustmentType = r.AdjustmentType,
+        OldEndAt = RentalPeriodCalculator.ToUtc(r.OldEndAt),
+        NewEndAt = RentalPeriodCalculator.ToUtc(r.NewEndAt),
+        ExtraAmount = r.ExtraAmount,
+        RequestedByUserId = r.RequestedByUserId,
+        RequestedByName = r.RequestedByName,
+        CreatedAt = RentalPeriodCalculator.ToUtc(r.CreatedAt)
+    };
+
+    private (DateOnly Date, DateTime RangeStartUtc, DateTime RangeEndUtc) ResolveVietnamDayRange(DateOnly? targetDate)
+    {
+        var date = targetDate ?? DateOnly.FromDateTime(timeProvider.GetUtcNow().ToOffset(VietnamOffset).DateTime);
+        var startLocal = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), VietnamOffset);
+        var startUtc = startLocal.UtcDateTime;
+        return (date, startUtc, startUtc.AddDays(1));
+    }
+
+    private static AdminRentalScheduleResponse MapSchedule(DateOnly date, IReadOnlyList<AdminRentalScheduleRow> rows)
+        => new()
+        {
+            Date = date,
+            TotalItems = rows.Count,
+            Items = rows.Select(r => new AdminRentalScheduleItemResponse
+            {
+                OrderId = r.OrderId,
+                OrderCode = r.OrderCode,
+                CustomerName = r.CustomerName,
+                CustomerPhone = r.CustomerPhone,
+                ProductName = r.ProductName,
+                VariantName = r.VariantName,
+                AssetCode = r.AssetCode,
+                ScheduledAt = RentalPeriodCalculator.ToUtc(r.ScheduledAt),
+                Status = r.Status
+            }).ToList()
+        };
+
+    private static string BuildScheduleCsv(string timeColumnHeader, IReadOnlyList<AdminRentalScheduleItemResponse> items)
+    {
+        var sb = new StringBuilder();
+        sb.Append("MaDon,TenKhach,SDT,SanPham,BienThe,MaTaiSan,")
+            .Append(timeColumnHeader)
+            .Append(",TrangThai\r\n");
+
+        foreach (var item in items)
+        {
+            var scheduledVn = new DateTimeOffset(RentalPeriodCalculator.ToUtc(item.ScheduledAt), TimeSpan.Zero)
+                .ToOffset(VietnamOffset)
+                .ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+            sb.Append(CsvHelper.BuildRow(
+                    item.OrderCode,
+                    item.CustomerName,
+                    item.CustomerPhone,
+                    item.ProductName,
+                    item.VariantName,
+                    item.AssetCode,
+                    scheduledVn,
+                    item.Status))
+                .Append("\r\n");
+        }
+
+        return sb.ToString();
     }
 
     // ---------- Người phụ trách (FR-R05) ----------

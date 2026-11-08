@@ -4,6 +4,7 @@ using RenTrek.BLL.DTOs.Rental.Requests;
 using RenTrek.BLL.DTOs.RentalOrder.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Services.Implementations;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.Validators.RentalOrder;
 
 namespace RenTrek.BLL.Tests;
@@ -11,7 +12,8 @@ namespace RenTrek.BLL.Tests;
 public sealed class RentalOrderServiceTests
 {
     // Các nhánh dưới đây dừng trước khi chạm repository nên không cần UnitOfWork thật.
-    private static RentalOrderService CreateService() => new(null!, null!, null!, TimeProvider.System);
+    private static RentalOrderService CreateService() =>
+        new(null!, null!, null!, TimeProvider.System, TestProxy.Create<INotificationService>());
 
     private static CreateRentalOrderRequest ValidRequest() => new()
     {

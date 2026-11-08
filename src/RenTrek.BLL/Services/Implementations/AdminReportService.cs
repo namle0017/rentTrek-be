@@ -1,6 +1,8 @@
+using System.Globalization;
+using System.Text;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
-using RenTrek.BLL.Helpers.Interfaces;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -112,5 +114,48 @@ public sealed class AdminReportService(
         RequireAdmin(); var (from, to) = ReportPeriod(request);
         var totals = await _unitOfWork.AdminOperations.GetPaymentTotalsAsync(from, to, cancellationToken);
         return new(totals.Refunds, totals.AdditionalCharges);
+    }
+
+    /// <summary>Chuyển dữ liệu doanh thu đã tổng hợp thành CSV UTF-8 có BOM, không truy vấn lại DB.</summary>
+    public (byte[] FileBytes, string FileName) FormatRevenueCsv(IReadOnlyList<AdminRevenueResponse> items)
+    {
+        RequireAdmin();
+        var sb = new StringBuilder();
+        sb.Append("KyBaoCao,LoaiDonHang,TongThuVnd,TongHoanVnd,DoanhThuRongVnd\r\n");
+
+        foreach (var item in items)
+        {
+            var periodVn = new DateTimeOffset(DateTime.SpecifyKind(item.Period, DateTimeKind.Utc), TimeSpan.Zero)
+                .ToOffset(TimeSpan.FromHours(7))
+                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            sb.Append(CsvHelper.BuildRow(
+                    periodVn,
+                    item.OrderType,
+                    item.Collections.ToString("0.##", CultureInfo.InvariantCulture),
+                    item.Refunds.ToString("0.##", CultureInfo.InvariantCulture),
+                    item.NetRevenueVnd.ToString("0.##", CultureInfo.InvariantCulture)))
+                .Append("\r\n");
+        }
+
+        var todayVn = DateOnly.FromDateTime(_timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"revenue-{todayVn}.csv");
+    }
+
+    /// <summary>Chuyển dữ liệu hoàn tiền và phụ phí thành CSV UTF-8 có BOM, không truy vấn lại DB.</summary>
+    public (byte[] FileBytes, string FileName) FormatRefundChargesCsv(AdminRefundChargeResponse report)
+    {
+        RequireAdmin();
+        var sb = new StringBuilder();
+        sb.Append("TongTienHoanVnd,TongPhuPhiThuDuocVnd\r\n");
+        sb.Append(CsvHelper.BuildRow(
+                report.RefundedAmount.ToString("0.##", CultureInfo.InvariantCulture),
+                report.CollectedChargesAmount.ToString("0.##", CultureInfo.InvariantCulture)))
+            .Append("\r\n");
+
+        var todayVn = DateOnly.FromDateTime(_timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime)
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"refunds-and-charges-{todayVn}.csv");
     }
 }

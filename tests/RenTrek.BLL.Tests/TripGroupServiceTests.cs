@@ -1204,6 +1204,7 @@ public sealed class TripGroupServiceTests
                 {
                     FrontendBaseUrl = "http://localhost:5173"
                 }),
+                TestProxy.Create<INotificationService>(),
                 TestProxy.NoRefunds());
             return new ServiceScope(uow, recurrence, new TripService(uow, currentUser, time), new TripGroupingService(uow, currentUser, time),
                 new TripGroupPublishService(uow, currentUser, time), new TripGroupViewService(uow, currentUser, time), tripBookingService,
@@ -1301,7 +1302,7 @@ public sealed class TripGroupServiceTests
         public IRoleRepository Roles => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ITagRepository Tags => throw new NotSupportedException();
-        public ITourRepository Tours => throw new NotSupportedException();
+        public ITourRepository Tours { get; } = new ActiveTourRepositoryStub();
         public ITourActivityRepository TourActivities => throw new NotSupportedException();
         public ITourImageRepository TourImages => throw new NotSupportedException();
         public ITourPostRepository TourPosts => throw new NotSupportedException();
@@ -1314,6 +1315,8 @@ public sealed class TripGroupServiceTests
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task CommitAsync(CancellationToken cancellationToken = default)
         {
@@ -1757,6 +1760,7 @@ public sealed class TripGroupServiceTests
         public Task<AuditLog?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<(IReadOnlyList<AuditLogRow> Items, int TotalCount)> GetPagedAsync(AuditLogFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<AuditLogRow>> GetForOrderAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> CountAsync(string action, Guid entityId, CancellationToken cancellationToken = default) { lock (logs) return Task.FromResult(logs.Count(x => x.Action == action && x.EntityId == entityId)); }
         public Task AddRangeAsync(IEnumerable<AuditLog> entities, CancellationToken cancellationToken = default) { lock (logs) logs.AddRange(entities); return Task.CompletedTask; }
         public void Update(AuditLog entity) { }
         public void Remove(AuditLog entity) { lock (logs) logs.Remove(entity); }
@@ -1775,5 +1779,26 @@ public sealed class TripGroupServiceTests
         public void Update(Notification entity) { }
         public void Remove(Notification entity) => notifications.Remove(entity);
         public void RemoveRange(IEnumerable<Notification> entities) { }
+
+        public Task<bool> ExistsByEventKeyAsync(Guid recipientUserId, string eventKey, CancellationToken cancellationToken = default)
+            => Task.FromResult(notifications.Any(n => n.RecipientUserId == recipientUserId && n.EventKey == eventKey));
+
+        public Task<(IReadOnlyList<Notification> Items, int TotalCount)> GetPagedForUserAsync(
+            Guid recipientUserId, bool? unreadOnly, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var query = notifications.Where(n => n.RecipientUserId == recipientUserId && (unreadOnly != true || n.ReadAt is null));
+            var items = query.OrderByDescending(n => n.CreatedAt).ThenByDescending(n => n.NotificationId)
+                .Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<Notification>, int)>((items, query.Count()));
+        }
+
+        public Task<int> GetUnreadCountAsync(Guid recipientUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(notifications.Count(n => n.RecipientUserId == recipientUserId && n.ReadAt is null));
+
+        public Task<Notification?> GetOwnedForUpdateAsync(Guid notificationId, Guid recipientUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(notifications.SingleOrDefault(n => n.NotificationId == notificationId && n.RecipientUserId == recipientUserId));
+
+        public Task<IReadOnlyList<Notification>> GetUnreadOwnedForUpdateAsync(Guid recipientUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Notification>>(notifications.Where(n => n.RecipientUserId == recipientUserId && n.ReadAt is null).ToList());
     }
 }

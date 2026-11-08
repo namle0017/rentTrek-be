@@ -117,7 +117,7 @@ public sealed class TripOperationsAndGuideServicesTests
             Status = "Open",
             RowVersion = 2
         };
-        var service = new AdminTripService(uow, new TestCurrentUserService(staffId, "Staff"), new TestTimeProvider(FixedNow));
+        var service = new AdminTripService(uow, new TestCurrentUserService(staffId, "Staff"), new TestTimeProvider(FixedNow), TestProxy.Create<INotificationService>());
 
         var ex = await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateAsync(
             tripId,
@@ -158,7 +158,8 @@ public sealed class TripOperationsAndGuideServicesTests
         var service = new AdminTripService(
             uow,
             new TestCurrentUserService(Guid.NewGuid(), "Admin"),
-            new TestTimeProvider(FixedNow));
+            new TestTimeProvider(FixedNow),
+            TestProxy.Create<INotificationService>());
 
         // 1. RowVersion mismatch -> 409 CONCURRENCY_CONFLICT
         var concurrencyEx = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(
@@ -297,7 +298,8 @@ public sealed class TripOperationsAndGuideServicesTests
         var service = new AdminTripService(
             uow,
             new TestCurrentUserService(Guid.NewGuid(), "Admin"),
-            new TestTimeProvider(FixedNow));
+            new TestTimeProvider(FixedNow),
+            TestProxy.Create<INotificationService>());
 
         var readiness = await service.GetReadinessChecklistAsync(tripId);
         Assert.True(readiness.IsReadyToDepart);
@@ -628,6 +630,7 @@ public sealed class TripOperationsAndGuideServicesTests
         public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class => throw new NotSupportedException();
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

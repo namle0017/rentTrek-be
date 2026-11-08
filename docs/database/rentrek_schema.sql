@@ -140,6 +140,7 @@ CREATE TABLE notifications (
     read_at             timestamptz,
     related_entity_type varchar(50),
     related_entity_id   uuid,
+    event_key           varchar(200),
     created_at          timestamptz  NOT NULL DEFAULT now()
 );
 
@@ -613,6 +614,17 @@ CREATE TABLE rental_charges (
     voided_at           timestamptz
 );
 
+CREATE TABLE rental_order_adjustments (
+    rental_order_adjustment_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    rental_order_id             uuid          NOT NULL REFERENCES rental_orders(order_id),
+    adjustment_type             varchar(30)   NOT NULL,
+    old_end_at                  timestamptz   NOT NULL,
+    new_end_at                  timestamptz   NOT NULL,
+    extra_amount                numeric(12,2) NOT NULL CHECK (extra_amount >= 0),
+    requested_by_user_id        uuid          NOT NULL REFERENCES users(user_id),
+    created_at                  timestamptz   NOT NULL DEFAULT now()
+);
+
 CREATE TABLE applied_promotions (
     applied_promotion_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     promotion_tier_id       uuid         NOT NULL REFERENCES promotion_tiers(promotion_tier_id),
@@ -726,6 +738,7 @@ CREATE INDEX ix_access_tokens_user_id                 ON access_tokens(user_id);
 CREATE INDEX ix_access_tokens_refresh_token_id        ON access_tokens(refresh_token_id);
 CREATE INDEX ix_system_configurations_updated_by      ON system_configurations(updated_by_user_id);
 CREATE INDEX ix_notifications_recipient_user_id       ON notifications(recipient_user_id);
+CREATE UNIQUE INDEX ux_notifications_recipient_event_key ON notifications(recipient_user_id, event_key) WHERE event_key IS NOT NULL;
 CREATE INDEX ix_audit_logs_actor_user_id              ON audit_logs(actor_user_id);
 CREATE INDEX ix_audit_logs_entity                     ON audit_logs(entity_type, entity_id);
 CREATE INDEX ix_posts_created_by_user_id              ON posts(created_by_user_id);
@@ -779,6 +792,8 @@ CREATE INDEX ix_rental_bundle_snapshots_variant_id    ON rental_bundle_item_snap
 CREATE INDEX ix_rental_charges_rental_order_id        ON rental_charges(rental_order_id);
 CREATE INDEX ix_rental_charges_equipment_asset_id     ON rental_charges(equipment_asset_id);
 CREATE INDEX ix_rental_charges_created_by_user_id     ON rental_charges(created_by_user_id);
+CREATE INDEX ix_rental_order_adjustments_rental_order_id    ON rental_order_adjustments(rental_order_id);
+CREATE INDEX ix_rental_order_adjustments_requested_by_user_id ON rental_order_adjustments(requested_by_user_id);
 CREATE INDEX ix_applied_promotions_tier_id            ON applied_promotions(promotion_tier_id);
 CREATE INDEX ix_applied_promotions_order_id           ON applied_promotions(order_id);
 CREATE INDEX ix_applied_promotions_rental_item_id     ON applied_promotions(rental_order_item_id);
