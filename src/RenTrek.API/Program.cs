@@ -4,7 +4,6 @@ using System.Threading.RateLimiting;
 using DotNetEnv;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RenTrek.API.BackgroundServices;
 using RenTrek.API.Common;
@@ -15,7 +14,6 @@ using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.Helpers.Implementations;
-using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 

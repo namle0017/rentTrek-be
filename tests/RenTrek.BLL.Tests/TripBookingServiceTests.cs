@@ -497,6 +497,7 @@ public sealed class TripBookingServiceTests
             {
                 FrontendBaseUrl = "http://localhost:5173/"
             }),
+            TestProxy.Create<INotificationService>(),
             TestProxy.NoRefunds());
         return new TestFixture(service, repository, unitOfWork, currentUser);
     }
@@ -603,7 +604,7 @@ public sealed class TripBookingServiceTests
         public IRoleRepository Roles => throw new NotSupportedException();
         public IRefreshTokenRepository RefreshTokens => throw new NotSupportedException();
         public IAccessTokenRepository AccessTokens => throw new NotSupportedException();
-        public ITourRepository Tours => throw new NotSupportedException();
+        public ITourRepository Tours { get; } = new ActiveTourRepositoryStub();
         public IActivityAttendanceRepository ActivityAttendances => throw new NotSupportedException();
         public IAppliedPromotionRepository AppliedPromotions => throw new NotSupportedException();
         public IAssetAssignmentRepository AssetAssignments => throw new NotSupportedException();
@@ -673,6 +674,7 @@ public sealed class TripBookingServiceTests
 
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository

@@ -56,4 +56,24 @@ public sealed class AdminOrdersController(IAdminOrderService service) : Controll
         await service.CancelOrderAsync(orderCode, request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Hủy đơn hàng thành công"));
     }
+
+    /// <summary>O28 "Chấp nhận khoản tiền": xác nhận đơn cần đối soát và tự sinh lệnh hoàn phần tiền thừa.</summary>
+    [HttpPost("{orderId:guid}/reconcile-accept")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReconcileAcceptAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        await service.ReconcileAcceptAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã chấp nhận khoản tiền và xác nhận đơn"));
+    }
+
+    /// <summary>O28 "Hoàn toàn bộ": sinh lệnh hoàn toàn bộ tiền thực nhận và đóng đơn chờ thanh toán ở Expired.</summary>
+    [HttpPost("{orderId:guid}/reconcile-refund")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReconcileRefundAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        await service.ReconcileRefundAsync(orderId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã tạo lệnh hoàn toàn bộ cho đơn đối soát"));
+    }
 }

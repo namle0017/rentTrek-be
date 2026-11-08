@@ -33,4 +33,9 @@ public interface IProductBundleRepository : IGenericRepository<ProductBundle>
     Task<ProductBundleDetailRow?> GetActiveDetailAsync(
         Guid bundleId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách combo chưa xoá cho quản trị (mọi trạng thái), lọc tên / trạng thái / danh mục, mới tạo trước.</summary>
+    Task<(IReadOnlyList<AdminBundleRow> Items, int TotalCount)> GetAdminPagedAsync(
+        string? search, string? status, Guid? categoryId, int pageNumber, int pageSize,
+        CancellationToken cancellationToken = default);
 }

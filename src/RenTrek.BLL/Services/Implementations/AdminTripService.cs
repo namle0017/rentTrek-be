@@ -1,5 +1,6 @@
-using RenTrek.BLL.Constants;
+using System.Globalization;
 using System.Text;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
@@ -17,7 +18,8 @@ namespace RenTrek.BLL.Services.Implementations;
 public sealed class AdminTripService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
-    TimeProvider timeProvider) : IAdminTripService
+    TimeProvider timeProvider,
+    INotificationService notificationService) : IAdminTripService
 {
     public async Task<PagedResponse<AdminTripItemResponse>> GetPagedAsync(
         AdminTripQueryRequest request,
@@ -223,6 +225,7 @@ public sealed class AdminTripService(
             trip.ManagedByUser = manager;
         }
 
+        var scheduleChanged = trip.StartAt != request.StartAt || trip.EndAt != request.EndAt;
         trip.StartAt = request.StartAt;
         trip.EndAt = request.EndAt;
         trip.TotalSlots = request.TotalSlots;
@@ -230,6 +233,37 @@ public sealed class AdminTripService(
         trip.PricePerPerson = request.PricePerPerson;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
+
+        if (scheduleChanged)
+        {
+            var bookings = await unitOfWork.Trips.GetTripBookingsWithDetailsAsync(tripId, cancellationToken);
+            var activeBookings = bookings
+                .Where(b => b.Order.Status != OrderStatuses.Cancelled && b.Order.Status != OrderStatuses.Expired)
+                .ToList();
+
+            if (activeBookings.Count > 0)
+            {
+                var vnOffset = TimeSpan.FromHours(7);
+                var newStartText = request.StartAt.ToOffset(vnOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+                var tourLabel = string.IsNullOrWhiteSpace(trip.Tour?.Name)
+                    ? "chuyến đi"
+                    : $"chuyến đi {trip.Tour.Name.Trim()}";
+                var eventKey = $"TripScheduleChanged:{trip.TripId}:{request.StartAt.UtcDateTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture)}";
+
+                foreach (var (recipientUserId, orderCode) in CollectTripNotificationRecipients(activeBookings))
+                {
+                    await notificationService.QueueAsync(
+                        recipientUserId,
+                        NotificationTypes.TripScheduleChanged,
+                        "Lịch chuyến đi đã thay đổi",
+                        $"Lịch khởi hành {tourLabel} (đơn {orderCode}) đã đổi sang {newStartText}.",
+                        "Trip",
+                        trip.TripId,
+                        eventKey,
+                        cancellationToken);
+                }
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -501,6 +535,7 @@ public sealed class AdminTripService(
             var refundPayments = new List<Payment>();
             var affectedParticipantsCount = 0;
             var totalRefundAmount = 0m;
+            var cancelRecipients = CollectTripNotificationRecipients(activeBookings);
 
             foreach (var booking in activeBookings)
             {
@@ -574,6 +609,21 @@ public sealed class AdminTripService(
                 Details = $"Hủy chuyến đi {trip.TripId}. Lý do: {reason}. Đơn bị ảnh hưởng: {activeBookings.Count}, khách: {affectedParticipantsCount}, tổng hoàn tiền: {totalRefundAmount:N0}, thiết bị giải phóng: {releasedAssetsCount}.",
                 CreatedAt = utcNow.UtcDateTime
             }, cancellationToken);
+
+            var tourSuffix = string.IsNullOrWhiteSpace(trip.Tour?.Name) ? string.Empty : $" {trip.Tour.Name.Trim()}";
+            var cancelEventKey = $"TripCancelled:{trip.TripId}";
+            foreach (var (recipientUserId, orderCode) in cancelRecipients)
+            {
+                await notificationService.QueueAsync(
+                    recipientUserId,
+                    NotificationTypes.TripCancelled,
+                    "Chuyến đi đã bị hủy",
+                    $"Chuyến đi{tourSuffix} (đơn {orderCode}) đã bị hủy. Lý do: {reason}.",
+                    "Trip",
+                    trip.TripId,
+                    cancelEventKey,
+                    cancellationToken);
+            }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
@@ -688,33 +738,19 @@ public sealed class AdminTripService(
         {
             var p = manifest.Participants[i];
             sb.AppendLine(string.Join(",",
-                i + 1,
-                EscapeCsv(p.FullName),
-                EscapeCsv(p.Email),
-                EscapeCsv(p.Phone),
-                EscapeCsv(p.DateOfBirth?.ToString("yyyy-MM-dd")),
-                EscapeCsv(p.OrderCode),
-                EscapeCsv(p.GroupName),
-                EscapeCsv(p.GuideName),
-                EscapeCsv(p.EmergencyContactName),
-                EscapeCsv(p.EmergencyContactPhone)));
+                (i + 1).ToString(CultureInfo.InvariantCulture),
+                CsvHelper.EscapeCsv(p.FullName),
+                CsvHelper.EscapeCsv(p.Email),
+                CsvHelper.EscapeCsv(p.Phone),
+                CsvHelper.EscapeCsv(p.DateOfBirth?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                CsvHelper.EscapeCsv(p.OrderCode),
+                CsvHelper.EscapeCsv(p.GroupName),
+                CsvHelper.EscapeCsv(p.GuideName),
+                CsvHelper.EscapeCsv(p.EmergencyContactName),
+                CsvHelper.EscapeCsv(p.EmergencyContactPhone)));
         }
 
-        var preamble = Encoding.UTF8.GetPreamble();
-        var body = Encoding.UTF8.GetBytes(sb.ToString());
-        var bytes = new byte[preamble.Length + body.Length];
-        Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
-        Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
-
-        return (bytes, $"manifest-{tripId:N}.csv");
-    }
-
-    private static string EscapeCsv(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return string.Empty;
-        var escaped = value.Replace("\"", "\"\"");
-        return $"\"{escaped}\"";
+        return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"manifest-{tripId:N}.csv");
     }
 
     private static string FormatGroupingPreference(string? raw)
@@ -757,5 +793,34 @@ public sealed class AdminTripService(
     {
         if (currentUser.Role == RoleNames.Staff && managedByUserId is { } id && id != Guid.Empty && id != currentUser.UserId)
             throw new ForbiddenException("Staff không được giao chuyến cho người khác phụ trách", ErrorCodes.TripNotAssigned);
+    }
+
+    private static List<(Guid RecipientUserId, string OrderCode)> CollectTripNotificationRecipients(
+        IEnumerable<TripBookingOrder> activeBookings)
+    {
+        var seen = new HashSet<Guid>();
+        var recipients = new List<(Guid RecipientUserId, string OrderCode)>();
+
+        foreach (var booking in activeBookings)
+        {
+            var orderCode = booking.Order.OrderCode;
+            if (booking.Order.CustomerUserId != Guid.Empty && seen.Add(booking.Order.CustomerUserId))
+                recipients.Add((booking.Order.CustomerUserId, orderCode));
+
+            foreach (var participant in booking.Participants)
+            {
+                if (participant.IsDeleted || participant.Status == BookingParticipantStatuses.Cancelled)
+                    continue;
+
+                if (participant.LinkedUserId is { } linkedUserId &&
+                    linkedUserId != Guid.Empty &&
+                    seen.Add(linkedUserId))
+                {
+                    recipients.Add((linkedUserId, orderCode));
+                }
+            }
+        }
+
+        return recipients;
     }
 }

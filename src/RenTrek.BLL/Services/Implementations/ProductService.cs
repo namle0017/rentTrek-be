@@ -107,6 +107,17 @@ public class ProductService : IProductService
                         .ThenBy(image => image.DisplayOrder)
                         .Select(image => image.ImageUrl)
                         .ToList(),
+                    Images = variant.Images
+                        .OrderByDescending(image => image.IsPrimary)
+                        .ThenBy(image => image.DisplayOrder)
+                        .Select(image => new AdminVariantImageResponse
+                        {
+                            ImageId = image.Id,
+                            ImageUrl = image.ImageUrl,
+                            DisplayOrder = image.DisplayOrder,
+                            IsPrimary = image.IsPrimary
+                        })
+                        .ToList(),
                     PriceTiers = variant.RentalPriceTiers
                         .OrderBy(tier => tier.MinDays)
                         .Select(tier => new AdminPriceTierResponse(tier.MinDays, tier.MaxDays, tier.DailyPrice))

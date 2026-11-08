@@ -1,4 +1,3 @@
-using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;

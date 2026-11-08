@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IRefundPolicyRuleRepository : IGenericRepository<RefundPolicyRule>
 {
-    // Query đặc thù của RefundPolicyRule khai báo tại đây
+    /// <summary>Các rule chưa xoá của một chính sách (tracked) để thay thế.</summary>
+    Task<List<RefundPolicyRule>> GetByPolicyForUpdateAsync(Guid refundPolicyId, CancellationToken cancellationToken = default);
 }

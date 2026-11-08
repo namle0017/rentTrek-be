@@ -1,6 +1,5 @@
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
-using RenTrek.BLL.DTOs.Common.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 

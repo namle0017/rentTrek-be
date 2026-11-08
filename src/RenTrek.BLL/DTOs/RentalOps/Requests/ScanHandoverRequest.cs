@@ -1,5 +1,3 @@
-using RenTrek.BLL.DTOs.Common.Requests;
-
 namespace RenTrek.BLL.DTOs.RentalOps.Requests;
 
 /// <summary>Quét / nhập mã một thiết bị để giao (FR-R06).</summary>

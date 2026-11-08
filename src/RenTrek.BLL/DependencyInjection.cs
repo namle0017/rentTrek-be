@@ -61,6 +61,10 @@ public static class DependencyInjection
         services.AddScoped<IAdminMasterDataService, AdminMasterDataService>();
         services.AddScoped<IAdminOrderService, AdminOrderService>();
         services.AddScoped<IAdminPromotionService, AdminPromotionService>();
+        services.AddScoped<IAdminRefundPolicyService, AdminRefundPolicyService>();
+        services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+        services.AddScoped<IAdminProductCatalogService, AdminProductCatalogService>();
+        services.AddScoped<IAdminTourService, AdminTourService>();
         services.AddScoped<IAdminGovernanceService, AdminGovernanceService>();
         services.AddScoped<IAdminReportService, AdminReportService>();
         services.AddScoped<IAdminSessionService, AdminSessionService>();
@@ -81,6 +85,9 @@ public static class DependencyInjection
         services.AddScoped<IRentalOrderService, RentalOrderService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IParticipationService, ParticipationService>();
+        services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPostService, PostService>();
         services.AddScoped<IRentalFulfillmentService, RentalFulfillmentService>();
         services.AddScoped<IAssetService, AssetService>();

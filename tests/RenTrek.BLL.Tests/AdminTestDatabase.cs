@@ -36,7 +36,8 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
     public AdminServices Service(AppDbContext context, Guid? actorId = null, string role = "Admin")
     {
         var (uow, actor, clock) = (new UnitOfWork(context), new Actor(actorId ?? AdminId, role), new Clock(Now));
-        return new(new(uow, actor, new PasswordHasher(), clock), new(uow, actor, clock), new(uow, actor, clock),
+        var notifications = new NotificationService(uow, actor, clock);
+        return new(new(uow, actor, new PasswordHasher(), clock), new(uow, actor, clock), new(uow, actor, clock, notifications),
             new(uow, actor, clock), new(uow, actor, clock), new(uow, actor, clock));
     }
 

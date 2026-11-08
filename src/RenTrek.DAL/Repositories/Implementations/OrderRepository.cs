@@ -163,8 +163,16 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         => Scoped(_dbSet.AsNoTracking(), scopeUserId).Where(x => x.OrderCode == orderCode)
             .Select(ToAdminRow).SingleOrDefaultAsync(cancellationToken);
 
+    public Task<string?> GetOrderCodeAsync(Guid orderId, Guid? scopeUserId, CancellationToken cancellationToken = default)
+        => Scoped(_dbSet.AsNoTracking(), scopeUserId).Where(x => x.OrderId == orderId)
+            .Select(x => x.OrderCode).SingleOrDefaultAsync(cancellationToken);
+
     public Task<Order?> GetAdminForUpdateAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default)
-        => Scoped(_dbSet, scopeUserId).Include(x => x.Payments)
+        => Scoped(_dbSet, scopeUserId)
+            .Include(x => x.Payments)
+            .Include(x => x.TripBookingOrder)
+                .ThenInclude(t => t.Trip)
+                .ThenInclude(t => t.Tour)
             .SingleOrDefaultAsync(x => x.OrderCode == orderCode, cancellationToken);
 
     public Task<List<BookingParticipant>> GetParticipantsAsync(Guid orderId, CancellationToken cancellationToken = default)

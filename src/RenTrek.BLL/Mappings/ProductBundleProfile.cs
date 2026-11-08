@@ -1,4 +1,3 @@
-using AutoMapper;
 using RenTrek.BLL.DTOs.Product.Responses;
 using RenTrek.BLL.DTOs.ProductBundle.Responses;
 using RenTrek.DAL.Models;

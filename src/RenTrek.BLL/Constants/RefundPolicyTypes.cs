@@ -6,4 +6,5 @@ namespace RenTrek.BLL.Constants;
 public static class RefundPolicyTypes
 {
     public const string Rental = "Rental";
+    public const string Tour = "Tour";
 }

@@ -65,6 +65,11 @@ public interface IUnitOfWork : IDisposable
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lưu thay đổi; nếu PostgreSQL báo vi phạm ràng buộc duy nhất (23505) thì gỡ các thực thể lỗi khỏi ChangeTracker và trả về false.
+    /// </summary>
+    Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default);
+
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 
     Task CommitAsync(CancellationToken cancellationToken = default);

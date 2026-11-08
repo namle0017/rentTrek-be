@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +57,7 @@ public sealed class AdminHttpTests
                     }
                 }
         }
-        Assert.Equal(108, count);
+        Assert.Equal(169, count);
     }
 
     [AdminPostgresFact]
@@ -69,13 +68,17 @@ public sealed class AdminHttpTests
         using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         using var staff = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
         await LoginAsync(admin, database.AdminId); await LoginAsync(staff, database.StaffId);
-        foreach (var endpoint in new[] { "users", "categories", "locations", "tags", "soft-skills", "orders", "rental-orders", "promotions", "posts", "settings", "audit-logs", "reviews", "dashboard/stats", "dashboard/alerts", "dashboard/kpis", "reports/revenue", "reports/trip-occupancy", "reports/asset-utilization", "reports/refunds-and-charges", "orders/TOUR-TEST" })
+        foreach (var endpoint in new[] { "users", "categories", "locations", "tags", "soft-skills", "orders", "rental-orders", "rental-orders/handover-list", "rental-orders/return-list", "promotions", "posts", "settings", "audit-logs", "reviews", "dashboard/stats", "dashboard/alerts", "dashboard/kpis", "reports/revenue", "reports/trip-occupancy", "reports/asset-utilization", "reports/refunds-and-charges", "orders/TOUR-TEST" })
         {
             using var response = await admin.GetAsync("/api/v1/admin/" + endpoint);
             Assert.True(response.IsSuccessStatusCode, endpoint + ": " + await response.Content.ReadAsStringAsync());
         }
         Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync("/api/v1/admin/users")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync("/api/v1/admin/dashboard/kpis")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync("/api/v1/admin/reports/revenue?format=csv")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync("/api/v1/admin/reports/refunds-and-charges?format=csv")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync("/api/v1/admin/rental-orders/handover-list?format=csv")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync("/api/v1/admin/rental-orders/return-list?format=csv")).StatusCode);
         var orders = await staff.GetFromJsonAsync<JsonElement>("/api/v1/admin/orders");
         Assert.Equal(1, orders.GetProperty("data").GetProperty("totalItems").GetInt32());
         Assert.Equal(HttpStatusCode.NotFound, (await staff.GetAsync("/api/v1/admin/orders/RENT-TEST")).StatusCode);

@@ -5,6 +5,9 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IPostRepository : IGenericRepository<Post>
 {
+    /// <summary>Số bài chưa xoá trong danh sách id (Post không có query filter xoá mềm).</summary>
+    Task<int> CountByIdsAsync(IReadOnlyCollection<Guid> postIds, CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<PostListRow> Items, int TotalCount)> GetPagedAsync(PostFilter filter, CancellationToken cancellationToken = default);
 
     /// <summary>Bài Published khác <paramref name="excludePostId"/> có ít nhất một tag trong danh sách, mới nhất trước.</summary>

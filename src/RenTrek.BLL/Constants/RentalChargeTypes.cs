@@ -8,5 +8,8 @@ public static class RentalChargeTypes
     public const string Loss = "Loss";
     public const string Other = "Other";
 
+    /// <summary>Phí gia hạn đơn thuê do hệ thống tạo khi khách đồng ý gia hạn; không cho Staff lập tay nên không nằm trong <see cref="All"/>.</summary>
+    public const string Extension = "Extension";
+
     public static readonly string[] All = [LateReturn, Damage, Loss, Other];
 }

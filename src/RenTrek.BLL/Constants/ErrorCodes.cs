@@ -28,6 +28,7 @@ public static class ErrorCodes
     public const string ChargeNotReviewable = "CHARGE_NOT_REVIEWABLE";
     public const string RefundNotApprovable = "REFUND_NOT_APPROVABLE";
     public const string RefundNotRetryable = "REFUND_NOT_RETRYABLE";
+    public const string RefundNotCompletable = "REFUND_NOT_COMPLETABLE";
     public const string RefundExceedsCollected = "REFUND_EXCEEDS_COLLECTED";
     public const string OrderNotReconcilable = "ORDER_NOT_RECONCILABLE";
     public const string PaymentProviderError = "PAYMENT_PROVIDER_ERROR";
@@ -59,4 +60,19 @@ public static class ErrorCodes
     public const string RefundVerificationExpired = "REFUND_VERIFICATION_EXPIRED";
     public const string RefundSensitiveDataPurged = "REFUND_SENSITIVE_DATA_PURGED";
     public const string TooManyRequests = "TOO_MANY_REQUESTS";
+
+    // Danh mục admin: tour, sản phẩm, chính sách hoàn tiền (03-API-CONTRACT.md §6, §13, §20)
+    public const string NotFound = "NOT_FOUND";
+    public const string ItineraryLocked = "ITINERARY_LOCKED";
+    public const string PolicyAlreadyInUse = "POLICY_ALREADY_IN_USE";
+    public const string SkuAlreadyExists = "SKU_ALREADY_EXISTS";
+
+    // Đánh giá sau chuyến đi (T2)
+    public const string ReviewNotEligible = "REVIEW_NOT_ELIGIBLE";
+    public const string ReviewAlreadyExists = "REVIEW_ALREADY_EXISTS";
+    public const string ReviewEditWindowClosed = "REVIEW_EDIT_WINDOW_CLOSED";
+
+    // Gia hạn đơn thuê (T5)
+    public const string RentalNotExtendable = "RENTAL_NOT_EXTENDABLE";
+    public const string RentalExtensionPriceChanged = "RENTAL_EXTENSION_PRICE_CHANGED";
 }

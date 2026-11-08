@@ -1,5 +1,4 @@
 using RenTrek.BLL.Constants;
-using AutoMapper;
 using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.DAL.Entities;
 

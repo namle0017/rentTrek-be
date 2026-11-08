@@ -21,6 +21,9 @@ public interface IOrderRepository : IGenericRepository<Order>
     /// <summary>Đầu trang chi tiết đơn quản trị theo mã đơn, trong phạm vi <paramref name="scopeUserId"/> (null = mọi đơn).</summary>
     Task<AdminOrderRow?> GetAdminRowAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default);
 
+    /// <summary>Mã đơn theo id (chỉ đọc), trong phạm vi <paramref name="scopeUserId"/>; null nếu không có.</summary>
+    Task<string?> GetOrderCodeAsync(Guid orderId, Guid? scopeUserId, CancellationToken cancellationToken = default);
+
     /// <summary>Đơn (tracking, kèm Payments) theo mã đơn, trong phạm vi <paramref name="scopeUserId"/>.</summary>
     Task<Order?> GetAdminForUpdateAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default);
 
