@@ -58,4 +58,12 @@ public class RentalOrdersController : ControllerBase
         var result = await _rentalOrderService.GetByIdAsync(userId, orderId, cancellationToken);
         return Ok(ApiResponse<RentalOrderDetailResponse>.Ok(result, "Lấy chi tiết đơn thuê thành công"));
     }
+
+    [HttpPost("{orderId:guid}/cancel")]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> CancelUnpaid([FromRoute] Guid orderId, [FromBody] CancelRentalOrderRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _rentalOrderService.CancelUnpaidAsync(_currentUserService.RequiredUserId, orderId, request, cancellationToken);
+        return Ok(ApiResponse<RentalOrderDetailResponse>.Ok(result, "Đã hủy đơn thuê chưa thanh toán và giải phóng thiết bị."));
+    }
 }

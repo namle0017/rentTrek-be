@@ -158,6 +158,51 @@ public class RentalOrderService : IRentalOrderService
     // Tính toán dùng chung cho báo giá và tạo đơn
     // ---------------------------------------------------------------------------------------------------------
 
+    public async Task<RentalOrderDetailResponse> CancelUnpaidAsync(Guid userId, Guid orderId, CancelRentalOrderRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.Reason?.Trim().Length > 500)
+            throw new BadRequestException("Lý do hủy tối đa 500 ký tự.");
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Use the payment lock so a bank confirmation and cancellation cannot both win.
+            await _unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
+            await _unitOfWork.RentalOrders.AcquireFulfillmentLockAsync(orderId, cancellationToken);
+            var order = await _unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken);
+            if (order is null || order.CustomerUserId != userId)
+                throw new NotFoundException("Không tìm thấy đơn thuê.", ErrorCodes.OrderNotFound);
+            if (order.Status != OrderStatuses.Cancelled)
+            {
+                if (order.Status != OrderStatuses.PendingPayment || order.PaymentStatus != OrderPaymentStatuses.Unpaid
+                    || order.Payments.Any(payment => payment.Status == PaymentStatuses.Succeeded))
+                    throw new ConflictException("Chỉ được tự hủy đơn chưa thanh toán. Đơn đã nhận tiền cần cửa hàng xử lý hoàn tiền.", ErrorCodes.OrderNotCancellable);
+                var assignments = order.RentalOrder!.RentalOrderItems.SelectMany(item => item.AssetAssignments)
+                    .Concat(order.AppliedPromotions.SelectMany(promotion => promotion.AssetAssignments)).Distinct().ToList();
+                if (assignments.Any(assignment => assignment.Status is AssignmentStatuses.Issued or AssignmentStatuses.Returned or AssignmentStatuses.LostOrException))
+                    throw new ConflictException("Không thể hủy sau khi đã bàn giao thiết bị.", ErrorCodes.OrderNotCancellable);
+                foreach (var assignment in assignments.Where(assignment => assignment.Status == AssignmentStatuses.Reserved))
+                    assignment.Status = AssignmentStatuses.Cancelled;
+                foreach (var promotion in order.AppliedPromotions)
+                    promotion.Status = AppliedPromotionStatuses.Reversed;
+                foreach (var payment in order.Payments.Where(payment => payment.Status == PaymentStatuses.Pending))
+                    payment.Status = PaymentStatuses.Cancelled;
+                order.Status = OrderStatuses.Cancelled;
+                order.CancelledAt = _timeProvider.GetUtcNow();
+                order.UpdatedAt = order.CancelledAt.Value;
+                order.CancelReason = string.IsNullOrWhiteSpace(request.Reason) ? "Khách hủy đơn chưa thanh toán" : request.Reason.Trim();
+                order.HoldExpiresAt = null;
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            await _unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await _unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+        return await GetByIdAsync(userId, orderId, cancellationToken);
+    }
+
     private async Task<RentalQuoteComputationResult> ComputeAsync(
         Guid userId,
         RentalPeriodResult period,
@@ -469,9 +514,9 @@ public class RentalOrderService : IRentalOrderService
             SubtotalAmount = computation.SubtotalAmount,
             DiscountAmount = computation.DiscountAmount,
             TotalAmount = computation.TotalAmount,
-            Status = OrderStatuses.PendingPayment,
-            PaymentStatus = OrderPaymentStatuses.Unpaid,
-            HoldExpiresAt = now.AddMinutes(computation.HoldMinutes),
+            Status = computation.TotalAmount == 0 ? OrderStatuses.Confirmed : OrderStatuses.PendingPayment,
+            PaymentStatus = computation.TotalAmount == 0 ? OrderPaymentStatuses.Paid : OrderPaymentStatuses.Unpaid,
+            HoldExpiresAt = computation.TotalAmount == 0 ? null : now.AddMinutes(computation.HoldMinutes),
             RefundPolicyId = computation.RefundPolicy!.RefundPolicyId,
             Note = BuildNote(request.Note, request.Pickup),
             IdempotencyKey = idempotencyKey,
@@ -750,7 +795,7 @@ public class RentalOrderService : IRentalOrderService
             .Sum(payment => payment.Amount);
 
         var hasDeliveredAsset = visibleAssignments.Count > 0;
-        var statusAllowsCancel = detail.Status is OrderStatuses.PendingPayment or OrderStatuses.Confirmed;
+        var statusAllowsCancel = detail.Status == OrderStatuses.PendingPayment && detail.PaymentStatus == OrderPaymentStatuses.Unpaid;
         var canCancel = statusAllowsCancel && !hasDeliveredAsset;
         var canPay = detail.Status == OrderStatuses.PendingPayment
                      && detail.PaymentStatus == OrderPaymentStatuses.Unpaid

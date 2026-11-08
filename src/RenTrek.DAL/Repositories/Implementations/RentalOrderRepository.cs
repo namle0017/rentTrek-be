@@ -50,6 +50,35 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
         Guid orderId,
         Guid customerUserId,
         CancellationToken cancellationToken = default)
+<<<<<<< Updated upstream
+=======
+        => LoadDetailAsync(orderId, customerUserId, cancellationToken);
+
+    public Task<RentalOrderDetailRow?> GetDetailAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => LoadDetailAsync(orderId, null, cancellationToken);
+
+    public Task AcquireFulfillmentLockAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => PostgresAdvisoryLock.AcquireAsync(_context, $"rental-order:fulfillment:{orderId:N}", cancellationToken);
+
+    public Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.Orders
+            .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalOrderItems.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.AssetAssignments).ThenInclude(a => a.EquipmentAsset)
+            .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalCharges)
+            .Include(o => o.AppliedPromotions).ThenInclude(p => p.AssetAssignments)
+            .Include(o => o.Payments)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.OrderId == orderId
+                                      && !o.IsDeleted
+                                      && o.OrderType == RentalOrderType
+                                      && o.RentalOrder != null, cancellationToken);
+
+    // customerUserId null = màn vận hành (Staff/Admin) đọc mọi đơn
+    private async Task<RentalOrderDetailRow?> LoadDetailAsync(
+        Guid orderId,
+        Guid? customerUserId,
+        CancellationToken cancellationToken)
+>>>>>>> Stashed changes
     {
         // Bỏ query filter để đơn lịch sử vẫn đọc được tên sản phẩm / tài khoản đã xoá mềm; tự lọc đơn chưa xoá
         var detail = await _context.Orders

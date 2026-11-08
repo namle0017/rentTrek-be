@@ -23,4 +23,6 @@ public interface IRentalOrderService
 
     /// <summary>Chi tiết đơn thuê của khách; 404 ORDER_NOT_FOUND nếu không tồn tại hoặc không thuộc khách.</summary>
     Task<RentalOrderDetailResponse> GetByIdAsync(Guid userId, Guid orderId, CancellationToken cancellationToken = default);
+
+    Task<RentalOrderDetailResponse> CancelUnpaidAsync(Guid userId, Guid orderId, CancelRentalOrderRequest request, CancellationToken cancellationToken = default);
 }
