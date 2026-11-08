@@ -64,7 +64,7 @@ public class PostService : IPostService
                 .OrderBy(ps => ps.SoftSkill.Name)
                 .Select(ps => new PostSoftSkillResponse(ps.SoftSkillId, ps.SoftSkill.Name))
                 .ToList(),
-            RelatedTours = ActiveTours(p)
+            RelatedTours = ActiveTours(p, publishedOnly: true)
         };
 
         var tagSlugs = post.Tags.Select(t => t.Slug).ToList();
@@ -286,9 +286,11 @@ public class PostService : IPostService
     private static IEnumerable<Tag> ActiveTags(PostEntity p)
         => p.PostTags.Select(pt => pt.Tag).Where(t => !t.IsDeleted).OrderBy(t => t.Name);
 
-    private static List<PostTourResponse> ActiveTours(PostEntity p)
+    /// <summary>Tour gắn bài chưa xoá; publishedOnly cho phía khách để không lộ tour Draft/Archived/Expired.</summary>
+    private static List<PostTourResponse> ActiveTours(PostEntity p, bool publishedOnly = false)
         => p.TourPosts
             .Where(tp => !tp.Tour.IsDeleted)
+            .Where(tp => !publishedOnly || tp.Tour.Status is TourStatuses.Active or TourStatuses.Published)
             .OrderBy(tp => tp.DisplayOrder)
             .Select(tp => new PostTourResponse(tp.TourId, tp.Tour.Name, tp.Tour.DurationDays, tp.Tour.DurationNights, tp.Tour.BasePrice))
             .ToList();
@@ -388,13 +390,11 @@ public class PostService : IPostService
             _unitOfWork.TourPosts.Remove(link);
         }
 
+        // DisplayOrder là thứ tự đọc bài trong tour (admin đặt ở §6.23) nên link cũ giữ nguyên thứ tự
         for (var order = 0; order < wantedIds.Count; order++)
         {
-            var link = post.TourPosts.FirstOrDefault(tp => tp.TourId == wantedIds[order]);
-            if (link is null)
+            if (post.TourPosts.All(tp => tp.TourId != wantedIds[order]))
                 post.TourPosts.Add(new TourPost { TourPostId = Guid.NewGuid(), PostId = post.PostId, TourId = wantedIds[order], DisplayOrder = order, CreatedAt = now });
-            else
-                link.DisplayOrder = order;
         }
     }
 }

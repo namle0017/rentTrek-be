@@ -25,6 +25,7 @@ public sealed class TripBookingService(
     TimeProvider timeProvider,
     IInviteTokenHelper inviteTokenHelper,
     IOptions<EmailSettings> emailOptions,
+    INotificationService notificationService,
     IRefundCaseService? refundCaseService = null) : ITripBookingService
 {
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
@@ -141,6 +142,11 @@ public sealed class TripBookingService(
             if (!string.Equals(trip.Status, TripStatuses.Open, StringComparison.OrdinalIgnoreCase) || trip.StartAt <= utcNow)
                 throw new ConflictException("Chuyến đi không mở nhận booking");
 
+            // Tour Archived/Expired chỉ còn để xem lại; trip Open của nó không nhận booking mới. Tour xoá mềm → null.
+            var tour = await unitOfWork.Tours.GetByIdAsync(trip.TourId, cancellationToken);
+            if (tour is null || tour.Status is not (TourStatuses.Active or TourStatuses.Published))
+                throw new ConflictException("Tour đã ngừng nhận booking");
+
             var participantCount = drafts.Count;
             var reserved = await unitOfWork.TripBookings.GetReservedParticipantCountAsync(
                 trip.TripId,
@@ -198,6 +204,20 @@ public sealed class TripBookingService(
             booking.Order = order;
 
             await unitOfWork.TripBookings.AddOrderAsync(order, cancellationToken);
+            var placedTourName = string.IsNullOrWhiteSpace(tour.Name) ? trip.Tour?.Name : tour.Name;
+            var placedContent = string.IsNullOrWhiteSpace(placedTourName)
+                ? $"Đơn {order.OrderCode} cho chuyến đi đã được tạo và đang chờ thanh toán."
+                : $"Đơn {order.OrderCode} cho chuyến đi {placedTourName.Trim()} đang chờ thanh toán.";
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderPlaced,
+                "Đặt chuyến thành công",
+                placedContent,
+                "Order",
+                order.OrderId,
+                $"OrderPlaced:{order.OrderId}",
+                cancellationToken);
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
             return MapResponse(order, account.UserId);
@@ -387,6 +407,20 @@ public sealed class TripBookingService(
                     utcNow,
                     cancellationToken)
                 : null;
+
+            var cancelledTourName = trip.Tour?.Name;
+            var cancelledContent = string.IsNullOrWhiteSpace(cancelledTourName)
+                ? $"Đơn {order.OrderCode} đã được hủy."
+                : $"Đơn {order.OrderCode} cho chuyến đi {cancelledTourName.Trim()} đã được hủy.";
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderCancelled,
+                "Đơn hàng đã hủy",
+                cancelledContent,
+                "Order",
+                order.OrderId,
+                $"OrderCancelled:{order.OrderId}",
+                cancellationToken);
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);

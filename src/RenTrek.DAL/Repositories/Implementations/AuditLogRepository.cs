@@ -55,4 +55,7 @@ public class AuditLogRepository : GenericRepository<AuditLog>, IAuditLogReposito
             .Select(ToRow)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<int> CountAsync(string action, Guid entityId, CancellationToken cancellationToken = default)
+        => _dbSet.CountAsync(x => x.Action == action && x.EntityId == entityId, cancellationToken);
 }

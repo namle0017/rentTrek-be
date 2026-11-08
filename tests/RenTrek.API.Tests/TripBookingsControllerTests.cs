@@ -5,7 +5,6 @@ using RenTrek.API.Common;
 using RenTrek.API.Controllers;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
-using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Services.Interfaces;
 

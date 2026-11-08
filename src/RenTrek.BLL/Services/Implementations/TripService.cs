@@ -1,6 +1,4 @@
-using System.Text.Json;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.TripBooking.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Exceptions;

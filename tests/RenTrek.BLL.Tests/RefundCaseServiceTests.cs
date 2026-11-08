@@ -534,7 +534,8 @@ public sealed class RefundCaseServiceTests
                 Protector,
                 new RefundVerificationService(unitOfWork, hasher, Time),
                 email,
-                NullLogger<RefundCaseService>.Instance);
+                NullLogger<RefundCaseService>.Instance,
+                TestProxy.Create<INotificationService>());
         }
 
         public Guid Customer { get; } = Guid.NewGuid();
@@ -632,6 +633,7 @@ public sealed class RefundCaseServiceTests
                 new FixedTime(),
                 TestProxy.Create<IInviteTokenHelper>(),
                 Microsoft.Extensions.Options.Options.Create(new EmailSettings()),
+                TestProxy.Create<INotificationService>(),
                 refundCases);
         }
 

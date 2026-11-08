@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using FluentValidation;
-using RenTrek.BLL.DTOs.Admin.Requests;
 
 namespace RenTrek.BLL.Validators.Admin;
 

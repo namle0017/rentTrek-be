@@ -4,5 +4,6 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface IProductVariantImageRepository : IGenericRepository<ProductVariantImage>
 {
-    // Query đặc thù của ProductVariantImage khai báo tại đây
+    /// <summary>Ảnh chưa xoá của biến thể (tracking), theo thứ tự hiển thị.</summary>
+    Task<List<ProductVariantImage>> GetByVariantAsync(Guid variantId, CancellationToken cancellationToken = default);
 }

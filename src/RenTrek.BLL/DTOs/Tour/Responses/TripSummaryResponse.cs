@@ -6,6 +6,12 @@ namespace RenTrek.BLL.DTOs.Tour.Responses;
 public class TripSummaryResponse
 {
     public Guid Id { get; set; }
+    /// <summary>
+    /// Phiên bản tour tạo ra chuyến này; khách đi theo lịch trình của bản đó.
+    /// Khác id tour đang xem nghĩa là chuyến của phiên bản trước cùng họ, còn bán tiếp;
+    /// FE mở GET /tours/{TourId} để xem đúng lịch trình của chuyến.
+    /// </summary>
+    public Guid TourId { get; set; }
     public DateTime StartAt { get; set; }
     public DateTime EndAt { get; set; }
     public string DateRangeFormatted => $"{StartAt:dd/MM/yyyy}";

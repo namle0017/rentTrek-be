@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Review.Responses;
 using RenTrek.BLL.DTOs.Tour.Requests;
 using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
@@ -21,11 +22,16 @@ public class ToursController : ControllerBase
 {
     private readonly ITourService _tourService;
     private readonly ITripRecurrenceService _tripRecurrenceService;
+    private readonly IReviewService _reviewService;
 
-    public ToursController(ITourService tourService, ITripRecurrenceService tripRecurrenceService)
+    public ToursController(
+        ITourService tourService,
+        ITripRecurrenceService tripRecurrenceService,
+        IReviewService reviewService)
     {
         _tourService = tourService;
         _tripRecurrenceService = tripRecurrenceService;
+        _reviewService = reviewService;
     }
 
     /// <summary>
@@ -100,5 +106,22 @@ public class ToursController : ControllerBase
     {
         var result = await _tripRecurrenceService.GetRecurrenceRulesAsync(id, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<TourRecurrenceRuleResponse>>.Ok(result, "Lấy danh sách quy tắc lịch lặp thành công"));
+    }
+
+    /// <summary>
+    /// Xem điểm trung bình, phân bố số sao và danh sách đánh giá công khai theo họ tour.
+    /// </summary>
+    [HttpGet("{tourId:guid}/reviews")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<TourReviewsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReviewsAsync(
+        [FromRoute] Guid tourId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _reviewService.GetTourReviewsAsync(tourId, page, pageSize, cancellationToken);
+        return Ok(ApiResponse<TourReviewsResponse>.Ok(result, "Lấy danh sách đánh giá tour thành công"));
     }
 }

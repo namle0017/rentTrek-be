@@ -1,5 +1,3 @@
-using RenTrek.BLL.DTOs.Common.Requests;
-
 namespace RenTrek.BLL.DTOs.RentalOps.Requests;
 
 /// <summary>Nhận trả một hoặc nhiều thiết bị đang ở khách.</summary>

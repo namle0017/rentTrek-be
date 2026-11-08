@@ -15,4 +15,9 @@ public interface IProductVariantRepository : IGenericRepository<ProductVariant>
 
     /// <summary>Biến thể và sản phẩm chưa xoá, kèm Product, sắp theo tên sản phẩm rồi tên biến thể. Không tracking.</summary>
     Task<List<ProductVariant>> GetOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// SKU đã có ở biến thể khác chưa (tính cả biến thể đã xoá vì unique index phủ mọi dòng), so không phân biệt hoa thường.
+    /// </summary>
+    Task<bool> SkuExistsAsync(string sku, Guid? excludeVariantId, CancellationToken cancellationToken = default);
 }

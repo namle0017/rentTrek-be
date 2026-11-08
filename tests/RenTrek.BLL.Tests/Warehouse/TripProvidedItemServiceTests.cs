@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using RenTrek.BLL.DTOs.Warehouse.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Constants;
@@ -7,7 +6,6 @@ using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
-using Xunit;
 
 namespace RenTrek.BLL.Tests.Warehouse;
 
@@ -160,6 +158,7 @@ public class TripProvidedItemServiceTests
 
         public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class => throw new NotImplementedException();
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

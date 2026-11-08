@@ -1,5 +1,3 @@
-using RenTrek.BLL.DTOs.Common.Requests;
-
 namespace RenTrek.BLL.DTOs.RentalOps.Requests;
 
 public sealed class VoidRentalChargeRequest

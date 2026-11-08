@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
@@ -29,8 +28,13 @@ public sealed class AdminUserService(
         CheckPaging(request);
         var page = await _unitOfWork.Accounts.GetAdminPagedAsync(new AdminUserFilter
         {
-            Search = request.Search, Role = request.Role, Status = request.Status, SortBy = request.SortBy,
-            IsDescending = IsDescending(request), PageNumber = request.PageNumber, PageSize = request.PageSize
+            Search = request.Search,
+            Role = request.Role,
+            Status = request.Status,
+            SortBy = request.SortBy,
+            IsDescending = IsDescending(request),
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize
         }, cancellationToken);
         return ToPaged(page, request, ToResponse);
     }

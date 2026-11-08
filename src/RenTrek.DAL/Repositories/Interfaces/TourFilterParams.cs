@@ -1,5 +1,3 @@
-using RenTrek.DAL.Entities;
-
 namespace RenTrek.DAL.Repositories.Interfaces;
 
 public record TourFilterParams(

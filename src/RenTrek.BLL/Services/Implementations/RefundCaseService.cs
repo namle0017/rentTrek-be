@@ -28,6 +28,7 @@ public sealed class RefundCaseService(
     IRefundVerificationService verificationService,
     IEmailSender emailSender,
     ILogger<RefundCaseService> logger,
+    INotificationService notificationService,
     IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService
 {
     private const string PaymentTypeRefund = "Refund";
@@ -226,7 +227,15 @@ public sealed class RefundCaseService(
             refund.RejectionReason = request.Reason.Trim();
             refund.RefundPayment.Status = PaymentStatuses.Cancelled;
             await AuditAsync(currentUser.RequiredUserId, "RefundCaseRejected", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Hồ sơ hoàn tiền bị từ chối", "Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Hồ sơ hoàn tiền bị từ chối",
+                $"Hồ sơ hoàn tiền cho đơn {refund.Order.OrderCode} bị từ chối. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -275,7 +284,15 @@ public sealed class RefundCaseService(
             refund.Order.UpdatedAt = utcNow;
 
             await AuditAsync(adminId, "RefundCompleted", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Hoàn tiền hoàn tất", "Tiền hoàn đã được chuyển vào tài khoản của bạn.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Hoàn tiền hoàn tất",
+                $"Tiền hoàn cho đơn {refund.Order.OrderCode} đã được chuyển thành công.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -295,7 +312,15 @@ public sealed class RefundCaseService(
             refund.RefundPayment.Status = PaymentStatuses.Failed;
             refund.RefundPayment.ProcessedAt = utcNow;
             await AuditAsync(currentUser.RequiredUserId, "RefundMarkedFailed", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Chuyển khoản hoàn tiền thất bại", "Vui lòng liên hệ hỗ trợ để được xử lý.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Chuyển khoản hoàn tiền thất bại",
+                $"Chuyển khoản hoàn tiền cho đơn {refund.Order.OrderCode} thất bại. Vui lòng liên hệ hỗ trợ để được xử lý.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 

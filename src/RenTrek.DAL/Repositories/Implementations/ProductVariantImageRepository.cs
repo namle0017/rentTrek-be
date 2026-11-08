@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -9,4 +10,10 @@ public class ProductVariantImageRepository : GenericRepository<ProductVariantIma
     public ProductVariantImageRepository(AppDbContext context) : base(context)
     {
     }
+
+    public Task<List<ProductVariantImage>> GetByVariantAsync(Guid variantId, CancellationToken cancellationToken = default)
+        => _dbSet
+            .Where(image => image.ProductVariantId == variantId)
+            .OrderBy(image => image.DisplayOrder)
+            .ToListAsync(cancellationToken);
 }

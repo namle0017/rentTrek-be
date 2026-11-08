@@ -16,6 +16,9 @@ public class PostRepository : GenericRepository<Post>, IPostRepository
     {
     }
 
+    public Task<int> CountByIdsAsync(IReadOnlyCollection<Guid> postIds, CancellationToken cancellationToken = default)
+        => _dbSet.CountAsync(p => postIds.Contains(p.PostId) && !p.IsDeleted, cancellationToken);
+
     public Task<(IReadOnlyList<PostListRow> Items, int TotalCount)> GetPagedAsync(PostFilter filter, CancellationToken cancellationToken = default)
     {
         var posts = _dbSet.AsNoTracking().Where(p => !p.IsDeleted);

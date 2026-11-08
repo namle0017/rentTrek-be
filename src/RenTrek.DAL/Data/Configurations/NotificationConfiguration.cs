@@ -13,6 +13,9 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.ToTable("notifications");
 
         builder.HasIndex(e => e.RecipientUserId, "ix_notifications_recipient_user_id");
+        builder.HasIndex(e => new { e.RecipientUserId, e.EventKey }, "ux_notifications_recipient_event_key")
+            .IsUnique()
+            .HasFilter("(event_key IS NOT NULL)");
 
         builder.Property(e => e.NotificationId)
             .HasDefaultValueSql("gen_random_uuid()")
@@ -23,6 +26,9 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()")
             .HasColumnName("created_at");
+        builder.Property(e => e.EventKey)
+            .HasMaxLength(200)
+            .HasColumnName("event_key");
         builder.Property(e => e.NotificationType)
             .HasMaxLength(50)
             .HasColumnName("notification_type");

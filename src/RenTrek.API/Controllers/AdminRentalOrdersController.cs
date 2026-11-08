@@ -5,6 +5,7 @@ using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.RentalOps.Requests;
 using RenTrek.BLL.DTOs.RentalOps.Responses;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -24,11 +25,55 @@ public sealed class AdminRentalOrdersController(IRentalFulfillmentService fulfil
         => Ok(ApiResponse<PagedResponse<AdminRentalOrderListItemResponse>>.Ok(
             await fulfillment.GetListAsync(query, cancellationToken), "Lấy danh sách đơn thuê thành công"));
 
+    /// <summary>Danh sách từng thiết bị cần giao trong ngày giờ Việt Nam (JSON hoặc CSV khi format=csv).</summary>
+    [HttpGet("handover-list")]
+    [ProducesResponseType(typeof(ApiResponse<AdminRentalScheduleResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetHandoverListAsync(
+        [FromQuery(Name = "date")] DateOnly? targetDate,
+        [FromQuery] string? format,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            var (fileBytes, fileName) = await fulfillment.ExportHandoverListCsvAsync(targetDate, cancellationToken);
+            return File(fileBytes, "text/csv; charset=utf-8", fileName);
+        }
+
+        var result = await fulfillment.GetHandoverListAsync(targetDate, cancellationToken);
+        return Ok(ApiResponse<AdminRentalScheduleResponse>.Ok(result, "Lấy danh sách giao đồ theo ngày thành công"));
+    }
+
+    /// <summary>Danh sách từng thiết bị cần nhận lại trong ngày giờ Việt Nam (JSON hoặc CSV khi format=csv).</summary>
+    [HttpGet("return-list")]
+    [ProducesResponseType(typeof(ApiResponse<AdminRentalScheduleResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReturnListAsync(
+        [FromQuery(Name = "date")] DateOnly? targetDate,
+        [FromQuery] string? format,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            var (fileBytes, fileName) = await fulfillment.ExportReturnListCsvAsync(targetDate, cancellationToken);
+            return File(fileBytes, "text/csv; charset=utf-8", fileName);
+        }
+
+        var result = await fulfillment.GetReturnListAsync(targetDate, cancellationToken);
+        return Ok(ApiResponse<AdminRentalScheduleResponse>.Ok(result, "Lấy danh sách nhận lại đồ theo ngày thành công"));
+    }
+
     [HttpGet("{orderId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<AdminRentalOrderDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByIdAsync([FromRoute] Guid orderId, CancellationToken cancellationToken)
         => Detail(await fulfillment.GetDetailAsync(orderId, cancellationToken), "Lấy chi tiết đơn thuê thành công");
+
+    /// <summary>Lịch sử điều chỉnh (gia hạn) của đơn thuê (FR-R09).</summary>
+    [HttpGet("{orderId:guid}/adjustments")]
+    [ProducesResponseType(typeof(ApiResponse<List<RentalOrderAdjustmentResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAdjustmentsAsync([FromRoute] Guid orderId, CancellationToken cancellationToken)
+        => Ok(ApiResponse<List<RentalOrderAdjustmentResponse>>.Ok(
+            await fulfillment.GetAdjustmentsAsync(orderId, cancellationToken), "Lấy lịch sử điều chỉnh đơn thuê thành công"));
 
     /// <summary>Nhận phụ trách đơn (FR-R05). Admin được nhận lại đơn đã có người phụ trách.</summary>
     [HttpPost("{orderId:guid}/claim")]

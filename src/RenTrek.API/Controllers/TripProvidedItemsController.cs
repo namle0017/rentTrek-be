@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
-using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Warehouse.Requests;
 using RenTrek.BLL.DTOs.Warehouse.Responses;
 using RenTrek.BLL.Services.Interfaces;

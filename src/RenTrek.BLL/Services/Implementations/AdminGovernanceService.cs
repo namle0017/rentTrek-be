@@ -2,7 +2,6 @@ using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.UnitOfWorks;

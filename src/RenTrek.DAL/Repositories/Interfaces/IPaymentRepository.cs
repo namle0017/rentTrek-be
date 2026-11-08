@@ -1,4 +1,5 @@
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 
 namespace RenTrek.DAL.Repositories.Interfaces;
 
@@ -27,4 +28,17 @@ public interface IPaymentRepository : IGenericRepository<Payment>
 
     /// <summary>Đã ghi nhận giao dịch của nhà cung cấp này chưa (chống xử lý webhook lặp).</summary>
     Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách giao dịch thu / hoàn trang quản trị (lọc theo phạm vi người xem).</summary>
+    Task<(IReadOnlyList<AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminPaymentFilter filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Id đơn của thanh toán (chỉ đọc, dùng để lấy khoá trước khi tải bản tracking); null nếu không có.</summary>
+    Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default);
+
+    /// <summary>Thanh toán (tracking) kèm Order và toàn bộ Payments của đơn; null nếu không có.</summary>
+    Task<Payment?> GetForUpdateAsync(Guid paymentId, CancellationToken cancellationToken = default);
+
+    /// <summary>Khoản hoàn này đã gắn hồ sơ hoàn tiền (refund case) chưa.</summary>
+    Task<bool> HasRefundCaseAsync(Guid paymentId, CancellationToken cancellationToken = default);
 }

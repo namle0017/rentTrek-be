@@ -46,6 +46,56 @@ public class RentalPriceTierRepository : GenericRepository<RentalPriceTier>, IRe
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<RentalPriceTier>> GetForUpdateAsync(Guid? variantId, Guid? bundleId,
+        CancellationToken cancellationToken = default)
+        => _dbSet.IgnoreQueryFilters()
+            .Where(t => !t.IsDeleted && t.ProductVariantId == variantId && t.BundleId == bundleId)
+            .ToListAsync(cancellationToken);
+
+    public async Task<List<PricingTierRow>> GetPricingOverviewAsync(Guid? categoryId,
+        CancellationToken cancellationToken = default)
+    {
+        var variantTiers = await ActiveTiers()
+            .Where(t => t.ProductVariant != null && !t.ProductVariant.IsDeleted
+                        && !t.ProductVariant.Product.IsDeleted && !t.ProductVariant.Product.Category.IsDeleted
+                        && (categoryId == null || t.ProductVariant.Product.CategoryId == categoryId))
+            .Select(t => new PricingTierRow
+            {
+                Id = t.Id,
+                VariantId = t.ProductVariantId,
+                Sku = t.ProductVariant!.Sku,
+                Name = t.ProductVariant.Product.Name + " - " + t.ProductVariant.Name,
+                CategoryId = t.ProductVariant.Product.CategoryId,
+                CategoryName = t.ProductVariant.Product.Category.Name,
+                Status = t.ProductVariant.Status.ToString(),
+                MinDays = t.MinDays,
+                MaxDays = t.MaxDays,
+                DailyPrice = t.DailyPrice
+            })
+            .ToListAsync(cancellationToken);
+
+        var bundleTiers = await ActiveTiers()
+            .Where(t => t.Bundle != null && !t.Bundle.IsDeleted && !t.Bundle.Category.IsDeleted
+                        && (categoryId == null || t.Bundle.CategoryId == categoryId))
+            .Select(t => new PricingTierRow
+            {
+                Id = t.Id,
+                BundleId = t.BundleId,
+                Name = t.Bundle!.Name,
+                CategoryId = t.Bundle.CategoryId,
+                CategoryName = t.Bundle.Category.Name,
+                Status = t.Bundle.Status,
+                MinDays = t.MinDays,
+                MaxDays = t.MaxDays,
+                DailyPrice = t.DailyPrice
+            })
+            .ToListAsync(cancellationToken);
+
+        return variantTiers.Concat(bundleTiers)
+            .OrderBy(x => x.CategoryName).ThenBy(x => x.Name).ThenBy(x => x.MinDays)
+            .ToList();
+    }
+
     // Query filter mặc định của RentalPriceTier yêu cầu ProductVariant != null nên sẽ loại hết bậc giá của combo
     private IQueryable<RentalPriceTier> ActiveTiers()
         => _dbSet.IgnoreQueryFilters().AsNoTracking().Where(t => !t.IsDeleted);

@@ -11,4 +11,7 @@ public interface IAuditLogRepository : IGenericRepository<AuditLog>
 
     /// <summary>Audit của đơn và của participant thuộc đơn, mới nhất trước.</summary>
     Task<List<AuditLogRow>> GetForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Số bản ghi audit có hành động <paramref name="action"/> trên thực thể <paramref name="entityId"/>.</summary>
+    Task<int> CountAsync(string action, Guid entityId, CancellationToken cancellationToken = default);
 }

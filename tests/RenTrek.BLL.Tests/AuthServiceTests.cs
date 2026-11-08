@@ -1,6 +1,4 @@
-using System.Linq.Expressions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
@@ -370,6 +368,7 @@ public sealed class AuthServiceTests
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Dispose() { }
     }
 }

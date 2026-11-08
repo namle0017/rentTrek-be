@@ -1,6 +1,7 @@
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Entities.Enums;
 using RenTrek.DAL.Models;
+using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
 namespace RenTrek.BLL.Tests;
@@ -51,6 +52,61 @@ public sealed class AdminCatalogQueryTests
         Assert.True(tour.IsItineraryLocked);
         Assert.Equal("primary.jpg", tour.PrimaryImageUrl);
         Assert.Equal(1, tour.UpcomingTripsCount);
+    }
+
+    /// <summary>
+    /// Khách chỉ thấy 1 thẻ cho mỗi họ tour (bản đang bán mới nhất, bỏ qua bản Draft mới hơn),
+    /// và chuyến Open của bản cũ còn đang bán được gộp vào thẻ/chi tiết. Bản cũ bị Archived thì thôi gộp.
+    /// </summary>
+    [AdminPostgresFact]
+    public async Task CustomerTours_ShowOneCardPerFamilyAndKeepOldVersionTrips()
+    {
+        await using var db = new AdminTestDatabase();
+        await db.InitializeAsync();
+        var future = DateTimeOffset.UtcNow.AddDays(30); // repo so với giờ thật, không phải db.Now
+        var familyId = Guid.NewGuid();
+        Tour v1, v2;
+        await using (var context = db.Context())
+        {
+            var category = new Category { Name = "Săn mây", CategoryType = "TOUR" };
+            var location = new Location { Name = "Bắc Yên", Address = "Sơn La" };
+            v1 = NewTour(familyId, 1, "Tà Xùa v1", category, location, db.AdminId);
+            v2 = NewTour(familyId, 2, "Tà Xùa v2", category, location, db.AdminId);
+            var v3 = NewTour(familyId, 3, "Tà Xùa v3 nháp", category, location, db.AdminId);
+            v1.Status = "Active";
+            v2.Status = "Published";
+            v1.Trips.Add(NewTrip(future, false, db));
+            v2.Trips.Add(NewTrip(future.AddDays(10), false, db));
+            context.Tours.AddRange(v1, v2, v3);
+            await context.SaveChangesAsync();
+        }
+
+        await using (var read = db.Context())
+        {
+            var tours = new UnitOfWork(read).Tours;
+            var (items, total) = await tours.GetPagedToursAsync(new TourFilterParams(Search: "Tà Xùa"));
+            var card = Assert.Single(items);
+            Assert.Equal(1, total);
+            Assert.Equal(v2.Id, card.Id);
+            Assert.Equal([v1.Id, v2.Id], card.Trips.OrderBy(t => t.StartAt).Select(t => t.TourId));
+
+            var detail = await tours.GetTourDetailByIdAsync(v2.Id);
+            Assert.Equal(2, detail!.Trips.Count);
+        }
+
+        await using (var write = db.Context())
+        {
+            (await write.Tours.FindAsync(v1.Id))!.Status = "Archived";
+            await write.SaveChangesAsync();
+        }
+
+        await using (var read = db.Context())
+        {
+            var tours = new UnitOfWork(read).Tours;
+            Assert.Equal(v2.Id, Assert.Single((await tours.GetTourDetailByIdAsync(v2.Id))!.Trips).TourId);
+            // Bản Archived vẫn mở được để xem lại, chỉ có chuyến của chính nó
+            Assert.Equal(v1.Id, Assert.Single((await tours.GetTourDetailByIdAsync(v1.Id))!.Trips).TourId);
+        }
     }
 
     [AdminPostgresFact]

@@ -1,3 +1,4 @@
+
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
@@ -22,6 +23,37 @@ public class ProductBundleRepository : GenericRepository<ProductBundle>, IProduc
 
     public ProductBundleRepository(AppDbContext context) : base(context)
     {
+    }
+
+    public async Task<(IReadOnlyList<AdminBundleRow> Items, int TotalCount)> GetAdminPagedAsync(
+        string? search, string? status, Guid? categoryId, int pageNumber, int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.IgnoreQueryFilters().AsNoTracking().Where(b => !b.IsDeleted);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(b => EF.Functions.ILike(b.Name, $"%{search.Trim()}%"));
+        if (!string.IsNullOrWhiteSpace(status))
+            query = query.Where(b => b.Status == status);
+        if (categoryId.HasValue)
+            query = query.Where(b => b.CategoryId == categoryId);
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(b => b.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(b => new AdminBundleRow
+            {
+                BundleId = b.BundleId,
+                CategoryId = b.CategoryId,
+                CategoryName = b.Category.Name,
+                Name = b.Name,
+                Status = b.Status,
+                ItemsCount = b.ProductBundleItems.Count(i => !i.IsDeleted),
+                CreatedAt = b.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+        return (items, total);
     }
 
     public async Task<List<RentalBundleInfo>> GetActiveForRentalAsync(
