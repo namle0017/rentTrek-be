@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RenTrek.API.Common;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.DTOs.Auth.Responses;
@@ -8,10 +9,12 @@ using RenTrek.BLL.Services.Interfaces;
 namespace RenTrek.API.Controllers;
 
 /// <summary>
-/// Cung cấp các endpoint HTTP cho auth.
+/// Cung cấp các endpoint HTTP cho auth và bảo mật phiên.
+/// Giới hạn tần suất 10 request/phút/IP (Chống Brute-Force & DoS).
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
+[EnableRateLimiting(RateLimitPolicies.AuthPublic)]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -65,11 +68,22 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("resend-verification-email")]
-    [Authorize]
-    public async Task<IActionResult> ResendVerificationEmail(CancellationToken cancellationToken)
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationEmailRequest? request, CancellationToken cancellationToken)
     {
-        await _authService.ResendVerificationEmailAsync(_currentUserService.RequiredUserId, cancellationToken);
-        return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        if (!string.IsNullOrWhiteSpace(request?.Email))
+        {
+            await _authService.ResendVerificationEmailByEmailAsync(request.Email, cancellationToken);
+            return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        }
+
+        if (_currentUserService.UserId.HasValue)
+        {
+            await _authService.ResendVerificationEmailAsync(_currentUserService.UserId.Value, cancellationToken);
+            return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        }
+
+        return BadRequest(ApiResponse<object?>.Fail("Vui lòng cung cấp email cần gửi lại mã xác thực", StatusCodes.Status400BadRequest));
     }
 
     [HttpPost("forgot-password")]

@@ -6,4 +6,5 @@ namespace RenTrek.API.Common;
 public static class RateLimitPolicies
 {
     public const string RefundSensitive = "refund-sensitive";
+    public const string AuthPublic = "auth-public";
 }

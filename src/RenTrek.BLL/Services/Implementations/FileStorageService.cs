@@ -1,4 +1,9 @@
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.BLL.Services.Implementations;
@@ -14,6 +19,17 @@ public class FileStorageService : IFileStorageService
     {
         "image/jpeg", "image/png", "image/webp"
     };
+
+    private readonly CloudinarySettings _cloudinarySettings;
+    private readonly ILogger<FileStorageService> _logger;
+
+    public FileStorageService(
+        IOptions<CloudinarySettings> cloudinaryOptions,
+        ILogger<FileStorageService> logger)
+    {
+        _cloudinarySettings = cloudinaryOptions.Value;
+        _logger = logger;
+    }
 
     public async Task<string> SaveAvatarAsync(
         Stream fileStream,
@@ -44,6 +60,47 @@ public class FileStorageService : IFileStorageService
             throw new ValidationException("Kiểu dữ liệu ảnh (MIME type) không được hỗ trợ");
         }
 
+        // 1. Thử tải lên Cloudinary CDN nếu đã cấu hình
+        if (_cloudinarySettings.IsConfigured)
+        {
+            try
+            {
+                var account = new CloudinaryDotNet.Account(
+                    _cloudinarySettings.CloudName,
+                    _cloudinarySettings.ApiKey,
+                    _cloudinarySettings.ApiSecret);
+
+                var cloudinary = new Cloudinary(account) { Api = { Secure = true } };
+
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(originalFileName, fileStream),
+                    Folder = "rentrek/avatars",
+                    PublicId = $"avatar_{userId:N}",
+                    Overwrite = true,
+                    Transformation = new Transformation().Width(500).Height(500).Crop("fill").Gravity("face")
+                };
+
+                var uploadResult = await cloudinary.UploadAsync(uploadParams, cancellationToken);
+                if (uploadResult.StatusCode == System.Net.HttpStatusCode.OK && uploadResult.SecureUrl != null)
+                {
+                    _logger.LogInformation("Đã tải avatar lên Cloudinary thành công cho user {UserId}: {Url}", userId, uploadResult.SecureUrl);
+                    return uploadResult.SecureUrl.ToString();
+                }
+
+                _logger.LogWarning("Tải lên Cloudinary thất bại ({Error}), chuyển về lưu trữ cục bộ wwwroot", uploadResult.Error?.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi gọi Cloudinary API, tự động fallback về lưu trữ cục bộ wwwroot");
+                if (fileStream.CanSeek)
+                {
+                    fileStream.Position = 0;
+                }
+            }
+        }
+
+        // 2. Fallback: Lưu trữ cục bộ trong wwwroot/uploads/avatars
         var wwwrootDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         var uploadFolder = Path.Combine(wwwrootDir, "uploads", "avatars");
 
@@ -57,6 +114,10 @@ public class FileStorageService : IFileStorageService
 
         using (var destinationStream = new FileStream(fullFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
+            if (fileStream.CanSeek)
+            {
+                fileStream.Position = 0;
+            }
             await fileStream.CopyToAsync(destinationStream, cancellationToken);
         }
 
@@ -66,6 +127,13 @@ public class FileStorageService : IFileStorageService
     public void DeleteFile(string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return;
+
+        // Nếu là URL Cloudinary thì bỏ qua việc xóa file cục bộ
+        if (relativePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         try
         {

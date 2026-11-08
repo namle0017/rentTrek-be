@@ -71,7 +71,7 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()
         .AllowCredentials()));
 
-// Giới hạn theo tài khoản cho thao tác hoàn tiền (§11), đọc user nên phải đứng sau UseAuthentication
+// Giới hạn tần suất gọi: Auth công khai (10 req/phút/IP) & Thao tác hoàn tiền nhạy cảm
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -81,8 +81,13 @@ builder.Services.AddRateLimiter(options =>
             StatusCodes.Status429TooManyRequests,
             new Dictionary<string, string[]> { ["code"] = [ErrorCodes.TooManyRequests] }),
         cancellationToken));
+
     options.AddPolicy(RateLimitPolicies.RefundSensitive, context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+
+    options.AddPolicy(RateLimitPolicies.AuthPublic, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 

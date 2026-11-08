@@ -35,6 +35,9 @@ public static class DependencyInjection
         services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
+        services.Configure<CloudinarySettings>(configuration.GetSection(CloudinarySettings.SectionName));
+        services.AddMemoryCache();
+
         services.AddOptions<RefundSettings>()
             .Bind(configuration.GetSection("Refund"))
             .Configure(options => options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty)
@@ -57,7 +60,6 @@ public static class DependencyInjection
         services.AddScoped<IFileStorageService, FileStorageService>();
         services.AddScoped<RenTrek.BLL.Services.Admin.IAdminService, RenTrek.BLL.Services.Admin.AdminService>();
         services.AddScoped<RenTrek.BLL.Services.Admin.IAdminSessionService, RenTrek.BLL.Services.Admin.AdminSessionService>();
-        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
