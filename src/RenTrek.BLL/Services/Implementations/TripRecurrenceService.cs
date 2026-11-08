@@ -347,7 +347,7 @@ public sealed class TripRecurrenceService(
         return startAt.AddDays(days);
     }
 
-    private static IReadOnlyList<DateOnly> EnumerateOccurrences(
+    private static List<DateOnly> EnumerateOccurrences(
         TourRecurrenceRule rule,
         DateOnly? fromDate,
         DateOnly? toDate)
@@ -438,7 +438,7 @@ public sealed class TripRecurrenceService(
             _ => throw new BadRequestException("Frequency chỉ hỗ trợ Daily, Weekly hoặc Monthly", ErrorCodes.ValidationError)
         };
 
-    private static IReadOnlyList<Guid> ResolveWarningRecipients(
+    private static List<Guid> ResolveWarningRecipients(
         Guid? actorUserId,
         Guid? tourCreatorId,
         IReadOnlyList<Guid> adminIds)

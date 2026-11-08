@@ -26,17 +26,17 @@ public interface IAdminOperationRepository
     Task<List<OrderRefRow>> GetFailedRefundOrdersAsync(int take, CancellationToken cancellationToken = default);
 
     /// <summary>Tổng thanh toán Succeeded có ProcessedAt trong [from, to].</summary>
-    Task<PaymentTotalsRow> GetPaymentTotalsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+    Task<PaymentTotalsRow> GetPaymentTotalsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default);
 
-    /// <summary>Số đơn đặt chuyến tạo trong [from, to] và số tài sản đang phát / sẵn sàng.</summary>
-    Task<AdminKpiCountsRow> GetKpiCountsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+    /// <summary>Số đơn đặt chuyến tạo trong [fromDate, toDate] và số tài sản đang phát / sẵn sàng.</summary>
+    Task<AdminKpiCountsRow> GetKpiCountsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default);
 
-    /// <summary>Thanh toán Succeeded có ProcessedAt trong [from, to].</summary>
-    Task<List<RevenuePaymentRow>> GetSucceededPaymentsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+    /// <summary>Thanh toán Succeeded có ProcessedAt trong [fromDate, toDate].</summary>
+    Task<List<RevenuePaymentRow>> GetSucceededPaymentsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default);
 
-    /// <summary>Lấp đầy của chuyến chưa huỷ khởi hành trong [from, to], lọc tour nếu có.</summary>
-    Task<List<TripOccupancyRow>> GetOccupancyAsync(DateTimeOffset from, DateTimeOffset to, Guid? tourId, CancellationToken cancellationToken = default);
+    /// <summary>Lấp đầy của chuyến chưa huỷ khởi hành trong [fromDate, toDate], lọc tour nếu có.</summary>
+    Task<List<TripOccupancyRow>> GetOccupancyAsync(DateTimeOffset fromDate, DateTimeOffset toDate, Guid? tourId, CancellationToken cancellationToken = default);
 
-    /// <summary>Tài sản chưa xoá (lọc danh mục nếu có) kèm các lần phát giao với [from, to).</summary>
-    Task<List<AssetUsageRow>> GetAssetUsageAsync(DateTime from, DateTime to, Guid? categoryId, CancellationToken cancellationToken = default);
+    /// <summary>Tài sản chưa xoá (lọc danh mục nếu có) kèm các lần phát giao với [fromDate, toDate).</summary>
+    Task<List<AssetUsageRow>> GetAssetUsageAsync(DateTime fromDate, DateTime toDate, Guid? categoryId, CancellationToken cancellationToken = default);
 }

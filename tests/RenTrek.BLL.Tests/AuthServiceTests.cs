@@ -25,7 +25,7 @@ public sealed class AuthServiceTests
         var response = await fixture.Service.RegisterAsync(new RegisterRequest
         {
             Email = " Guest@Example.com ",
-            Password = "Password@123",
+            Password = "<Password@123>",
             FullName = "Khách mới",
             Phone = "0901234567"
         });
@@ -46,7 +46,7 @@ public sealed class AuthServiceTests
         {
             UserId = Guid.NewGuid(),
             Email = "victim@example.com",
-            PasswordHash = "hashed:Correct@123",
+            PasswordHash = "hashed:<Correct@123>",
             Status = "Active",
             FullName = "Nạn nhân"
         });
@@ -54,12 +54,12 @@ public sealed class AuthServiceTests
         for (var i = 0; i < AuthAttemptLimiter.MaxFailures; i++)
         {
             await Assert.ThrowsAsync<UnauthorizedException>(() => fixture.Service.LoginAsync(
-                new LoginRequest { Email = "victim@example.com", Password = "wrong" }));
+                new LoginRequest { Email = "victim@example.com", Password = "<wrong>" }));
         }
 
         // Đúng mật khẩu vẫn bị chặn khi đang khóa.
         await Assert.ThrowsAsync<TooManyRequestsException>(() => fixture.Service.LoginAsync(
-            new LoginRequest { Email = " Victim@Example.com ", Password = "Correct@123" }));
+            new LoginRequest { Email = " Victim@Example.com ", Password = "<Correct@123>" }));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class AuthServiceTests
             Microsoft.Extensions.Options.Options.Create(new EmailSettings
             {
                 Username = "rentrek@gmail.com",
-                Password = "app-password",
+                Password = "<app-password>",
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             NullLogger<AuthService>.Instance,

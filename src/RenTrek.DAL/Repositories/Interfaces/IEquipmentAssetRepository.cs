@@ -74,8 +74,8 @@ public interface IEquipmentAssetRepository : IGenericRepository<EquipmentAsset>
     /// Lấy danh sách thiết bị và các phân bổ phục vụ biểu đồ Gantt trong khoảng [from, to] (Màn O21).
     /// </summary>
     Task<IReadOnlyList<EquipmentAsset>> GetAssetsForGanttAsync(
-        DateTime from,
-        DateTime to,
+        DateTime fromDate,
+        DateTime toDate,
         Guid? categoryId,
         Guid? productVariantId,
         CancellationToken cancellationToken = default);

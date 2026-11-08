@@ -38,7 +38,7 @@ public class ReviewRepository : GenericRepository<Review>, IReviewRepository
                 CustomerFullName = x.Participant.FullName,
                 TourName = x.Participant.Trip.Tour.Name,
                 TripStartAt = x.Participant.Trip.StartAt,
-                GuideFullName = x.Participant.TripGroup == null ? null : x.Participant.TripGroup.GuideUser.FullName,
+                GuideFullName = x.Participant.TripGroup == null || x.Participant.TripGroup.GuideUser == null ? null : x.Participant.TripGroup.GuideUser.FullName,
                 IsHidden = x.IsHidden,
                 HiddenReason = x.HiddenReason,
                 CreatedAt = x.CreatedAt

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.Constants;
@@ -1634,7 +1635,7 @@ public sealed class TripGroupServiceTests
     private sealed class FakeSystemConfigurationRepository(SharedStore store) : ISystemConfigurationRepository
     {
         public Task<string?> GetValueAsync(string key, CancellationToken cancellationToken = default)
-            => Task.FromResult<string?>(key == TripGroupConfigKeys.GroupOverflowSlots ? store.OverflowSlots.ToString() : null);
+            => Task.FromResult<string?>(key == TripGroupConfigKeys.GroupOverflowSlots ? store.OverflowSlots.ToString(CultureInfo.InvariantCulture) : null);
 
         public Task<SystemConfiguration?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<SystemConfiguration>> GetActiveAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();

@@ -80,6 +80,12 @@ dotnet_naming_style.underscore_camel.capitalization = camel_case
 dotnet_diagnostic.CA2000.severity = none
 dotnet_diagnostic.CA1707.severity = none
 
+[src/RenTrek.DAL/Repositories/**.cs]
+# ToLower()/ToUpper() trong query EF được dịch sang SQL lower()/upper(); overload culture/StringComparison không dịch được
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
 [*.{yml,yaml,json}]
 indent_style = space
 indent_size = 2

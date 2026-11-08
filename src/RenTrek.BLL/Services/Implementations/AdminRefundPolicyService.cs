@@ -19,7 +19,7 @@ public sealed class AdminRefundPolicyService(
 
     public async Task<IReadOnlyList<RefundPolicyListItemResponse>> GetPoliciesAsync(string? policyType, CancellationToken cancellationToken)
     {
-        var rows = await _unitOfWork.RefundPolicies.GetAdminListAsync(
+        var rows = await UnitOfWork.RefundPolicies.GetAdminListAsync(
             string.IsNullOrWhiteSpace(policyType) ? null : policyType.Trim(), cancellationToken);
         return rows.Select(x => new RefundPolicyListItemResponse
         {
@@ -37,7 +37,7 @@ public sealed class AdminRefundPolicyService(
 
     public async Task<RefundPolicyDetailResponse> GetPolicyAsync(Guid policyId, CancellationToken cancellationToken)
     {
-        var policy = await _unitOfWork.RefundPolicies.GetDetailAsync(policyId, cancellationToken)
+        var policy = await UnitOfWork.RefundPolicies.GetDetailAsync(policyId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chính sách hoàn tiền", ErrorCodes.NotFound);
         return new RefundPolicyDetailResponse
         {
@@ -49,7 +49,7 @@ public sealed class AdminRefundPolicyService(
             EffectiveFrom = DateOnly.FromDateTime(policy.EffectiveFrom),
             EffectiveUntil = policy.EffectiveUntil.HasValue ? DateOnly.FromDateTime(policy.EffectiveUntil.Value) : null,
             Status = policy.Status,
-            IsLocked = await _unitOfWork.RefundPolicies.IsInUseAsync(policyId, cancellationToken),
+            IsLocked = await UnitOfWork.RefundPolicies.IsInUseAsync(policyId, cancellationToken),
             Rules = policy.RefundPolicyRules.Select(r => new RefundPolicyRuleResponse
             {
                 RuleId = r.RefundPolicyRuleId,
@@ -66,7 +66,7 @@ public sealed class AdminRefundPolicyService(
         var policyId = Guid.NewGuid();
         await AtomicAsync(LockKey, async () =>
         {
-            await _unitOfWork.RefundPolicies.AddAsync(new RefundPolicy
+            await UnitOfWork.RefundPolicies.AddAsync(new RefundPolicy
             {
                 RefundPolicyId = policyId,
                 PolicyFamilyId = Guid.NewGuid(),
@@ -118,14 +118,14 @@ public sealed class AdminRefundPolicyService(
         var newId = Guid.NewGuid();
         await AtomicAsync(LockKey, async () =>
         {
-            var source = await _unitOfWork.RefundPolicies.GetForUpdateAsync(policyId, cancellationToken)
+            var source = await UnitOfWork.RefundPolicies.GetForUpdateAsync(policyId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy chính sách hoàn tiền", ErrorCodes.NotFound);
-            var rules = await _unitOfWork.RefundPolicyRules.GetByPolicyForUpdateAsync(policyId, cancellationToken);
-            var version = await _unitOfWork.RefundPolicies.GetMaxVersionAsync(source.PolicyFamilyId, cancellationToken) + 1;
+            var rules = await UnitOfWork.RefundPolicyRules.GetByPolicyForUpdateAsync(policyId, cancellationToken);
+            var version = await UnitOfWork.RefundPolicies.GetMaxVersionAsync(source.PolicyFamilyId, cancellationToken) + 1;
 
             if (source.EffectiveUntil == null || source.EffectiveUntil > Now) source.EffectiveUntil = Now;
             source.UpdatedAt = Now;
-            await _unitOfWork.RefundPolicies.AddAsync(new RefundPolicy
+            await UnitOfWork.RefundPolicies.AddAsync(new RefundPolicy
             {
                 RefundPolicyId = newId,
                 PolicyFamilyId = source.PolicyFamilyId,
@@ -148,9 +148,9 @@ public sealed class AdminRefundPolicyService(
     /// <summary>Lấy chính sách để sửa; 404 nếu không có, 400 POLICY_ALREADY_IN_USE nếu đã có chuyến/đơn dùng.</summary>
     private async Task<RefundPolicy> GetEditableAsync(Guid policyId, CancellationToken cancellationToken)
     {
-        var policy = await _unitOfWork.RefundPolicies.GetForUpdateAsync(policyId, cancellationToken)
+        var policy = await UnitOfWork.RefundPolicies.GetForUpdateAsync(policyId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chính sách hoàn tiền", ErrorCodes.NotFound);
-        if (await _unitOfWork.RefundPolicies.IsInUseAsync(policyId, cancellationToken))
+        if (await UnitOfWork.RefundPolicies.IsInUseAsync(policyId, cancellationToken))
             throw new BadRequestException(
                 "Chính sách đã có chuyến đi hoặc đơn hàng áp dụng. Hãy nhân bản phiên bản mới (clone-version).",
                 ErrorCodes.PolicyAlreadyInUse);
@@ -161,12 +161,12 @@ public sealed class AdminRefundPolicyService(
     private async Task ReplaceRulesAsync(Guid policyId, IEnumerable<(int MinHoursBefore, decimal RefundPercentage)> rules,
         CancellationToken cancellationToken)
     {
-        foreach (var old in await _unitOfWork.RefundPolicyRules.GetByPolicyForUpdateAsync(policyId, cancellationToken))
+        foreach (var old in await UnitOfWork.RefundPolicyRules.GetByPolicyForUpdateAsync(policyId, cancellationToken))
         {
             old.IsDeleted = true;
             old.UpdatedAt = Now;
         }
-        await _unitOfWork.RefundPolicyRules.AddRangeAsync(rules.Select(r => new RefundPolicyRule
+        await UnitOfWork.RefundPolicyRules.AddRangeAsync(rules.Select(r => new RefundPolicyRule
         {
             RefundPolicyRuleId = Guid.NewGuid(),
             RefundPolicyId = policyId,

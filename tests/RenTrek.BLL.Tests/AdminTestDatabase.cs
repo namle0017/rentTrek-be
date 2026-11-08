@@ -11,6 +11,8 @@ namespace RenTrek.BLL.Tests;
 
 internal sealed class AdminTestDatabase : IAsyncDisposable
 {
+    private static readonly string[] SeedRoleNames = ["Admin", "Staff", "Customer", "Guide"];
+
     private readonly string _serverConnection;
     public string ConnectionString { get; }
     public string Name { get; } = "rentrek_admin_test_" + Guid.NewGuid().ToString("N");
@@ -54,10 +56,10 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
         await using var context = Context();
         await context.Database.EnsureCreatedAsync();
-        var roles = new[] { "Admin", "Staff", "Customer", "Guide" }.Select(name => new Role { RoleName = name }).ToList();
+        var roles = SeedRoleNames.Select(name => new Role { RoleName = name }).ToList();
         context.Roles.AddRange(roles);
         foreach (var (id, role) in new[] { (AdminId, "Admin"), (StaffId, "Staff"), (OtherStaffId, "Staff"), (CustomerId, "Customer"), (GuideId, "Guide") })
-            context.Accounts.Add(new Account { UserId = id, Role = roles.Single(x => x.RoleName == role), Email = id + "@test.invalid", FullName = role + " Test", PasswordHash = new PasswordHasher().Hash("TestPassword123!"), CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime });
+            context.Accounts.Add(new Account { UserId = id, Role = roles.Single(x => x.RoleName == role), Email = id + "@test.invalid", FullName = role + " Test", PasswordHash = new PasswordHasher().Hash("<TestPassword123!>"), CreatedAt = Now.UtcDateTime, UpdatedAt = Now.UtcDateTime });
         var category = new Category { Name = "Trekking", CategoryType = "TOUR" };
         var location = new Location { Name = "Bidoup", Address = "Lâm Đồng" };
         var tour = new Tour { Name = "Bidoup Test", Category = category, MainLocation = location, CreatedByUserId = AdminId };

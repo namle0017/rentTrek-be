@@ -195,7 +195,7 @@ public class TripProvidedItemService : ITripProvidedItemService
 
         var cleanCodes = request.AssetCodes
             .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => c.Trim().ToUpper())
+            .Select(c => c.Trim().ToUpperInvariant())
             .Distinct()
             .ToList();
 
@@ -306,10 +306,10 @@ public class TripProvidedItemService : ITripProvidedItemService
     public async Task<int> ReturnTripGearAsync(Guid tripId, ReturnTripGearRequest request, CancellationToken cancellationToken = default)
     {
         await EnsureManagesTripAsync(tripId, cancellationToken);
-        var returnCodes = request.Returns.Select(r => r.AssetCode.Trim().ToUpper()).ToList();
+        var returnCodes = request.Returns.Select(r => r.AssetCode.Trim().ToUpperInvariant()).ToList();
         var assignments = await _unitOfWork.AssetAssignments.GetAssignmentsByAssetCodesAndTripIdAsync(tripId, returnCodes, cancellationToken);
 
-        var returnMap = request.Returns.ToDictionary(r => r.AssetCode.Trim().ToUpper(), r => r, StringComparer.OrdinalIgnoreCase);
+        var returnMap = request.Returns.ToDictionary(r => r.AssetCode.Trim().ToUpperInvariant(), r => r, StringComparer.OrdinalIgnoreCase);
         var now = DateTime.UtcNow;
         var updatedCount = 0;
 

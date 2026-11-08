@@ -21,7 +21,7 @@ public class TripProvidedItemServiceTests
         public void RemoveRange(IEnumerable<T> entities) { }
     }
 
-    private class FakeTripRepo : FakeGenericRepo<Trip>, ITripRepository
+    private sealed class FakeTripRepo : FakeGenericRepo<Trip>, ITripRepository
     {
         Task ITripRepository.AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task ITripRepository.AddPaymentsAsync(IEnumerable<Payment> payments, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -61,7 +61,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnTrip);
     }
 
-    private class FakeAssignmentRepo : FakeGenericRepo<AssetAssignment>, IAssetAssignmentRepository
+    private sealed class FakeAssignmentRepo : FakeGenericRepo<AssetAssignment>, IAssetAssignmentRepository
     {
         public AssetAssignment? ReturnAssignment { get; set; }
         public List<AssetAssignment> ReturnAssignmentsList { get; set; } = [];
@@ -76,7 +76,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnAssignmentsList);
     }
 
-    private class FakeTripProvidedItemRepo : FakeGenericRepo<TripProvidedItem>, ITripProvidedItemRepository
+    private sealed class FakeTripProvidedItemRepo : FakeGenericRepo<TripProvidedItem>, ITripProvidedItemRepository
     {
         public List<TripProvidedItem> ReturnItems { get; set; } = [];
         public TripProvidedItem? ReturnItem { get; set; }
@@ -92,7 +92,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnAvailableAssets);
     }
 
-    private class FakeUnitOfWork : IUnitOfWork
+    private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();

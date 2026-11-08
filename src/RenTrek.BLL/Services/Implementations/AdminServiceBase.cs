@@ -15,17 +15,19 @@ namespace RenTrek.BLL.Services.Implementations;
 /// <remarks>Logic gốc: TIGER.ER (commit 6cf600b "Task Admin"). Tri Tin chỉ tách từ partial AdminService, không đổi hành vi.</remarks>
 public abstract class AdminServiceBase(IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider timeProvider)
 {
-    protected readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web);
 
-    protected readonly ICurrentUserService _currentUser = currentUser;
+    protected IUnitOfWork UnitOfWork { get; } = unitOfWork;
 
-    protected readonly TimeProvider _timeProvider = timeProvider;
+    protected ICurrentUserService CurrentUser { get; } = currentUser;
 
-    protected DateTime Now => _timeProvider.GetUtcNow().UtcDateTime;
+    protected TimeProvider Clock { get; } = timeProvider;
 
-    protected Guid ActorId => _currentUser.RequiredUserId;
+    protected DateTime Now => Clock.GetUtcNow().UtcDateTime;
 
-    protected bool IsAdmin => _currentUser.Role == RoleNames.Admin;
+    protected Guid ActorId => CurrentUser.RequiredUserId;
+
+    protected bool IsAdmin => CurrentUser.Role == RoleNames.Admin;
 
     protected void RequireAdmin()
     {
@@ -47,23 +49,23 @@ public abstract class AdminServiceBase(IUnitOfWork unitOfWork, ICurrentUserServi
 
     protected async Task AtomicAsync(string key, Func<Task> action, CancellationToken cancellationToken)
     {
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        await UnitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            await _unitOfWork.AdminOperations.AcquireLockAsync(key, cancellationToken);
+            await UnitOfWork.AdminOperations.AcquireLockAsync(key, cancellationToken);
             await action();
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await UnitOfWork.CommitAsync(cancellationToken);
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await UnitOfWork.RollbackAsync(cancellationToken);
             throw;
         }
     }
 
     protected Task AuditAsync(string action, string entityType, Guid entityId, object details,
         CancellationToken cancellationToken)
-        => _unitOfWork.AuditLogs.AddAsync(new AuditLog
+        => UnitOfWork.AuditLogs.AddAsync(new AuditLog
         {
             AuditLogId = Guid.NewGuid(),
             ActorUserId = ActorId,
@@ -71,7 +73,7 @@ public abstract class AdminServiceBase(IUnitOfWork unitOfWork, ICurrentUserServi
             EntityType = entityType,
             EntityId = entityId,
             CreatedAt = Now,
-            Details = JsonSerializer.Serialize(details, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            Details = JsonSerializer.Serialize(details, AuditJsonOptions)
         }, cancellationToken);
 
     protected static JsonElement AuditDetails(string details)

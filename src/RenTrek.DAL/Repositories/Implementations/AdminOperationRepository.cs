@@ -90,9 +90,9 @@ public sealed class AdminOperationRepository(AppDbContext context) : IAdminOpera
             .OrderByDescending(x => x.CreatedAt).Take(take)
             .Select(x => new OrderRefRow { OrderId = x.OrderId, OrderCode = x.Order.OrderCode }).ToListAsync(cancellationToken);
 
-    public async Task<PaymentTotalsRow> GetPaymentTotalsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    public async Task<PaymentTotalsRow> GetPaymentTotalsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default)
     {
-        var payments = context.Payments.AsNoTracking().Where(x => x.Status == "Succeeded" && x.ProcessedAt >= from && x.ProcessedAt <= to);
+        var payments = context.Payments.AsNoTracking().Where(x => x.Status == "Succeeded" && x.ProcessedAt >= fromDate && x.ProcessedAt <= toDate);
         return new PaymentTotalsRow
         {
             Collections = await payments.Where(x => x.PaymentType == "Collection").SumAsync(x => x.Amount, cancellationToken),
@@ -101,25 +101,25 @@ public sealed class AdminOperationRepository(AppDbContext context) : IAdminOpera
         };
     }
 
-    public async Task<AdminKpiCountsRow> GetKpiCountsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    public async Task<AdminKpiCountsRow> GetKpiCountsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default)
         => new()
         {
             BookingCount = await context.TripBookingOrders.AsNoTracking()
-                .CountAsync(x => !x.Order.IsDeleted && x.Order.CreatedAt >= from && x.Order.CreatedAt <= to, cancellationToken),
+                .CountAsync(x => !x.Order.IsDeleted && x.Order.CreatedAt >= fromDate && x.Order.CreatedAt <= toDate, cancellationToken),
             IssuedAssetCount = await context.AssetAssignments.AsNoTracking().Where(x => x.Status == "Issued")
                 .Select(x => x.EquipmentAssetId).Distinct().CountAsync(cancellationToken),
             AvailableAssetCount = await context.EquipmentAssets.AsNoTracking()
                 .CountAsync(x => !x.IsDeleted && x.AssetStatus == "Available", cancellationToken)
         };
 
-    public Task<List<RevenuePaymentRow>> GetSucceededPaymentsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
-        => context.Payments.AsNoTracking().Where(x => x.Status == "Succeeded" && x.ProcessedAt >= from && x.ProcessedAt <= to)
+    public Task<List<RevenuePaymentRow>> GetSucceededPaymentsAsync(DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken cancellationToken = default)
+        => context.Payments.AsNoTracking().Where(x => x.Status == "Succeeded" && x.ProcessedAt >= fromDate && x.ProcessedAt <= toDate)
             .Select(x => new RevenuePaymentRow { OrderType = x.Order.OrderType, PaymentType = x.PaymentType, Amount = x.Amount, ProcessedAt = x.ProcessedAt })
             .ToListAsync(cancellationToken);
 
-    public Task<List<TripOccupancyRow>> GetOccupancyAsync(DateTimeOffset from, DateTimeOffset to, Guid? tourId, CancellationToken cancellationToken = default)
+    public Task<List<TripOccupancyRow>> GetOccupancyAsync(DateTimeOffset fromDate, DateTimeOffset toDate, Guid? tourId, CancellationToken cancellationToken = default)
         => context.Trips.AsNoTracking()
-            .Where(x => !x.IsDeleted && x.Status != "Cancelled" && x.StartAt >= from && x.StartAt <= to && (tourId == null || x.TourId == tourId))
+            .Where(x => !x.IsDeleted && x.Status != "Cancelled" && x.StartAt >= fromDate && x.StartAt <= toDate && (tourId == null || x.TourId == tourId))
             .Select(x => new TripOccupancyRow
             {
                 TripId = x.TripId,
@@ -131,7 +131,7 @@ public sealed class AdminOperationRepository(AppDbContext context) : IAdminOpera
                     .Sum(b => b.ParticipantCount)
             }).ToListAsync(cancellationToken);
 
-    public Task<List<AssetUsageRow>> GetAssetUsageAsync(DateTime from, DateTime to, Guid? categoryId, CancellationToken cancellationToken = default)
+    public Task<List<AssetUsageRow>> GetAssetUsageAsync(DateTime fromDate, DateTime toDate, Guid? categoryId, CancellationToken cancellationToken = default)
         => context.EquipmentAssets.AsNoTracking()
             .Where(x => !x.IsDeleted && (categoryId == null || x.ProductVariant.Product.CategoryId == categoryId))
             .Select(x => new AssetUsageRow
@@ -140,7 +140,7 @@ public sealed class AdminOperationRepository(AppDbContext context) : IAdminOpera
                 AssetCode = x.AssetCode,
                 Periods = x.AssetAssignments
                     .Where(a => (a.Status == "Issued" || a.Status == "Returned" || a.Status == "LostOrException")
-                        && a.AssignedAt < to && (a.ReturnedAt == null || a.ReturnedAt > from))
+                        && a.AssignedAt < toDate && (a.ReturnedAt == null || a.ReturnedAt > fromDate))
                     .Select(a => new AssetUsagePeriodRow { AssignedAt = a.AssignedAt, ReservedFrom = a.ReservedFrom, ReturnedAt = a.ReturnedAt })
                     .ToList()
             }).ToListAsync(cancellationToken);

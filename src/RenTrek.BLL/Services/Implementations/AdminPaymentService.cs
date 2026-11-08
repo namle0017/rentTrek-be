@@ -34,7 +34,7 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
     {
         CheckPaging(request);
         Check(request.Status == null || Statuses.Contains(request.Status), "status", "Trạng thái phải là một trong: " + string.Join(", ", Statuses));
-        var page = await _unitOfWork.Payments.GetAdminPagedAsync(ToFilter(request, OrderScope, tab: null), cancellationToken);
+        var page = await UnitOfWork.Payments.GetAdminPagedAsync(ToFilter(request, OrderScope, tab: null), cancellationToken);
         return ToPaged(page, request, ToResponse);
     }
 
@@ -44,7 +44,7 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
         CheckPaging(request);
         var tab = request.Tab ?? PaymentStatuses.PendingApproval;
         Check(RefundTabs.Contains(tab), "tab", "Tab phải là một trong: " + string.Join(", ", RefundTabs));
-        var page = await _unitOfWork.Payments.GetAdminPagedAsync(ToFilter(request, null, tab), cancellationToken);
+        var page = await UnitOfWork.Payments.GetAdminPagedAsync(ToFilter(request, null, tab), cancellationToken);
         return ToPaged(page, request, ToResponse);
     }
 
@@ -75,7 +75,7 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
                 throw new ConflictException("Chỉ thử lại khoản hoàn đang ở trạng thái Thất bại (Failed)", ErrorCodes.RefundNotRetryable);
 
             // ponytail: đếm số lần thử lại từ audit log; thêm cột retry_count nếu cần báo cáo/lọc theo số lần thử
-            var retries = await _unitOfWork.AuditLogs.CountAsync(RetryAction, refund.PaymentId, cancellationToken);
+            var retries = await UnitOfWork.AuditLogs.CountAsync(RetryAction, refund.PaymentId, cancellationToken);
             if (retries >= MaxRetries)
                 throw new ConflictException(
                     $"Đã thử lại tối đa {MaxRetries} lần. Vui lòng hoàn thủ công (mark-manual).",
@@ -104,14 +104,14 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
                 throw new ConflictException("Đơn đang chờ đối soát thanh toán", ErrorCodes.OrderNotReconcilable);
 
             // Khoá theo mã tham chiếu để hai khoản hoàn khác nhau không cùng ghi một mã giao dịch ngân hàng
-            await _unitOfWork.AdminOperations.AcquireLockAsync("manual-reference:" + reference, cancellationToken);
-            if (await _unitOfWork.RefundCases.ProviderTransactionUsedAsync(reference, cancellationToken) ||
-                await _unitOfWork.Payments.ProviderTransactionExistsAsync(reference, cancellationToken))
+            await UnitOfWork.AdminOperations.AcquireLockAsync("manual-reference:" + reference, cancellationToken);
+            if (await UnitOfWork.RefundCases.ProviderTransactionUsedAsync(reference, cancellationToken) ||
+                await UnitOfWork.Payments.ProviderTransactionExistsAsync(reference, cancellationToken))
                 throw new ConflictException("Mã tham chiếu đã được dùng cho giao dịch khác", ErrorCodes.RefundTransactionDuplicated);
 
             refund.Status = PaymentStatuses.Succeeded;
             refund.ProviderTransactionId = reference;
-            refund.ProcessedAt = _timeProvider.GetUtcNow();
+            refund.ProcessedAt = Clock.GetUtcNow();
 
             // refund nằm trong order.Payments (cùng instance tracking) nên tổng đã gồm khoản vừa đổi trạng thái
             var refunded = order.Payments.Where(x => x.PaymentType == Refund && x.Status == PaymentStatuses.Succeeded).Sum(x => x.Amount);
@@ -137,13 +137,13 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
         AdminRefundActionResponse? result = null;
         await AtomicAsync("refund:" + paymentId, async () =>
         {
-            var orderId = await _unitOfWork.Payments.GetOrderIdAsync(paymentId, cancellationToken)
+            var orderId = await UnitOfWork.Payments.GetOrderIdAsync(paymentId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy khoản hoàn tiền", ErrorCodes.NotFound);
-            await _unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
-            var refund = await _unitOfWork.Payments.GetForUpdateAsync(paymentId, cancellationToken);
+            await UnitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
+            var refund = await UnitOfWork.Payments.GetForUpdateAsync(paymentId, cancellationToken);
             if (refund is not { PaymentType: Refund })
                 throw new NotFoundException("Không tìm thấy khoản hoàn tiền", ErrorCodes.NotFound);
-            if (await _unitOfWork.Payments.HasRefundCaseAsync(paymentId, cancellationToken))
+            if (await UnitOfWork.Payments.HasRefundCaseAsync(paymentId, cancellationToken))
                 throw new ConflictException(
                     "Khoản hoàn này đã có hồ sơ hoàn tiền, vui lòng xử lý tại mục Hồ sơ hoàn tiền (/admin/refund-cases)",
                     refundCaseErrorCode);
@@ -151,7 +151,7 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
             var details = await mutate(refund);
             if (details != null)
             {
-                refund.Order.UpdatedAt = _timeProvider.GetUtcNow();
+                refund.Order.UpdatedAt = Clock.GetUtcNow();
                 await AuditAsync(action, "Payment", paymentId, details, cancellationToken);
             }
 
@@ -161,7 +161,7 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
         return result!;
     }
 
-    private AdminPaymentFilter ToFilter(AdminQueryRequest request, Guid? scopeUserId, string? tab) => new()
+    private static AdminPaymentFilter ToFilter(AdminQueryRequest request, Guid? scopeUserId, string? tab) => new()
     {
         ScopeUserId = scopeUserId,
         // Tab hàng đợi O28 đã cố định loại giao dịch và trạng thái

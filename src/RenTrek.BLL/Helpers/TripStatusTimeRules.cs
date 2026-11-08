@@ -1,3 +1,4 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 
 namespace RenTrek.BLL.Helpers;
@@ -49,5 +50,5 @@ public static class TripStatusTimeRules
     private static bool Is(string status, string expected)
         => string.Equals(status, expected, StringComparison.OrdinalIgnoreCase);
 
-    private static string Format(DateTimeOffset value) => value.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm");
+    private static string Format(DateTimeOffset value) => value.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 }

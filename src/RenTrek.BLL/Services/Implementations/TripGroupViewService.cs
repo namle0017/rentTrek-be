@@ -162,7 +162,7 @@ public sealed class TripGroupViewService(
         };
     }
 
-    private static IReadOnlyList<TripActivityPreviewResponse> BuildTripActivityPreviews(Trip trip, DateTimeOffset utcNow)
+    private static List<TripActivityPreviewResponse> BuildTripActivityPreviews(Trip trip, DateTimeOffset utcNow)
     {
         var startDateVn = trip.StartAt.ToOffset(VietnamOffset).Date;
         var isOngoing = trip.StartAt <= utcNow && utcNow < trip.EndAt;

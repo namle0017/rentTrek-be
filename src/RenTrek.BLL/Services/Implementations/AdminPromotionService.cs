@@ -23,7 +23,7 @@ public sealed class AdminPromotionService(
     public async Task<PagedResponse<AdminPromotionResponse>> GetPromotionsAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         CheckPaging(request);
-        var page = await _unitOfWork.Promotions.GetAdminPagedAsync(new AdminPromotionFilter
+        var page = await UnitOfWork.Promotions.GetAdminPagedAsync(new AdminPromotionFilter
         {
             Status = request.Status,
             AppliesTo = request.AppliesTo,
@@ -38,9 +38,9 @@ public sealed class AdminPromotionService(
 
     public async Task<AdminPromotionDetailResponse> GetPromotionAsync(Guid id, CancellationToken cancellationToken)
     {
-        var promotion = await _unitOfWork.Promotions.GetAdminRowAsync(id, cancellationToken)
+        var promotion = await UnitOfWork.Promotions.GetAdminRowAsync(id, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy khuyến mãi");
-        var tiers = (await _unitOfWork.Promotions.GetTiersAsync(id, cancellationToken))
+        var tiers = (await UnitOfWork.Promotions.GetTiersAsync(id, cancellationToken))
             .Select(x => new AdminPromotionTierResponse(x.PromotionTierId, x.QualificationMetric,
                 x.MinThreshold, x.DiscountType, x.DiscountValue, x.GiftProductVariantId, x.GiftQuantity)).ToList();
         return new(ToResponse(promotion), tiers);
@@ -58,10 +58,10 @@ public sealed class AdminPromotionService(
         var promotionId = id ?? Guid.NewGuid();
         await AtomicAsync("promotions", async () =>
         {
-            if (code != null && await _unitOfWork.Promotions.CodeExistsAsync(code, promotionId, cancellationToken))
+            if (code != null && await UnitOfWork.Promotions.CodeExistsAsync(code, promotionId, cancellationToken))
                 throw new ConflictException("Mã khuyến mãi đã tồn tại");
             var promotion = id.HasValue
-                ? await _unitOfWork.Promotions.GetForUpdateAsync(promotionId, cancellationToken) ?? throw new NotFoundException("Không tìm thấy khuyến mãi")
+                ? await UnitOfWork.Promotions.GetForUpdateAsync(promotionId, cancellationToken) ?? throw new NotFoundException("Không tìm thấy khuyến mãi")
                 : new Promotion { PromotionId = promotionId, CreatedByUserId = ActorId, CreatedAt = Now, Status = PromotionStatuses.Draft };
             var before = new { promotion.Name, promotion.Status, promotion.PromotionCode };
             promotion.Name = name; promotion.PromotionCode = code; promotion.Description = request.Description?.Trim();
@@ -69,7 +69,7 @@ public sealed class AdminPromotionService(
             promotion.ApplicationScope = request.ApplicationScope; promotion.MaxUses = request.MaxUses;
             promotion.MaxUsesPerUser = request.MaxUsesPerUser; promotion.IsStackable = request.IsStackable;
             promotion.Priority = request.Priority; promotion.UpdatedAt = Now;
-            if (!id.HasValue) await _unitOfWork.Promotions.AddAsync(promotion, cancellationToken);
+            if (!id.HasValue) await UnitOfWork.Promotions.AddAsync(promotion, cancellationToken);
             await AuditAsync(id.HasValue ? "Update" : "Create", "Promotion", promotionId, new { before, after = request }, cancellationToken);
         }, cancellationToken);
         return promotionId;
@@ -80,12 +80,12 @@ public sealed class AdminPromotionService(
         RequireAdmin(); var status = request.Status;
         await AtomicAsync("promotions", async () =>
         {
-            var promotion = await _unitOfWork.Promotions.GetForUpdateAsync(id, cancellationToken)
+            var promotion = await UnitOfWork.Promotions.GetForUpdateAsync(id, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy khuyến mãi");
             if (status == "Active")
             {
                 Check(promotion.EndAt > Now, "status", "Khuyến mãi đã hết hạn");
-                Check((await _unitOfWork.Promotions.GetTiersAsync(id, cancellationToken)).Count > 0, "status", "Cần cấu hình ít nhất một bậc ưu đãi");
+                Check((await UnitOfWork.Promotions.GetTiersAsync(id, cancellationToken)).Count > 0, "status", "Cần cấu hình ít nhất một bậc ưu đãi");
             }
             var before = promotion.Status; promotion.Status = status; promotion.UpdatedAt = Now;
             await AuditAsync("Update", "Promotion", id, new { before, after = status }, cancellationToken);
@@ -98,13 +98,13 @@ public sealed class AdminPromotionService(
         var tiers = request.Tiers;
         await AtomicAsync("promotions", async () =>
         {
-            if (await _unitOfWork.Promotions.GetForUpdateAsync(id, cancellationToken) == null) throw new NotFoundException("Không tìm thấy khuyến mãi");
+            if (await UnitOfWork.Promotions.GetForUpdateAsync(id, cancellationToken) == null) throw new NotFoundException("Không tìm thấy khuyến mãi");
             var giftIds = tiers.Where(x => x.GiftProductVariantId.HasValue).Select(x => x.GiftProductVariantId!.Value).Distinct().ToList();
-            Check(await _unitOfWork.Promotions.CountActiveVariantsAsync(giftIds, cancellationToken) == giftIds.Count, "giftProductVariantId", "Biến thể quà tặng không tồn tại");
-            var old = await _unitOfWork.Promotions.GetTiersAsync(id, cancellationToken);
+            Check(await UnitOfWork.Promotions.CountActiveVariantsAsync(giftIds, cancellationToken) == giftIds.Count, "giftProductVariantId", "Biến thể quà tặng không tồn tại");
+            var old = await UnitOfWork.Promotions.GetTiersAsync(id, cancellationToken);
             foreach (var tier in old) { tier.IsDeleted = true; tier.UpdatedAt = Now; }
             foreach (var tier in tiers)
-                await _unitOfWork.PromotionTiers.AddAsync(new PromotionTier
+                await UnitOfWork.PromotionTiers.AddAsync(new PromotionTier
                 {
                     PromotionTierId = Guid.NewGuid(),
                     PromotionId = id,
@@ -124,7 +124,7 @@ public sealed class AdminPromotionService(
     public async Task<PagedResponse<AdminPromotionUsageResponse>> GetPromotionUsageAsync(Guid id, AdminQueryRequest request, CancellationToken cancellationToken)
     {
         CheckPaging(request);
-        var page = await _unitOfWork.Promotions.GetUsagePagedAsync(new PromotionUsageFilter
+        var page = await UnitOfWork.Promotions.GetUsagePagedAsync(new PromotionUsageFilter
         {
             PromotionId = id,
             SortBy = request.SortBy,
