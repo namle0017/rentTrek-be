@@ -14,8 +14,12 @@ public sealed class RentalCancellationTests
     {
         var order = new Order
         {
-            OrderId = Guid.NewGuid(), CustomerUserId = Guid.NewGuid(), OrderType = "Rental",
-            Status = "PendingPayment", PaymentStatus = "Unpaid", HoldExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15),
+            OrderId = Guid.NewGuid(),
+            CustomerUserId = Guid.NewGuid(),
+            OrderType = "Rental",
+            Status = "PendingPayment",
+            PaymentStatus = "Unpaid",
+            HoldExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15),
             RentalOrder = new RentalOrder { RentalOrderItems = [new RentalOrderItem { AssetAssignments = [new AssetAssignment { Status = "Reserved" }] }] },
             AppliedPromotions = [new AppliedPromotion { Status = "Applied", AssetAssignments = [new AssetAssignment { Status = "Reserved" }] }],
             Payments = [new Payment { Status = "Pending" }]
@@ -24,8 +28,13 @@ public sealed class RentalCancellationTests
             ("GetForFulfillmentAsync", _ => Task.FromResult<Order?>(order)),
             ("GetOwnedDetailAsync", _ => Task.FromResult<RentalOrderDetailRow?>(new RentalOrderDetailRow
             {
-                OrderId = order.OrderId, OrderType = "Rental", Status = order.Status, PaymentStatus = order.PaymentStatus,
-                CreatedAt = DateTimeOffset.UtcNow, RentalStartAt = DateTime.UtcNow.AddDays(1), RentalEndAt = DateTime.UtcNow.AddDays(2)
+                OrderId = order.OrderId,
+                OrderType = "Rental",
+                Status = order.Status,
+                PaymentStatus = order.PaymentStatus,
+                CreatedAt = DateTimeOffset.UtcNow,
+                RentalStartAt = DateTime.UtcNow.AddDays(1),
+                RentalEndAt = DateTime.UtcNow.AddDays(2)
             })));
         var unit = TestProxy.Create<IUnitOfWork>(
             ("get_RentalOrders", _ => repository),
