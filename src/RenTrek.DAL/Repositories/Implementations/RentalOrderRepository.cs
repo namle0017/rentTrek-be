@@ -64,6 +64,8 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalOrderItems.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.AssetAssignments).ThenInclude(a => a.EquipmentAsset)
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalCharges)
+            .Include(o => o.AppliedPromotions).ThenInclude(p => p.AssetAssignments)
+            .Include(o => o.Payments)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.OrderId == orderId
                                       && !o.IsDeleted
