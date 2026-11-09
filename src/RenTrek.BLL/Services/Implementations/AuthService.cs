@@ -1,6 +1,5 @@
 using System.Globalization;
 using RenTrek.BLL.Constants;
-using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
