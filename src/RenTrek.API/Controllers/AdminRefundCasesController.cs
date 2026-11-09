@@ -21,15 +21,17 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     [HttpGet]
-    public async Task<IActionResult> GetQueue([FromQuery] RefundCaseQueryRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<RefundCaseQueueItemResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetQueueAsync([FromQuery] RefundCaseQueryRequest request, CancellationToken cancellationToken)
     {
         var result = await refundCaseService.GetAdminQueueAsync(request, cancellationToken);
         return Ok(ApiResponse<PagedResponse<RefundCaseQueueItemResponse>>.Ok(result, "Lấy danh sách hồ sơ thành công"));
     }
 
     [HttpPost("export/verification-codes")]
+    [ProducesResponseType(typeof(ApiResponse<RefundChallengeResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> RequestExportCode(CancellationToken cancellationToken)
+    public async Task<IActionResult> RequestExportCodeAsync(CancellationToken cancellationToken)
     {
         var result = await refundCaseService.RequestExportCodeAsync(cancellationToken);
         return Ok(ApiResponse<RefundChallengeResponse>.Ok(result, "Đã gửi mã xác thực tới email của bạn"));
@@ -38,7 +40,8 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     /// <summary>Xuất Excel chứa số tài khoản rõ; mỗi lần xuất cần OTP mới.</summary>
     [HttpPost("export")]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> Export([FromBody] RefundExportRequest request, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, ExcelContentType)]
+    public async Task<IActionResult> ExportAsync([FromBody] RefundExportRequest request, CancellationToken cancellationToken)
     {
         var result = await refundCaseService.ExportAsync(request, cancellationToken);
         Response.Headers.CacheControl = "no-store";
@@ -46,8 +49,9 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     [HttpPost("{refundCaseId:guid}/reject")]
+    [ProducesResponseType(typeof(ApiResponse<RefundCaseSummaryResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> Reject(
+    public async Task<IActionResult> RejectAsync(
         Guid refundCaseId,
         [FromBody] RefundDecisionRequest request,
         CancellationToken cancellationToken)
@@ -57,8 +61,9 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     [HttpPost("{refundCaseId:guid}/complete")]
+    [ProducesResponseType(typeof(ApiResponse<RefundCaseSummaryResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> Complete(
+    public async Task<IActionResult> CompleteAsync(
         Guid refundCaseId,
         [FromBody] CompleteRefundRequest request,
         CancellationToken cancellationToken)
@@ -68,8 +73,9 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     [HttpPost("{refundCaseId:guid}/mark-failed")]
+    [ProducesResponseType(typeof(ApiResponse<RefundCaseSummaryResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
-    public async Task<IActionResult> MarkFailed(
+    public async Task<IActionResult> MarkFailedAsync(
         Guid refundCaseId,
         [FromBody] RefundDecisionRequest request,
         CancellationToken cancellationToken)

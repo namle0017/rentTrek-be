@@ -1,4 +1,4 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
 public class Notification
 {
@@ -11,6 +11,7 @@ public class Notification
     public DateTime CreatedAt { get; set; }
     public string? RelatedEntityType { get; set; }
     public Guid? RelatedEntityId { get; set; }
+    public string? EventKey { get; set; }
 
     public Account RecipientUser { get; set; } = null!;
 }

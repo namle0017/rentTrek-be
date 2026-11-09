@@ -14,57 +14,62 @@ namespace RenTrek.API.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/trips")]
-public sealed class TripsController(ITripGroupService tripGroupService) : ControllerBase
+public sealed class TripsController(ITripService tripService, ITripRecurrenceService tripRecurrenceService) : ControllerBase
 {
     [HttpGet("{tripId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminTripResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
-    public async Task<IActionResult> GetById(Guid tripId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByIdAsync(Guid tripId, CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.GetAdminTripAsync(tripId, cancellationToken);
+        var result = await tripService.GetAdminTripAsync(tripId, cancellationToken);
         return Ok(ApiResponse<AdminTripResponse>.Ok(result, "Lấy thông tin chuyến đi thành công"));
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<AdminTripResponse>), StatusCodes.Status201Created)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Create(
+    public async Task<IActionResult> CreateAsync(
         [FromBody] CreateTripRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.CreateTripAsync(request, cancellationToken);
+        var result = await tripService.CreateTripAsync(request, cancellationToken);
         return StatusCode(
             StatusCodes.Status201Created,
             ApiResponse<AdminTripResponse>.Ok(result, "Tạo chuyến đi và nhóm ban đầu thành công", StatusCodes.Status201Created));
     }
 
     [HttpPut("{tripId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminTripResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Update(
+    public async Task<IActionResult> UpdateAsync(
         Guid tripId,
         [FromBody] UpdateTripRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.UpdateTripAsync(tripId, request, cancellationToken);
+        var result = await tripService.UpdateTripAsync(tripId, request, cancellationToken);
         return Ok(ApiResponse<AdminTripResponse>.Ok(result, "Cập nhật chuyến đi nháp thành công"));
     }
 
     [HttpPatch("{tripId:guid}/status")]
+    [ProducesResponseType(typeof(ApiResponse<AdminTripResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
-    public async Task<IActionResult> UpdateStatus(
+    public async Task<IActionResult> UpdateStatusAsync(
         Guid tripId,
         [FromBody] UpdateTripStatusRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.UpdateTripStatusAsync(tripId, request, cancellationToken);
+        var result = await tripService.UpdateTripStatusAsync(tripId, request, cancellationToken);
         return Ok(ApiResponse<AdminTripResponse>.Ok(result, "Cập nhật trạng thái chuyến đi thành công"));
     }
 
     [HttpPost("generate-recurring")]
+    [ProducesResponseType(typeof(ApiResponse<GenerateRecurringTripsResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> GenerateRecurring(
+    public async Task<IActionResult> GenerateRecurringAsync(
         [FromBody] GenerateRecurringTripsRequest? request,
         CancellationToken cancellationToken)
     {
-        var result = await tripGroupService.GenerateRecurringTripsAsync(request ?? new GenerateRecurringTripsRequest(), cancellationToken);
+        var result = await tripRecurrenceService.GenerateRecurringTripsAsync(request ?? new GenerateRecurringTripsRequest(), cancellationToken);
         return Ok(ApiResponse<GenerateRecurringTripsResponse>.Ok(result, "Thực thi sinh chuyến đi từ lịch lặp hoàn tất"));
     }
 }

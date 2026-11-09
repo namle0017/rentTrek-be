@@ -40,4 +40,19 @@ public class ProductVariantRepository : GenericRepository<ProductVariant>, IProd
             })
             .ToListAsync(cancellationToken);
     }
+
+    public Task<List<ProductVariant>> GetOptionsAsync(CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking()
+            .Include(v => v.Product)
+            .Where(v => !v.IsDeleted && !v.Product.IsDeleted)
+            .OrderBy(v => v.Product.Name)
+            .ThenBy(v => v.Name)
+            .ToListAsync(cancellationToken);
+
+    public Task<bool> SkuExistsAsync(string sku, Guid? excludeVariantId, CancellationToken cancellationToken = default)
+    {
+        var normalized = sku.ToUpper();
+        return _dbSet.IgnoreQueryFilters()
+            .AnyAsync(v => v.Sku.ToUpper() == normalized && v.Id != excludeVariantId, cancellationToken);
+    }
 }

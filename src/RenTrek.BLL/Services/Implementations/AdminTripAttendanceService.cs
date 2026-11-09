@@ -1,6 +1,9 @@
+using System.Globalization;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
@@ -33,7 +36,7 @@ public sealed class AdminTripAttendanceService(
                 ActivityId = a.Id,
                 DayNumber = a.DayNumber,
                 Name = a.Name,
-                StartTime = a.StartTime.ToString(@"hh\:mm\:ss")
+                StartTime = a.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
             })
             .ToList();
 
@@ -90,6 +93,7 @@ public sealed class AdminTripAttendanceService(
 
         var trip = await unitOfWork.ActivityAttendances.GetTripWithTourAndActivitiesAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
         var activity = trip.Tour?.Activities.FirstOrDefault(a => a.Id == request.ActivityId && !a.IsDeleted)
             ?? throw new NotFoundException("Không tìm thấy hoạt động trong lịch trình của tour này");
@@ -206,10 +210,10 @@ public sealed class AdminTripAttendanceService(
 
         return status.Trim() switch
         {
-            var s when s.Equals("Present", StringComparison.OrdinalIgnoreCase) => "Present",
-            var s when s.Equals("Absent", StringComparison.OrdinalIgnoreCase) => "Absent",
-            var s when s.Equals("Late", StringComparison.OrdinalIgnoreCase) => "Late",
-            var s when s.Equals("Excused", StringComparison.OrdinalIgnoreCase) => "Excused",
+            var s when s.Equals(AttendanceStatuses.Present, StringComparison.OrdinalIgnoreCase) => AttendanceStatuses.Present,
+            var s when s.Equals(AttendanceStatuses.Absent, StringComparison.OrdinalIgnoreCase) => AttendanceStatuses.Absent,
+            var s when s.Equals(AttendanceStatuses.Late, StringComparison.OrdinalIgnoreCase) => AttendanceStatuses.Late,
+            var s when s.Equals(AttendanceStatuses.Excused, StringComparison.OrdinalIgnoreCase) => AttendanceStatuses.Excused,
             _ => throw new BadRequestException(
                 "Trạng thái điểm danh chỉ chấp nhận Present, Absent, Late hoặc Excused",
                 "VALIDATION_ERROR")

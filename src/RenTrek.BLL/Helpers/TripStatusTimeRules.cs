@@ -1,10 +1,11 @@
+using System.Globalization;
 using RenTrek.BLL.Constants;
 
 namespace RenTrek.BLL.Helpers;
 
 /// <summary>
 /// Kiểm tra thứ tự và thời điểm chuyển trạng thái Trip (PRD §7.2) cho các bước Staff/Admin bấm tay.
-/// Open / ClosedForBooking / Draft đã được kiểm tra riêng trong TripGroupService.
+/// Open / ClosedForBooking / Draft đã được kiểm tra riêng trong TripService.
 /// </summary>
 public static class TripStatusTimeRules
 {
@@ -49,5 +50,5 @@ public static class TripStatusTimeRules
     private static bool Is(string status, string expected)
         => string.Equals(status, expected, StringComparison.OrdinalIgnoreCase);
 
-    private static string Format(DateTimeOffset value) => value.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm");
+    private static string Format(DateTimeOffset value) => value.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 }

@@ -1,11 +1,11 @@
-using System.Linq.Expressions;
 using RenTrek.BLL.DTOs.Warehouse.Requests;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Services.Warehouse.Implementations;
+using RenTrek.BLL.Constants;
+using RenTrek.BLL.Services.Implementations;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
-using Xunit;
 
 namespace RenTrek.BLL.Tests.Warehouse;
 
@@ -14,9 +14,6 @@ public class TripProvidedItemServiceTests
     private class FakeGenericRepo<T> : IGenericRepository<T> where T : class
     {
         public Task<T?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => Task.FromResult<T?>(null);
-        public IQueryable<T> Query() => new List<T>().AsQueryable();
-        public IQueryable<T> QueryTracking() => new List<T>().AsQueryable();
-        public Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task AddAsync(T entity, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Update(T entity) { }
@@ -24,7 +21,7 @@ public class TripProvidedItemServiceTests
         public void RemoveRange(IEnumerable<T> entities) { }
     }
 
-    private class FakeTripRepo : FakeGenericRepo<Trip>, ITripRepository
+    private sealed class FakeTripRepo : FakeGenericRepo<Trip>, ITripRepository
     {
         Task ITripRepository.AddAuditLogAsync(AuditLog log, CancellationToken cancellationToken) => throw new NotSupportedException();
         Task ITripRepository.AddPaymentsAsync(IEnumerable<Payment> payments, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -64,7 +61,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnTrip);
     }
 
-    private class FakeAssignmentRepo : FakeGenericRepo<AssetAssignment>, IAssetAssignmentRepository
+    private sealed class FakeAssignmentRepo : FakeGenericRepo<AssetAssignment>, IAssetAssignmentRepository
     {
         public AssetAssignment? ReturnAssignment { get; set; }
         public List<AssetAssignment> ReturnAssignmentsList { get; set; } = [];
@@ -79,7 +76,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnAssignmentsList);
     }
 
-    private class FakeTripProvidedItemRepo : FakeGenericRepo<TripProvidedItem>, ITripProvidedItemRepository
+    private sealed class FakeTripProvidedItemRepo : FakeGenericRepo<TripProvidedItem>, ITripProvidedItemRepository
     {
         public List<TripProvidedItem> ReturnItems { get; set; } = [];
         public TripProvidedItem? ReturnItem { get; set; }
@@ -95,7 +92,7 @@ public class TripProvidedItemServiceTests
             => Task.FromResult(ReturnAvailableAssets);
     }
 
-    private class FakeUnitOfWork : IUnitOfWork
+    private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public IAdminOperationRepository AdminOperations => throw new NotSupportedException();
         IRefundCaseRepository IUnitOfWork.RefundCases => throw new NotSupportedException();
@@ -155,11 +152,13 @@ public class TripProvidedItemServiceTests
         public ITourRecurrenceRuleRepository TourRecurrenceRules => throw new NotImplementedException();
         public ITripBookingOrderRepository TripBookingOrders => throw new NotImplementedException();
         public ITripBookingRepository TripBookings => throw new NotImplementedException();
-        public ITripGroupRepository TripGroups => throw new NotImplementedException();
+        public Trip? GroupTrip { get; set; }
+        public ITripGroupRepository TripGroups => TestProxy.Create<ITripGroupRepository>(("GetTripAsync", _ => Task.FromResult(GroupTrip)));
         public IUserExternalLoginRepository UserExternalLogins => throw new NotImplementedException();
 
         public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class => throw new NotImplementedException();
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -172,7 +171,7 @@ public class TripProvidedItemServiceTests
         var uow = new FakeUnitOfWork();
         uow.TripsRepo.ReturnTrip = null;
 
-        var service = new TripProvidedItemService(uow);
+        var service = new TripProvidedItemService(uow, new Actor(Guid.NewGuid(), RoleNames.Admin));
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetProvidedItemsByTripIdAsync(Guid.NewGuid()));
     }
@@ -193,7 +192,7 @@ public class TripProvidedItemServiceTests
             TripProvidedItem = tripItem
         };
 
-        var service = new TripProvidedItemService(uow);
+        var service = new TripProvidedItemService(uow, new Actor(Guid.NewGuid(), RoleNames.Admin));
 
         await Assert.ThrowsAsync<ValidationException>(() => service.UnassignAssetFromTripAsync(tripId, assignmentId));
     }
@@ -220,7 +219,7 @@ public class TripProvidedItemServiceTests
         uow.AssetAssignmentsRepo.ReturnAssignmentsList = [assignment];
         uow.TripProvidedItemsRepo.ReturnItems = [];
 
-        var service = new TripProvidedItemService(uow);
+        var service = new TripProvidedItemService(uow, new Actor(Guid.NewGuid(), RoleNames.Admin));
 
         var request = new ReturnTripGearRequest
         {
@@ -241,5 +240,26 @@ public class TripProvidedItemServiceTests
         Assert.Equal("Returned", assignment.Status);
         Assert.Equal("Damaged", asset.AssetStatus);
         Assert.Equal("Bị nứt quai đeo", asset.ConditionNote);
+    }
+
+    [Fact]
+    public async Task IssueGear_Forbidden_WhenStaffDoesNotManageTrip()
+    {
+        var uow = new FakeUnitOfWork();
+        var tripId = Guid.NewGuid();
+        uow.GroupTrip = new Trip { TripId = tripId, ManagedByUserId = Guid.NewGuid() };
+        var service = new TripProvidedItemService(uow, new Actor(Guid.NewGuid(), RoleNames.Staff));
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() => service.IssueTripGearAsync(tripId, new IssueTripGearRequest()));
+        Assert.Equal(ErrorCodes.TripNotAssigned, ex.ErrorCode);
+    }
+
+    private sealed class Actor(Guid userId, string role) : ICurrentUserService
+    {
+        public Guid? UserId => userId;
+        public Guid RequiredUserId => userId;
+        public string? Jti => null;
+        public string? Role => role;
+        public bool IsAuthenticated => true;
     }
 }

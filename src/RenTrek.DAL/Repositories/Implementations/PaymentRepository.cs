@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 
 namespace RenTrek.DAL.Repositories.Implementations;
@@ -45,4 +47,77 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
 
     public Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default)
         => _dbSet.AnyAsync(p => p.ProviderTransactionId == providerTransactionId, cancellationToken);
+
+    public Task<(IReadOnlyList<AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminPaymentFilter filter, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking();
+        if (filter.ScopeUserId.HasValue)
+        {
+            var orders = OrderRepository.Scoped(_context.Orders, filter.ScopeUserId);
+            query = query.Where(p => orders.Any(o => o.OrderId == p.OrderId));
+        }
+        if (filter.PaymentType != null) query = query.Where(p => p.PaymentType == filter.PaymentType);
+        if (filter.Purpose != null) query = query.Where(p => p.Purpose == filter.Purpose);
+        if (filter.Status != null) query = query.Where(p => p.Status == filter.Status);
+        if (filter.Tab is "PendingApproval" or "Pending" or "Failed")
+            query = query.Where(p => p.PaymentType == "Refund" && p.Status == filter.Tab);
+        if (filter.Tab == "NeedsReconciliation")
+            query = query.Where(p => p.PaymentType == "Collection" && p.Status == "Pending" && p.ProviderTransactionId != null
+                && p.Order.PaymentStatus == "NeedsReconciliation");
+        if (filter.FromDate.HasValue)
+        {
+            var from = ToUtcOffset(filter.FromDate.Value);
+            query = query.Where(p => p.CreatedAt >= from);
+        }
+        if (filter.ToDate.HasValue)
+        {
+            var to = ToUtcOffset(filter.ToDate.Value);
+            query = query.Where(p => p.CreatedAt <= to);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(p => p.Order.OrderCode.ToLower().Contains(search)
+                || (p.ProviderTransactionId != null && p.ProviderTransactionId.ToLower().Contains(search)));
+        }
+
+        var refundCases = _context.RefundCases;
+        var rules = _context.RefundPolicyRules;
+        return query
+            .SortBy(filter.SortBy, filter.IsDescending, nameof(Payment.CreatedAt), nameof(Payment.Amount), nameof(Payment.Status))
+            .ToPageAsync(filter.PageNumber, filter.PageSize, p => new AdminPaymentRow
+            {
+                PaymentId = p.PaymentId,
+                OrderId = p.OrderId,
+                OrderCode = p.Order.OrderCode,
+                OrderPaymentStatus = p.Order.PaymentStatus,
+                PaymentType = p.PaymentType,
+                Purpose = p.Purpose,
+                Amount = p.Amount,
+                PaymentMethod = p.PaymentMethod,
+                ProviderTransactionId = p.ProviderTransactionId,
+                Status = p.Status,
+                FailureReason = refundCases.Where(r => r.RefundPaymentId == p.PaymentId).Select(r => r.RejectionReason).FirstOrDefault(),
+                PolicyMinHoursBefore = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (int?)r.MinHoursBefore).FirstOrDefault(),
+                PolicyRefundPercentage = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (decimal?)r.RefundPercentage).FirstOrDefault(),
+                HasRefundCase = refundCases.Any(r => r.RefundPaymentId == p.PaymentId),
+                CreatedAt = p.CreatedAt
+            }, cancellationToken);
+    }
+
+    public Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking().Where(p => p.PaymentId == paymentId).Select(p => (Guid?)p.OrderId).SingleOrDefaultAsync(cancellationToken);
+
+    public Task<Payment?> GetForUpdateAsync(Guid paymentId, CancellationToken cancellationToken = default)
+        => _dbSet
+            .Include(p => p.Order)
+                .ThenInclude(o => o.Payments)
+            .SingleOrDefaultAsync(p => p.PaymentId == paymentId, cancellationToken);
+
+    public Task<bool> HasRefundCaseAsync(Guid paymentId, CancellationToken cancellationToken = default)
+        => _context.RefundCases.AnyAsync(r => r.RefundPaymentId == paymentId, cancellationToken);
+
+    private static DateTimeOffset ToUtcOffset(DateTime value)
+        => new(DateTime.SpecifyKind(value, DateTimeKind.Utc), TimeSpan.Zero);
 }

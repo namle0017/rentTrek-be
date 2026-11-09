@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -32,7 +33,11 @@ public sealed class SourceConventionsTests
                 violations.Add($"{relative}: expected file-scoped namespace {expected}");
             var primaryTypes = root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>()
                 .Where(type => type.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax).ToArray();
-            if (primaryTypes.Length != 1 || primaryTypes[0].Identifier.ValueText != Path.GetFileNameWithoutExtension(file))
+            // Partial class được tách theo phần: Type.Part.cs
+            var fileName = Path.GetFileNameWithoutExtension(file);
+            if (primaryTypes.Length != 1 || (primaryTypes[0].Identifier.ValueText != fileName
+                && !(primaryTypes[0].Modifiers.Any(SyntaxKind.PartialKeyword)
+                    && fileName.StartsWith(primaryTypes[0].Identifier.ValueText + ".", StringComparison.Ordinal))))
                 violations.Add($"{relative}: one primary type with matching file name required");
         }
         Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
@@ -80,8 +85,12 @@ public sealed class SourceConventionsTests
                 if (name.EndsWith("Controller", StringComparison.Ordinal)) expected = "RenTrek.API.Controllers";
                 if (name.EndsWith("Validator", StringComparison.Ordinal)) expected = "RenTrek.BLL.Validators.";
                 if (name.EndsWith("Profile", StringComparison.Ordinal) && type.BaseType?.FullName == "AutoMapper.Profile") expected = "RenTrek.BLL.Mappings";
+                if ((name.EndsWith("Request", StringComparison.Ordinal) || name.EndsWith("Response", StringComparison.Ordinal)) && name != "ApiResponse") expected = "RenTrek.BLL.DTOs.";
                 if (name.EndsWith("Repository", StringComparison.Ordinal)) expected = type.IsInterface ? "RenTrek.DAL.Repositories.Interfaces" : "RenTrek.DAL.Repositories.Implementations";
-                if (expected is not null && !ns.StartsWith(expected, StringComparison.Ordinal))
+                // 02-ARCHITECTURE: controller nằm phẳng trong Controllers/, không chia folder con.
+                if (name.EndsWith("Controller", StringComparison.Ordinal) && ns != "RenTrek.API.Controllers")
+                    violations.Add($"{type.FullName}: expected exactly RenTrek.API.Controllers");
+                else if (expected is not null && !ns.StartsWith(expected, StringComparison.Ordinal))
                     violations.Add($"{type.FullName}: expected {expected}");
             }
         }

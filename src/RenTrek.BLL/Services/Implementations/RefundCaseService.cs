@@ -28,6 +28,7 @@ public sealed class RefundCaseService(
     IRefundVerificationService verificationService,
     IEmailSender emailSender,
     ILogger<RefundCaseService> logger,
+    INotificationService notificationService,
     IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService
 {
     private const string PaymentTypeRefund = "Refund";
@@ -40,14 +41,14 @@ public sealed class RefundCaseService(
     private static readonly string[] AdminOnly = [RoleNames.Admin];
     private TimeSpan PayoutRetention => TimeSpan.FromDays(refundOptions?.Value.PayoutRetentionDays ?? 30);
 
-    public async Task<RefundQuoteResult> QuoteAsync(Order order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    public async Task<RefundQuoteResult> QuoteAsync(RefundOrderInput order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
     {
         var policy = await unitOfWork.RefundCases.GetPolicyWithRulesAsync(order.RefundPolicyId, cancellationToken);
         var paidAmount = order.PaymentStatus == OrderPaymentStatuses.Paid
             ? await unitOfWork.TripBookings.GetSucceededPaymentTotalAsync(order.OrderId, cancellationToken)
             : 0m;
 
-        var hoursBefore = (order.TripBookingOrder.Trip.StartAt - utcNow).TotalHours;
+        var hoursBefore = (order.TripStartAt - utcNow).TotalHours;
         var rule = policy?.RefundPolicyRules
             .Where(x => x.MinHoursBefore <= hoursBefore)
             .MaxBy(x => x.MinHoursBefore);
@@ -65,7 +66,7 @@ public sealed class RefundCaseService(
     }
 
     public async Task<RefundCaseSummaryResponse> OpenForCancellationAsync(
-        Order order,
+        RefundOrderInput order,
         RefundQuoteResult quote,
         RefundBankAccountRequest bankAccount,
         string consentVersion,
@@ -145,7 +146,7 @@ public sealed class RefundCaseService(
             throw new ForbiddenException("Email của Admin chưa được xác minh");
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);
-        RefundActionChallenge challenge;
+        RefundChallengeResponse challenge;
         string code;
         try
         {
@@ -166,7 +167,7 @@ public sealed class RefundCaseService(
             "Mã xác thực hoàn tiền RenTrekk",
             $"<p>Mã xác thực của bạn là <strong>{code}</strong>. Mã có hiệu lực trong 5 phút.</p>",
             cancellationToken);
-        return new RefundChallengeResponse { ChallengeId = challenge.ChallengeId, ExpiresAt = challenge.ExpiresAt };
+        return challenge;
     }
 
     public async Task<RefundExportFileResponse> ExportAsync(RefundExportRequest request, CancellationToken cancellationToken = default)
@@ -226,7 +227,15 @@ public sealed class RefundCaseService(
             refund.RejectionReason = request.Reason.Trim();
             refund.RefundPayment.Status = PaymentStatuses.Cancelled;
             await AuditAsync(currentUser.RequiredUserId, "RefundCaseRejected", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Hồ sơ hoàn tiền bị từ chối", "Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Hồ sơ hoàn tiền bị từ chối",
+                $"Hồ sơ hoàn tiền cho đơn {refund.Order.OrderCode} bị từ chối. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -275,7 +284,15 @@ public sealed class RefundCaseService(
             refund.Order.UpdatedAt = utcNow;
 
             await AuditAsync(adminId, "RefundCompleted", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Hoàn tiền hoàn tất", "Tiền hoàn đã được chuyển vào tài khoản của bạn.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Hoàn tiền hoàn tất",
+                $"Tiền hoàn cho đơn {refund.Order.OrderCode} đã được chuyển thành công.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -295,7 +312,15 @@ public sealed class RefundCaseService(
             refund.RefundPayment.Status = PaymentStatuses.Failed;
             refund.RefundPayment.ProcessedAt = utcNow;
             await AuditAsync(currentUser.RequiredUserId, "RefundMarkedFailed", refund, utcNow, cancellationToken);
-            await NotifyAsync(refund.CustomerUserId, "Chuyển khoản hoàn tiền thất bại", "Vui lòng liên hệ hỗ trợ để được xử lý.", refund, utcNow, cancellationToken);
+            await notificationService.QueueAsync(
+                refund.CustomerUserId,
+                NotificationTypes.RefundResult,
+                "Chuyển khoản hoàn tiền thất bại",
+                $"Chuyển khoản hoàn tiền cho đơn {refund.Order.OrderCode} thất bại. Vui lòng liên hệ hỗ trợ để được xử lý.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -513,7 +538,7 @@ public sealed class RefundCaseService(
             CompletedAt = refund.CompletedAt
         };
 
-    private static IReadOnlyList<RefundTimelineEventResponse> BuildTimeline(RefundCase refund)
+    private static List<RefundTimelineEventResponse> BuildTimeline(RefundCase refund)
     {
         (string Status, DateTimeOffset? At)[] events =
         [

@@ -20,9 +20,18 @@
 ## Route khi tích hợp các phân hệ (2026-11-04)
 
 - API mà frontend hiện dùng giữ nguyên: `/admin/posts` (trình soạn bài viết với `tagNames`, `tourIds`, `status`) và `/admin/rental-orders` (vận hành theo GUID).
-- Nhóm quản trị dùng `IAdminService` trong mục 19 chuyển sang `/admin/management/posts`; các thao tác list/detail/claim trong mục 15 chuyển sang `/admin/management/rental-orders`. Request, response và phân quyền của nhóm này giữ nguyên.
-- Phí và đóng đơn kho theo mã đơn dùng `/admin/rental-orders/by-code/{orderCode}/charges` và `/admin/rental-orders/by-code/{orderCode}/complete`; các route theo GUID mà frontend dùng giữ nguyên.
+- Nhóm quản trị bài viết trong mục 19 chuyển sang `/admin/posts`.
+- Vận hành đơn thuê chỉ còn một luồng `/admin/rental-orders/{orderId}` (mục 15–16); các route `/admin/management/rental-orders*` và `/admin/rental-orders/by-code/*` đã bỏ (2026-11-05).
 - Tách route để mỗi phương thức HTTP và đường dẫn chỉ có một action, kể cả khi khác tên tham số đường dẫn.
+
+## Bảo mật & phân quyền (2026-11-05)
+
+- **Rate limit auth:** `register`, `login`, `verify-email`, `forgot-password`, `reset-password`, `google` giới hạn 10 request / phút / IP → `429 TOO_MANY_REQUESTS`.
+- **Khóa đăng nhập:** sai mật khẩu 5 lần → khóa 15 phút theo email, trả `429 TOO_MANY_REQUESTS`. OTP đặt lại mật khẩu sai 5 lần cũng khóa và hủy OTP. Bộ đếm lưu ở bảng `auth_attempts` (migration `20261105_auth_attempts.sql`) nên đúng khi chạy nhiều instance.
+- **Google:** `POST /auth/google` kiểm chữ ký và `aud` của `idToken` theo `GoogleAuth:ClientId` (env `GoogleAuth__ClientId`, trùng `VITE_GOOGLE_CLIENT_ID` của FE). `GoogleAuth:AllowUnsignedDevTokens` chỉ bật ở máy dev.
+- **Phạm vi Staff (PRD §3.2 "G"):** Staff xem mọi chuyến, nhưng chỉ được ghi trên chuyến có `managedByUserId` là mình; ngược lại trả `403 TRIP_NOT_ASSIGNED`. Áp dụng: sửa / đổi trạng thái chuyến (`/admin/trips/*`, `/trips/{tripId}`), Kanban và tách đoàn (`/admin/trips/{tripId}/groups*`), xếp nhóm / phân guide / publish (`/trips/{tripId}/groups*`), điểm danh, cấp phát / thu hồi đồ cấp. Admin không bị chặn. Staff tạo / sửa chuyến chỉ được để `managedByUserId` là chính mình (bỏ trống = mình); gán người khác trả `403 TRIP_NOT_ASSIGNED`.
+- **Đơn thuê:** đơn đã có Staff khác nhận (`handledByUserId`) thì Staff khác thao tác bàn giao / trả / phí / hoàn tất nhận `403 FORBIDDEN`; đơn chưa ai nhận vẫn thao tác được (bàn giao tự nhận đơn).
+- **Audit Kanban:** `KanbanCreateGroup`, `KanbanUpdateGroup`, `KanbanDeleteGroup`, `KanbanMoveParticipant`, `KanbanAutoGroup`. Mỗi thay đổi bật `providedItemsNeedsRecalc` và tăng `rowVersion` của chuyến.
 
 ## Mục lục
 
@@ -48,8 +57,8 @@
 - [12. Admin: Quản lý Đơn hàng Tổng hợp & Đơn Tour (Màn O38, O15)](#12-admin-quản-lý-đơn-hàng-tổng-hợp--đơn-tour-màn-o38-o15)
 - [13. Admin: Sản phẩm, Biến thể, Bảng giá & Combo (Màn O16, O17, O18, O19)](#13-admin-sản-phẩm-biến-thể-bảng-giá--combo-màn-o16-o17-o18-o19)
 - [14. Admin: Quản lý Thiết bị (Asset) & Lịch Gantt (Màn O20, O21)](#14-admin-quản-lý-thiết-bị-asset--lịch-gantt-màn-o20-o21)
-- [15. Admin: Đơn thuê & Quy trình Giao nhận (Màn O22, O23, O24, O25)](#15-admin-đơn-thuê--quy-trình-giao-nhận-màn-o22-o23-o24-o25)
-- [16. Admin: Phí phát sinh & Quyết toán Đơn thuê (Màn O26)](#16-admin-phí-phát-sinh--quyết-toán-đơn-thuê-màn-o26)
+- [15. Admin: Vận hành đơn thuê (Màn O22–O26)](#15-admin-vận-hành-đơn-thuê-màn-o22o26)
+- [16. Admin: Phí phát sinh & Đóng đơn thuê (FR-C02–C05, FR-R08)](#16-admin-phí-phát-sinh--đóng-đơn-thuê-fr-c02c05-fr-r08)
 - [17. Admin: Giao dịch, Hoàn tiền & Đối soát (Màn O27, O28)](#17-admin-giao-dịch-hoàn-tiền--đối-soát-màn-o27-o28)
 - [18. Admin: Chương trình Khuyến mãi (Màn O29, O30, O31)](#18-admin-chương-trình-khuyến-mãi-màn-o29-o30-o31)
 - [19. Admin: Quản lý Bài viết & Nội dung Hướng dẫn (Màn O32)](#19-admin-quản-lý-bài-viết--nội-dung-hướng-dẫn-màn-o32)
@@ -58,6 +67,9 @@
 - [22. Admin: Báo cáo Vận hành & Phân tích (Màn O37)](#22-admin-báo-cáo-vận-hành--phân-tích-màn-o37)
 - [23. Admin: Kiểm duyệt Đánh giá - Review (Màn O39)](#23-admin-kiểm-duyệt-đánh-giá---review-màn-o39)
 - [24. Guide: Khu vực Hướng dẫn viên Thực địa (Màn G01 – G06)](#24-guide-khu-vực-hướng-dẫn-viên-thực-địa-màn-g01--g06)
+- [25. Dev Clock (chỉ Development)](#25-dev-clock-chỉ-development)
+- [26. Participants, Bài viết Tour & Đánh giá](#26-participants-bài-viết-tour--đánh-giá)
+- [27. Thông báo trong ứng dụng](#27-thông-báo-trong-ứng-dụng)
 - [Phụ lục: Enum](#phụ-lục-enum)
 - [Phụ lục: Mã lỗi nghiệp vụ](#phụ-lục-mã-lỗi-nghiệp-vụ)
 - [Template endpoint](#template-endpoint)
@@ -291,26 +303,32 @@ HTTP 500 Internal Server Error
 
 | # | Module | Method | Endpoint | Auth | Mô tả | Trạng thái |
 |---|---|---|---|---|---|---|
-| 1.1 | Auth | `POST` | `/auth/register` | Public | Đăng ký | ⬜ TODO |
-| 1.2 | Auth | `POST` | `/auth/login` | Public | Đăng nhập | ⬜ TODO |
-| 1.3 | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | ⬜ TODO |
-| 1.4 | Auth | `POST` | `/auth/logout` | User | Đăng xuất | ⬜ TODO |
+| 1.1 | Auth | `POST` | `/auth/register` | Public | Đăng ký | ✅ Done |
+| 1.2 | Auth | `POST` | `/auth/login` | Public | Đăng nhập | ✅ Done |
+| 1.3 | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | ✅ Done |
+| 1.4 | Auth | `POST` | `/auth/logout` | User | Đăng xuất | ✅ Done |
 | 1.5 | Auth | `POST` | `/auth/verify-email` | Public | Xác thực email và tự gán chuyến đã thanh toán | ✅ Done |
 | 1.6 | Auth | `POST` | `/auth/resend-verification-email` | User | Gửi lại email xác thực | ✅ Done |
-| 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ⬜ TODO |
-| 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ⬜ TODO |
+| 2.1 | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | ✅ Done |
+| 2.2 | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | ✅ Done |
 | 2.3 | Users | `GET` | `/users` | Admin | Danh sách user | ⬜ TODO |
 | 2.4 | Users | `GET` | `/users/me/orders` | User | Đơn hàng của tôi (đơn thuê và booking chuyến đi) | 🔁 Changed |
+| 2.5 | Users | `GET` | `/users/me/participations` | User | Danh sách chuyến đi đã liên kết tài khoản kèm số bài chưa đọc | ✅ Done |
+| 2.6 | Notifications | `GET` | `/users/me/notifications` | User | Danh sách thông báo in-app của người dùng hiện tại (mới nhất trước, hỗ trợ lọc chưa đọc & phân trang) | ✅ Done |
+| 2.7 | Notifications | `GET` | `/users/me/notifications/unread-count` | User | Đếm số lượng thông báo chưa đọc của người dùng hiện tại | ✅ Done |
+| 2.8 | Notifications | `POST` | `/users/me/notifications/{notificationId}/read` | User | Đánh dấu đã đọc một thông báo thuộc người dùng hiện tại (idempotent, giữ `readAt` gốc) | ✅ Done |
+| 2.9 | Notifications | `POST` | `/users/me/notifications/read-all` | User | Đánh dấu đã đọc toàn bộ thông báo chưa đọc của người dùng hiện tại | ✅ Done |
 | 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking nhóm và giữ chỗ (hỗ trợ đặt giùm, gán theo email) | 🔁 Changed |
 | 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | 🔁 Changed |
 | 3.3 | Trip Bookings | `PUT` | `/trip-bookings/{orderId}/participants/{participantId}` | User | Buyer sửa họ tên, email, số điện thoại người đi trước khởi hành | ✅ Done |
 | 3.4 | Trip Bookings | `GET`, `POST` | `/trip-bookings/{orderId}/invite-link`, `/invite-link/rotate` | User | Lấy hoặc đổi link xem chuyến chỉ đọc | 🔁 Changed |
 | 3.5 | Trip Bookings | `POST` | `/trip-bookings/participant-invitations/preview` | Public | Xem danh sách họ tên đoàn và lịch hoạt động bằng link | 🔁 Changed |
 | 3.6 | Trip Bookings | `POST` | `/trip-bookings/{orderId}/cancel` | User | Hủy toàn bộ booking trước khởi hành, giải phóng chỗ group và giữ lịch sử | ✅ Done |
-| 4.1 | Tours | `GET` | `/tours` | Public | Lấy danh sách tour kèm bộ lọc & phân trang | ✅ Done |
-| 4.2 | Tours | `GET` | `/tours/{id}` | Public | Lấy thông tin chi tiết một tour | ✅ Done |
+| 4.1 | Tours | `GET` | `/tours` | Public | Lấy danh sách tour kèm bộ lọc & phân trang. Chỉ trả tour Active/Published; Draft/Archived/Expired và tour đã xoá bị ẩn. Mỗi họ tour chỉ 1 thẻ: bản Active/Published có `version` lớn nhất; trip của thẻ gồm cả trip Open sắp tới của bản cũ cùng họ còn đang bán | ✅ Done |
+| 4.2 | Tours | `GET` | `/tours/{id}` | Public | Lấy thông tin chi tiết một tour. `404` nếu tour Draft hoặc đã xoá; tour Archived/Expired vẫn mở được để xem lại chuyến đã đặt. **FE:** khi `status` không phải `Active`/`Published` thì trang chỉ xem: ẩn hoặc vô hiệu nút đặt của mọi trip trong `availableTrips`, hiện nhãn "Tour đã ngừng nhận booking" (BE vẫn trả trip Open, nhưng `POST /trip-bookings` sẽ `409`). Tour đang bán: `availableTrips` có thêm trip Open sắp tới của bản khác cùng họ còn đang bán; tour Archived/Expired chỉ có trip của chính nó. Mỗi trip có `tourId` = phiên bản tạo ra trip. **FE:** `tourId` khác id tour đang xem thì hiện nhãn "Lịch trình phiên bản trước" và link `/tours/{tourId}` để xem đúng lịch trình; đặt chỗ vẫn dùng `tripId` như thường | ✅ Done |
 | 4.3 | Tours | `PUT` | `/tours/{id}/group-settings` | Admin | Cấu hình `groupMaxParticipants` cho phiên bản Tour | ✅ Done |
 | 4.4 | Tours | `GET`, `POST` | `/tours/{id}/recurrence-rules` | Admin | Danh sách và tạo quy tắc lịch lặp kèm `defaultGroupCount` | ✅ Done |
+| 4.5 | Tours | `GET` | `/tours/{tourId}/reviews` | Public | Điểm trung bình, phân bố số sao và danh sách đánh giá theo họ tour | ✅ Done |
 | 5.1 | Products | `GET` | `/products` | Public | Danh sách sản phẩm thuê / bán | ✅ Done |
 | 5.2 | Products | `GET` | `/products/{id}` | Public | Chi tiết sản phẩm, biến thể, ảnh, giá | ✅ Done |
 | 5.3 | Products | `GET` | `/products/categories` | Public | Danh mục lọc sản phẩm | ✅ Done |
@@ -320,6 +338,9 @@ HTTP 500 Internal Server Error
 | 7.2 | Rental Orders | `POST` | `/rental-orders/quote` | User | Báo giá đơn thuê | 🟨 In progress |
 | 7.3 | Rental Orders | `POST` | `/rental-orders` | Customer | Tạo đơn thuê và giữ chỗ (Idempotency-Key) | 🟨 In progress |
 | 7.4 | Rental Orders | `GET` | `/rental-orders/{orderId}` | Customer | Chi tiết đơn thuê của tôi | 🟨 In progress |
+| 7.5 | Rental Orders | `POST` | `/rental-orders/{orderId}/extensions/quote` | Customer | Báo giá gia hạn đơn thuê (FR-R09, UAT-19) | ✅ Done |
+| 7.6 | Rental Orders | `POST` | `/rental-orders/{orderId}/extensions` | Customer | Gia hạn đơn thuê kèm xác nhận phụ phí (FR-R09, UAT-19) | ✅ Done |
+| 7.7 | Rental Orders | `GET` | `/rental-orders/{orderId}/adjustments` | Customer | Lịch sử điều chỉnh đơn thuê của tôi | ✅ Done |
 | 8.1 | Trip Groups | `GET` | `/trips/{tripId}/grouping` | Staff/Admin/Guide | Snapshot chia đoàn theo quyền | ✅ Done |
 | 8.2 | Trip Groups | `PUT` | `/trips/{tripId}/groups/{groupId}/guide` | Staff/Admin | Gán hoặc bỏ guide khi còn Draft | ✅ Done |
 | 8.3 | Trip Groups | `PUT` | `/trips/{tripId}/bookings/{bookingOrderId}/group` | Staff/Admin | Chuyển nguyên booking sang group | ✅ Done |
@@ -331,196 +352,229 @@ HTTP 500 Internal Server Error
 | 8.0b | Trips (Admin) | `GET`, `POST`, `PUT`, `PATCH` | `/trips/{tripId}`, `/trips`, `/trips/{tripId}/status`, `/trips/generate-recurring` | Admin/Staff | Quản trị Trip, đồng bộ số group `Draft`, mở bán và sinh chuyến từ lịch lặp | ✅ Done |
 | 9.1 | Admin Catalog | `GET` | `/admin/tours` | Admin/Staff | Danh sách phiên bản Tour mới nhất cho O05 | ✅ Done |
 | 9.2 | Admin Catalog | `GET` | `/admin/products` | Admin/Staff | Danh sách sản phẩm và số lượng tài sản cho O16 | ✅ Done |
+| 26.1 | Participants | `GET` | `/participants/{participantId}/posts` | User (chủ participant) | Danh sách bài viết Published của tour kèm trạng thái đã đọc | ✅ Done |
+| 26.2 | Participants | `POST` | `/participants/{participantId}/posts/{postId}/read` | User (chủ participant) | Đánh dấu bài viết tour đã đọc (idempotent) | ✅ Done |
+| 26.3 | Participants | `POST` | `/participants/{participantId}/review` | User (chủ participant) | Gửi đánh giá 1–5 sao duy nhất sau chuyến đi | ✅ Done |
+| 26.4 | Participants | `PUT` | `/participants/{participantId}/review` | User (chủ participant) | Chỉnh sửa đánh giá trong thời hạn cấu hình (mặc định 7 ngày) | ✅ Done |
 | # | Module | Method | Endpoint | Auth | Mô tả | Lý do cần tách API riêng | Trạng thái |
 |---|---|---|---|---|---|---|---|
-| **1.1** | Auth | `POST` | `/auth/register` | Public | Đăng ký tài khoản khách hàng | Tạo tài khoản kèm profile người dùng | ⬜ TODO |
-| **1.2** | Auth | `POST` | `/auth/login` | Public | Đăng nhập hệ thống | Xác thực thông tin, cấp cặp Access/Refresh Token | ⬜ TODO |
-| **1.3** | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | Cơ chế xoay vòng token gia hạn phiên | ⬜ TODO |
-| **1.4** | Auth | `POST` | `/auth/logout` | User | Đăng xuất | Thu hồi refresh token của phiên hiện tại | ⬜ TODO |
-| **2.1** | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | Tải profile người dùng đang đăng nhập | ⬜ TODO |
-| **2.2** | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | Sửa avatar, họ tên, số điện thoại, ngày sinh | ⬜ TODO |
-| **3.1** | Dashboard | `GET` | `/admin/dashboard/stats` | Staff/Admin | Số liệu đếm tổng hợp nhanh | Tải badge số liệu nhẹ, không nghẽn trang | ⬜ TODO |
-| **3.2** | Dashboard | `GET` | `/admin/dashboard/alerts` | Staff/Admin | Danh sách cảnh báo vận hành khẩn | Tập trung các sự vụ cần xử lý ngay | ⬜ TODO |
-| **3.3** | Dashboard | `GET` | `/admin/dashboard/kpis` | Admin | Các chỉ số KPI tuần/tháng | Tải bất đồng bộ các biểu đồ doanh thu, lấp chỗ | ⬜ TODO |
-| **4.1** | Users | `GET` | `/admin/users` | Admin | Danh sách người dùng | Phân trang, tìm kiếm, lọc theo vai trò và trạng thái | ⬜ TODO |
-| **4.2** | Users | `POST` | `/admin/users/staff` | Admin | Tạo tài khoản Staff/Guide | Cấp tài khoản nhân sự nội bộ | ⬜ TODO |
-| **4.3** | Users | `GET` | `/admin/users/{userId}` | Admin | Chi tiết người dùng | Thông tin tài khoản, hồ sơ và thống kê vai trò | ⬜ TODO |
-| **4.4** | Users | `PUT` | `/admin/users/{userId}/profile` | Admin | Cập nhật hồ sơ user | Admin hỗ trợ sửa thông tin sai sót của khách | ⬜ TODO |
-| **4.5** | Users | `PATCH` | `/admin/users/{userId}/role` | Admin | Đổi vai trò (Role) | Phân quyền bảo mật cao, tách khỏi sửa hồ sơ | ⬜ TODO |
-| **4.6** | Users | `POST` | `/admin/users/{userId}/lock` | Admin | Khóa tài khoản | Bắt buộc nhập lý do, lập tức thu hồi phiên | ⬜ TODO |
-| **4.7** | Users | `POST` | `/admin/users/{userId}/unlock` | Admin | Mở khóa tài khoản | Khôi phục trạng thái hoạt động | ⬜ TODO |
-| **4.8** | Users | `GET` | `/admin/users/{userId}/sessions` | Admin | Xem các phiên đăng nhập | Lazy-load tab bảo mật, kiểm tra thiết bị đăng nhập | ⬜ TODO |
-| **4.9** | Users | `DELETE` | `/admin/users/{userId}/sessions/{sessionId}` | Admin | Thu hồi 1 phiên đăng nhập | Cưỡng chế ngắt kết nối thiết bị đáng ngờ | ⬜ TODO |
-| **4.10**| Users | `DELETE` | `/admin/users/{userId}/sessions` | Admin | Thu hồi tất cả phiên đăng nhập | Đăng xuất toàn bộ khi phát hiện rủi ro | ⬜ TODO |
-| **4.11**| Users | `GET` | `/admin/users/{userId}/activities` | Admin | Lịch sử hoạt động của user | Lazy-load tab Audit log theo user | ⬜ TODO |
-| **5.1** | Catalog | `GET` | `/admin/categories` | Staff/Admin | Danh sách danh mục | Lọc theo loại (Tour/Equipment/Bundle) | ⬜ TODO |
-| **5.2** | Catalog | `POST` | `/admin/categories` | Admin | Tạo danh mục mới | Master data phân loại hệ thống | ⬜ TODO |
-| **5.3** | Catalog | `PUT` | `/admin/categories/{categoryId}` | Admin | Sửa danh mục | Cập nhật tên, mô tả danh mục | ⬜ TODO |
-| **5.4** | Catalog | `DELETE`| `/admin/categories/{categoryId}` | Admin | Xóa (ẩn) danh mục | Soft-delete `is_deleted = 1` | ⬜ TODO |
-| **5.5** | Catalog | `GET` | `/admin/locations` | Staff/Admin | Danh sách địa điểm | Hiển thị tọa độ bản đồ & số tour gắn kèm | ⬜ TODO |
-| **5.6** | Catalog | `POST` | `/admin/locations` | Admin | Tạo địa điểm mới | Nhập tên, địa chỉ, kinh độ, vĩ độ | ⬜ TODO |
-| **5.7** | Catalog | `PUT` | `/admin/locations/{locationId}` | Admin | Sửa địa điểm | Cập nhật thông tin điểm đến | ⬜ TODO |
-| **5.8** | Catalog | `DELETE`| `/admin/locations/{locationId}` | Admin | Xóa địa điểm | Chặn xóa nếu đang có tour sử dụng | ⬜ TODO |
-| **5.9** | Catalog | `GET` | `/admin/tags` | Staff/Admin | Danh sách tag bài viết | Gắn nhãn bài viết hướng dẫn | ⬜ TODO |
-| **5.10**| Catalog | `POST` | `/admin/tags` | Admin | Tạo tag mới | Quản trị taxonomy | ⬜ TODO |
-| **5.11**| Catalog | `PUT` | `/admin/tags/{tagId}` | Admin | Sửa tag | Đổi tên/slug | ⬜ TODO |
-| **5.12**| Catalog | `DELETE`| `/admin/tags/{tagId}` | Admin | Xóa tag | Xóa liên kết nhãn | ⬜ TODO |
-| **5.13**| Catalog | `GET` | `/admin/soft-skills` | Staff/Admin | Danh sách kỹ năng mềm | Định danh kỹ năng chuẩn bị cho trekking | ⬜ TODO |
-| **5.14**| Catalog | `POST` | `/admin/soft-skills` | Admin | Tạo kỹ năng mềm | Master data nội dung | ⬜ TODO |
-| **5.15**| Catalog | `PUT` | `/admin/soft-skills/{skillId}` | Admin | Sửa kỹ năng mềm | Cập nhật mô tả kỹ năng | ⬜ TODO |
-| **5.16**| Catalog | `DELETE`| `/admin/soft-skills/{skillId}` | Admin | Xóa kỹ năng mềm | Ẩn kỹ năng không áp dụng | ⬜ TODO |
-| **6.1** | Tours | `GET` | `/admin/tours` | Staff/Admin | Danh sách tour vận hành | Lọc trạng thái, chỉ lấy version mới nhất | ⬜ TODO |
-| **6.2** | Tours | `POST` | `/admin/tours` | Admin | Tạo tour mới (Draft) | Khởi tạo thông tin cơ bản của tour | ⬜ TODO |
-| **6.3** | Tours | `GET` | `/admin/tours/{tourId}` | Staff/Admin | Chi tiết thông tin chung tour | Tải tab 1 O06, kiểm tra cờ khóa lịch trình | ⬜ TODO |
-| **6.4** | Tours | `PUT` | `/admin/tours/{tourId}` | Admin | Sửa thông tin chung tour | Sửa tên, giá cơ sở, số ngày/đêm | ⬜ TODO |
-| **6.5** | Tours | `POST` | `/admin/tours/{tourId}/publish` | Admin | Xuất bản tour | Đưa tour lên trạng thái Published công khai | ⬜ TODO |
-| **6.6** | Tours | `POST` | `/admin/tours/{tourId}/archive` | Admin | Lưu trữ / Ẩn tour | Dừng hiển thị tour ra ngoài công chúng | ⬜ TODO |
-| **6.7** | Tours | `GET` | `/admin/tours/{tourId}/images` | Staff/Admin | Danh sách ảnh tour | Lazy-load tab Ảnh, giảm dung lượng thông tin chung | ⬜ TODO |
-| **6.8** | Tours | `POST` | `/admin/tours/{tourId}/images` | Admin | Thêm ảnh vào tour | Tải ảnh mới lên thư viện tour | ⬜ TODO |
-| **6.9** | Tours | `PUT` | `/admin/tours/{tourId}/images/reorder`| Admin | Sắp xếp ảnh & chọn ảnh đại diện | Thao tác kéo thả giao diện | ⬜ TODO |
-| **6.10**| Tours | `DELETE`| `/admin/tours/{tourId}/images/{imageId}` | Admin | Xóa ảnh khỏi tour | Xóa liên kết ảnh | ⬜ TODO |
-| **6.11**| Tours | `GET` | `/admin/tours/{tourId}/activities` | Staff/Admin | Lịch trình các ngày của tour | Lazy-load tab Lịch trình, nhóm theo ngày | ⬜ TODO |
-| **6.12**| Tours | `POST` | `/admin/tours/{tourId}/activities` | Admin | Thêm hoạt động vào lịch trình | Chặn nếu lịch trình đã bị khóa do có đơn đặt | ⬜ TODO |
-| **6.13**| Tours | `PUT` | `/admin/tours/{tourId}/activities/{activityId}` | Admin | Sửa hoạt động trong ngày | Cập nhật giờ, tên, mô tả hoạt động | ⬜ TODO |
-| **6.14**| Tours | `DELETE`| `/admin/tours/{tourId}/activities/{activityId}` | Admin | Xóa hoạt động | Xóa bước lịch trình | ⬜ TODO |
-| **6.15**| Tours | `PUT` | `/admin/tours/{tourId}/activities/reorder` | Admin | Sắp xếp lại thứ tự hoạt động | Kéo thả builder timeline theo ngày | ⬜ TODO |
-| **6.16**| Tours | `GET` | `/admin/tours/{tourId}/preparation-items` | Staff/Admin | Danh sách đồ tự mang | Lazy-load tab Đồ tự mang | ⬜ TODO |
-| **6.17**| Tours | `PUT` | `/admin/tours/{tourId}/preparation-items` | Admin | Cập nhật danh sách đồ tự mang | Cập nhật checklist cho khách chuẩn bị | ⬜ TODO |
-| **6.18**| Tours | `GET` | `/admin/tours/{tourId}/provided-items` | Staff/Admin | Danh sách đồ cấp cấu hình cho tour | Lazy-load tab Đồ cấp | ⬜ TODO |
-| **6.19**| Tours | `POST` | `/admin/tours/{tourId}/provided-items` | Admin | Thêm cấu hình đồ cấp | Chọn variant, số lượng, cơ sở tính (khách/nhóm) | ⬜ TODO |
-| **6.20**| Tours | `PUT` | `/admin/tours/{tourId}/provided-items/{itemId}` | Admin | Sửa cấu hình đồ cấp | Thay đổi định mức cấp phát | ⬜ TODO |
-| **6.21**| Tours | `DELETE`| `/admin/tours/{tourId}/provided-items/{itemId}` | Admin | Xóa cấu hình đồ cấp | Xóa định mức | ⬜ TODO |
-| **6.22**| Tours | `GET` | `/admin/tours/{tourId}/posts` | Staff/Admin | Danh sách bài viết gắn vào tour | Lazy-load tab Bài viết | ⬜ TODO |
-| **6.23**| Tours | `PUT` | `/admin/tours/{tourId}/posts` | Admin | Cập nhật bài viết gắn vào tour | Thay đổi bài viết kiến thức bắt buộc đọc | ⬜ TODO |
-| **6.24**| Tours | `GET` | `/admin/tours/{tourId}/versions` | Staff/Admin | Lịch sử phiên bản tour | Drawer O07 tra cứu cây phiên bản | ⬜ TODO |
-| **6.25**| Tours | `POST` | `/admin/tours/{tourId}/versions/clone` | Admin | Tạo phiên bản mới (Clone) | Nhân bản cấu trúc tour sang version mới (Draft) | ⬜ TODO |
-| **6.26**| Tours | `GET` | `/admin/tours/{tourId}/versions/diff` | Staff/Admin | So sánh 2 phiên bản tour | So sánh sai khác lịch trình giữa 2 phiên bản | ⬜ TODO |
-| **7.1** | Recurrence| `GET` | `/admin/tours/{tourId}/recurrence-rules` | Staff/Admin | Danh sách quy tắc lặp chuyến | Cấu hình lặp sinh chuyến của tour O08 | ⬜ TODO |
-| **7.2** | Recurrence| `POST`| `/admin/tours/{tourId}/recurrence-rules` | Admin | Tạo quy tắc lặp mới | Thiết lập tần suất, thứ trong tuần, số chỗ, giá | ⬜ TODO |
-| **7.3** | Recurrence| `PUT` | `/admin/recurrence-rules/{ruleId}` | Admin | Sửa quy tắc lặp | Không làm ảnh hưởng chuyến đã sinh ra trước đó | ⬜ TODO |
-| **7.4** | Recurrence| `DELETE`|`/admin/recurrence-rules/{ruleId}`| Admin | Xóa quy tắc lặp | Dừng lặp tự động | ⬜ TODO |
-| **7.5** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/preview` | Staff/Admin | Xem trước lịch sinh chuyến | Kiểm tra lịch trước khi chạy, tránh trùng ngày | ⬜ TODO |
-| **7.6** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/generate` | Admin | Kích hoạt sinh chuyến hàng loạt | Batch generate hàng loạt chuyến đi vào DB | ⬜ TODO |
-| **8.1** | Trips | `GET` | `/admin/trips` | Staff/Admin | Danh sách chuyến đi (Table/Calendar) | Lọc tour, trạng thái, khoảng ngày | ⬜ TODO |
-| **8.2** | Trips | `POST` | `/admin/trips` | Admin/Staff | Tạo chuyến đi thủ công | Khởi tạo chuyến với ngày, số chỗ, giá, guide | ⬜ TODO |
-| **8.3** | Trips | `GET` | `/admin/trips/{tripId}` | Staff/Admin | Chi tiết tổng quan chuyến đi | Tab 1 O10, kiểm tra tiến độ bán chỗ | ⬜ TODO |
-| **8.4** | Trips | `PUT` | `/admin/trips/{tripId}` | Admin/Staff | Sửa thông tin chuyến đi | Chặn giảm chỗ nhỏ hơn số khách đã mua | ⬜ TODO |
-| **8.5** | Trips | `GET` | `/admin/trips/{tripId}/readiness-checklist` | Staff/Admin | Checklist sẵn sàng khởi hành | Tổng hợp 5 điều kiện khởi hành (FR-D07) | ⬜ TODO |
-| **8.6** | Trips | `POST` | `/admin/trips/{tripId}/open-booking` | Admin/Staff | Mở bán chuyến | Chuyển trạng thái Draft -> Open | ⬜ TODO |
-| **8.7** | Trips | `POST` | `/admin/trips/{tripId}/close-booking`| Admin/Staff | Đóng cổng nhận khách | Chuyển trạng thái Open -> ClosedForBooking | ⬜ TODO |
-| **8.8** | Trips | `POST` | `/admin/trips/{tripId}/start` | Admin/Staff | Bắt đầu chuyến đi | Chuyển sang InProgress khi khách lên đường | ⬜ TODO |
-| **8.9** | Trips | `POST` | `/admin/trips/{tripId}/complete` | Admin/Staff | Hoàn thành chuyến đi | Chuyển sang Completed, kích hoạt quyền review | ⬜ TODO |
-| **8.10**| Trips | `POST` | `/admin/trips/{tripId}/cancel` | Admin | Hủy chuyến đi | Tính toán hoàn tiền, giải phóng kho thiết bị | ⬜ TODO |
-| **8.11**| Trips | `GET` | `/admin/trips/{tripId}/bookings` | Staff/Admin | Danh sách booking và khách của chuyến| Tab Booking O11 | ⬜ TODO |
-| **8.12**| Trips | `GET` | `/admin/trips/{tripId}/manifest` | Staff/Admin | Xuất danh sách khách (Manifest) | Báo cáo in ấn danh sách hành khách theo nhóm | ⬜ TODO |
-| **9.1** | Groups | `GET` | `/admin/trips/{tripId}/groups-board` | Staff/Admin | Bảng Kanban chia nhóm | Lấy cột chưa xếp + các cột nhóm và guide O12 | ⬜ TODO |
-| **9.2** | Groups | `POST` | `/admin/trips/{tripId}/groups` | Admin/Staff | Tạo nhóm mới trong chuyến | Tạo nhóm kèm sĩ số tối đa và gán Guide | ⬜ TODO |
-| **9.3** | Groups | `PUT` | `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Cập nhật thông tin nhóm | Đổi guide, đổi tên nhóm | ⬜ TODO |
-| **9.4** | Groups | `DELETE`| `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Giải tán nhóm | Chuyển toàn bộ khách về cột chưa chia nhóm | ⬜ TODO |
-| **9.5** | Groups | `PATCH`| `/admin/trips/{tripId}/participants/assign-group` | Admin/Staff | Gán / Chuyển nhóm cho khách | Kéo thả Kanban, kiểm tra sức chứa nhóm | ⬜ TODO |
-| **9.6** | Groups | `POST` | `/admin/trips/{tripId}/auto-group` | Admin/Staff | Tự động chia nhóm theo thuật toán | Thuật toán gom nhóm giữ nguyên các đơn đi chung | ⬜ TODO |
-| **9.7** | Groups | `POST` | `/admin/trips/{tripId}/bookings/{bookingId}/split-approve` | Admin/Staff | Duyệt tách booking đi chung | Bắt buộc nhập lý do tách đoàn, lưu audit | ⬜ TODO |
-| **10.1**| Gear | `GET` | `/admin/trips/{tripId}/provided-items` | Staff/Admin | Danh sách đồ cấp cần chuẩn bị | Tab O13 tính nhu cầu dựa theo số khách/nhóm | ⬜ TODO |
-| **10.2**| Gear | `GET` | `/admin/trips/{tripId}/provided-items/{itemId}/available-assets` | Staff/Admin | Tra cứu thiết bị trống trong kho | Tìm asset khả dụng trong khung ngày chuyến đi | ⬜ TODO |
-| **10.3**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/{itemId}/assignments` | Staff/Admin | Gán thiết bị cụ thể cho chuyến | Giữ chỗ asset (`Reserved`) | ⬜ TODO |
-| **10.4**| Gear | `DELETE`| `/admin/trips/{tripId}/assignments/{assignmentId}` | Staff/Admin | Hủy gán thiết bị | Giải phóng asset trả về kho | ⬜ TODO |
-| **10.5**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/issue` | Staff/Admin | Quét barcode xuất kho giao đoàn | Chuyển trạng thái sang `Issued` trước khi đi | ⬜ TODO |
-| **10.6**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/return` | Staff/Admin | Quét barcode thu hồi sau chuyến | Ghi nhận tình trạng khi nhận lại thiết bị | ⬜ TODO |
-| **11.1**| Attendance| `GET` | `/admin/trips/{tripId}/attendance-matrix` | Staff/Admin | Ma trận điểm danh chuyến | Lấy lưới 2 chiều (khách × hoạt động tour) O14 | ⬜ TODO |
-| **11.2**| Attendance| `PUT` | `/admin/trips/{tripId}/attendances` | Staff/Admin/Guide | Ghi nhận/Cập nhật điểm danh | Cập nhật trạng thái điểm danh, bắt buộc lý do nếu sửa | ⬜ TODO |
-| **11.3**| Attendance| `GET` | `/admin/trips/{tripId}/attendances/history` | Staff/Admin | Lịch sử sửa đổi điểm danh | Audit trail chi tiết cho từng ô điểm danh | ⬜ TODO |
-| **12.1**| Orders | `GET` | `/admin/orders` | Staff/Admin | Danh sách đơn hàng tổng hợp | Màn O38 lọc cả đơn tour & đơn thuê, hạn đối soát | ⬜ TODO |
-| **12.2**| Orders | `GET` | `/admin/orders/{orderCode}` | Staff/Admin | Chi tiết đơn hàng cho vận hành | Màn O15 xem toàn bộ khách, khuyến mãi, thanh toán | ⬜ TODO |
-| **12.3**| Orders | `PATCH`| `/admin/orders/{orderCode}/participants/{participantId}` | Staff/Admin | Sửa thông tin participant thay khách | Hỗ trợ sửa sai sót họ tên/SĐT, ghi audit | ⬜ TODO |
-| **12.4**| Orders | `POST` | `/admin/orders/{orderCode}/manual-payment` | Admin | Ghi nhận thanh toán thủ công | Xử lý trường hợp khách chuyển khoản trực tiếp | ⬜ TODO |
-| **12.5**| Orders | `POST` | `/admin/orders/{orderCode}/cancel-by-admin` | Admin | Admin hủy đơn thay khách | Hủy đơn khẩn cấp, sinh yêu cầu hoàn tiền | ⬜ TODO |
-| **13.1**| Products | `GET` | `/admin/products` | Staff/Admin | Danh sách sản phẩm cho thuê | Màn O16 kèm số variant, tổng asset khả dụng | ⬜ TODO |
-| **13.2**| Products | `POST` | `/admin/products` | Admin | Tạo sản phẩm mới | Khởi tạo sản phẩm cha | ⬜ TODO |
-| **13.3**| Products | `GET` | `/admin/products/{productId}` | Staff/Admin | Chi tiết sản phẩm & biến thể | Màn O17 master-detail | ⬜ TODO |
-| **13.4**| Products | `PUT` | `/admin/products/{productId}` | Admin | Sửa thông tin sản phẩm | Cập nhật tên, danh mục, mô tả | ⬜ TODO |
-| **13.5**| Products | `DELETE`| `/admin/products/{productId}` | Admin | Xóa sản phẩm | Ẩn sản phẩm khỏi danh mục thuê | ⬜ TODO |
-| **13.6**| Products | `POST` | `/admin/products/{productId}/variants` | Admin | Tạo biến thể sản phẩm | Tạo SKU, màu sắc, kích thước mới | ⬜ TODO |
-| **13.7**| Products | `PUT` | `/admin/variants/{variantId}` | Admin | Sửa biến thể sản phẩm | Cập nhật thông tin chi tiết biến thể | ⬜ TODO |
-| **13.8**| Products | `DELETE`| `/admin/variants/{variantId}` | Admin | Xóa biến thể | Dừng kinh doanh biến thể | ⬜ TODO |
-| **13.9**| Products | `POST` | `/admin/variants/{variantId}/images` | Admin | Thêm ảnh biến thể | Quản lý media của biến thể | ⬜ TODO |
-| **13.10**| Products | `DELETE`| `/admin/variants/{variantId}/images/{imageId}` | Admin | Xóa ảnh biến thể | Xóa ảnh media | ⬜ TODO |
-| **13.11**| Products | `GET` | `/admin/variants/{variantId}/price-tiers` | Staff/Admin | Bảng giá thuê theo ngày của biến thể | Xem các bậc giá theo khoảng ngày | ⬜ TODO |
-| **13.12**| Products | `PUT` | `/admin/variants/{variantId}/price-tiers` | Admin | Cập nhật bậc giá thuê của biến thể | Validate khoảng ngày không chồng lấn | ⬜ TODO |
-| **13.13**| Products | `GET` | `/admin/pricing` | Staff/Admin | Bảng giá thuê tổng hợp | Màn O18 tra cứu tổng thể bảng giá toàn kho | ⬜ TODO |
-| **13.14**| Bundles | `GET` | `/admin/bundles` | Staff/Admin | Danh sách combo thiết bị | Màn O19 danh sách combo | ⬜ TODO |
-| **13.15**| Bundles | `POST` | `/admin/bundles` | Admin | Tạo combo mới | Tạo thông tin gói combo | ⬜ TODO |
-| **13.16**| Bundles | `GET` | `/admin/bundles/{bundleId}` | Staff/Admin | Chi tiết combo, thành phần & giá | Lấy đầy đủ cấu hình combo | ⬜ TODO |
-| **13.17**| Bundles | `PUT` | `/admin/bundles/{bundleId}` | Admin | Sửa thông tin combo | Cập nhật tên, mô tả combo | ⬜ TODO |
-| **13.18**| Bundles | `DELETE`| `/admin/bundles/{bundleId}` | Admin | Xóa combo | Ẩn combo | ⬜ TODO |
-| **13.19**| Bundles | `PUT` | `/admin/bundles/{bundleId}/items` | Admin | Cập nhật thành phần của combo | Chọn các variant thành phần và số lượng | ⬜ TODO |
-| **13.20**| Bundles | `GET` | `/admin/bundles/{bundleId}/price-tiers` | Staff/Admin | Bảng giá thuê của combo | Xem các bậc giá thuê theo số ngày combo | ⬜ TODO |
-| **13.21**| Bundles | `PUT` | `/admin/bundles/{bundleId}/price-tiers` | Admin | Cập nhật bậc giá thuê của combo | Thiết lập đơn giá thuê combo | ⬜ TODO |
+| **1.1** | Auth | `POST` | `/auth/register` | Public | Đăng ký tài khoản khách hàng | Tạo tài khoản kèm profile người dùng | ✅ Done |
+| **1.2** | Auth | `POST` | `/auth/login` | Public | Đăng nhập hệ thống | Xác thực thông tin, cấp cặp Access/Refresh Token | ✅ Done |
+| **1.3** | Auth | `POST` | `/auth/refresh-token` | Public | Làm mới access token | Cơ chế xoay vòng token gia hạn phiên | ✅ Done |
+| **1.4** | Auth | `POST` | `/auth/logout` | User | Đăng xuất | Thu hồi refresh token của phiên hiện tại | ✅ Done |
+| **2.1** | Users | `GET` | `/users/me` | User | Lấy thông tin cá nhân | Tải profile người dùng đang đăng nhập | ✅ Done |
+| **2.2** | Users | `PUT` | `/users/me` | User | Cập nhật thông tin cá nhân | Sửa avatar, họ tên, số điện thoại, ngày sinh | ✅ Done |
+| **3.1** | Dashboard | `GET` | `/admin/dashboard/stats` | Staff/Admin | Số liệu đếm tổng hợp nhanh | Tải badge số liệu nhẹ, không nghẽn trang | ✅ Done |
+| **3.2** | Dashboard | `GET` | `/admin/dashboard/alerts` | Staff/Admin | Danh sách cảnh báo vận hành khẩn | Tập trung các sự vụ cần xử lý ngay | ✅ Done |
+| **3.3** | Dashboard | `GET` | `/admin/dashboard/kpis` | Admin | Các chỉ số KPI tuần/tháng | Tải bất đồng bộ các biểu đồ doanh thu, lấp chỗ | ✅ Done |
+| **4.1** | Users | `GET` | `/admin/users` | Admin | Danh sách người dùng | Phân trang, tìm kiếm, lọc theo vai trò và trạng thái | ✅ Done |
+| **4.2** | Users | `POST` | `/admin/users/staff` | Admin | Tạo tài khoản Staff/Guide | Cấp tài khoản nhân sự nội bộ | ✅ Done |
+| **4.3** | Users | `GET` | `/admin/users/{userId}` | Admin | Chi tiết người dùng | Thông tin tài khoản, hồ sơ và thống kê vai trò | ✅ Done |
+| **4.4** | Users | `PUT` | `/admin/users/{userId}/profile` | Admin | Cập nhật hồ sơ user | Admin hỗ trợ sửa thông tin sai sót của khách | ✅ Done |
+| **4.5** | Users | `PATCH` | `/admin/users/{userId}/role` | Admin | Đổi vai trò (Role) | Phân quyền bảo mật cao, tách khỏi sửa hồ sơ | ✅ Done |
+| **4.6** | Users | `POST` | `/admin/users/{userId}/lock` | Admin | Khóa tài khoản | Bắt buộc nhập lý do, lập tức thu hồi phiên | ✅ Done |
+| **4.7** | Users | `POST` | `/admin/users/{userId}/unlock` | Admin | Mở khóa tài khoản | Khôi phục trạng thái hoạt động | ✅ Done |
+| **4.8** | Users | `GET` | `/admin/users/{userId}/sessions` | Admin | Xem các phiên đăng nhập | Lazy-load tab bảo mật, kiểm tra thiết bị đăng nhập | ✅ Done |
+| **4.9** | Users | `DELETE` | `/admin/users/{userId}/sessions/{sessionId}` | Admin | Thu hồi 1 phiên đăng nhập | Cưỡng chế ngắt kết nối thiết bị đáng ngờ | ✅ Done |
+| **4.10**| Users | `DELETE` | `/admin/users/{userId}/sessions` | Admin | Thu hồi tất cả phiên đăng nhập | Đăng xuất toàn bộ khi phát hiện rủi ro | ✅ Done |
+| **4.11**| Users | `GET` | `/admin/users/{userId}/activities` | Admin | Lịch sử hoạt động của user | Lazy-load tab Audit log theo user | ✅ Done |
+| **5.1** | Catalog | `GET` | `/admin/categories` | Staff/Admin | Danh sách danh mục | Lọc theo loại (Tour/Equipment/Bundle) | ✅ Done |
+| **5.2** | Catalog | `POST` | `/admin/categories` | Admin | Tạo danh mục mới | Master data phân loại hệ thống | ✅ Done |
+| **5.3** | Catalog | `PUT` | `/admin/categories/{categoryId}` | Admin | Sửa danh mục | Cập nhật tên, mô tả danh mục | ✅ Done |
+| **5.4** | Catalog | `DELETE`| `/admin/categories/{categoryId}` | Admin | Xóa (ẩn) danh mục | Soft-delete `is_deleted = 1` | ✅ Done |
+| **5.5** | Catalog | `GET` | `/admin/locations` | Staff/Admin | Danh sách địa điểm | Hiển thị tọa độ bản đồ & số tour gắn kèm | ✅ Done |
+| **5.6** | Catalog | `POST` | `/admin/locations` | Admin | Tạo địa điểm mới | Nhập tên, địa chỉ, kinh độ, vĩ độ | ✅ Done |
+| **5.7** | Catalog | `PUT` | `/admin/locations/{locationId}` | Admin | Sửa địa điểm | Cập nhật thông tin điểm đến | ✅ Done |
+| **5.8** | Catalog | `DELETE`| `/admin/locations/{locationId}` | Admin | Xóa địa điểm | Chặn xóa nếu đang có tour sử dụng | ✅ Done |
+| **5.9** | Catalog | `GET` | `/admin/tags` | Staff/Admin | Danh sách tag bài viết | Gắn nhãn bài viết hướng dẫn | ✅ Done |
+| **5.10**| Catalog | `POST` | `/admin/tags` | Admin | Tạo tag mới | Quản trị taxonomy | ✅ Done |
+| **5.11**| Catalog | `PUT` | `/admin/tags/{tagId}` | Admin | Sửa tag | Đổi tên/slug | ✅ Done |
+| **5.12**| Catalog | `DELETE`| `/admin/tags/{tagId}` | Admin | Xóa tag | Xóa liên kết nhãn | ✅ Done |
+| **5.13**| Catalog | `GET` | `/admin/soft-skills` | Staff/Admin | Danh sách kỹ năng mềm | Định danh kỹ năng chuẩn bị cho trekking | ✅ Done |
+| **5.14**| Catalog | `POST` | `/admin/soft-skills` | Admin | Tạo kỹ năng mềm | Master data nội dung | ✅ Done |
+| **5.15**| Catalog | `PUT` | `/admin/soft-skills/{skillId}` | Admin | Sửa kỹ năng mềm | Cập nhật mô tả kỹ năng | ✅ Done |
+| **5.16**| Catalog | `DELETE`| `/admin/soft-skills/{skillId}` | Admin | Xóa kỹ năng mềm | Ẩn kỹ năng không áp dụng | ✅ Done |
+| **6.1** | Tours | `GET` | `/admin/tours` | Staff/Admin | Danh sách tour vận hành | Lọc trạng thái, chỉ lấy version mới nhất | ✅ Done |
+| **6.2** | Tours | `POST` | `/admin/tours` | Admin | Tạo tour mới (Draft) | Khởi tạo thông tin cơ bản của tour | ✅ Done |
+| **6.3** | Tours | `GET` | `/admin/tours/{tourId}` | Staff/Admin | Chi tiết thông tin chung tour | Tải tab 1 O06, kiểm tra cờ khóa lịch trình | ✅ Done |
+| **6.4** | Tours | `PUT` | `/admin/tours/{tourId}` | Admin | Sửa thông tin chung tour | Sửa tên, giá cơ sở, số ngày/đêm | ✅ Done |
+| **6.4a**| Tours | `DELETE`| `/admin/tours/{tourId}` | Admin | Xóa mềm cả họ tour | Ngoài thiết kế gốc: chỉ khi mọi phiên bản chưa có chuyến; đã có chuyến thì dùng Archive | ✅ Done |
+| **6.5** | Tours | `POST` | `/admin/tours/{tourId}/publish` | Admin | Xuất bản tour | Đưa tour lên trạng thái Published công khai | ✅ Done |
+| **6.6** | Tours | `POST` | `/admin/tours/{tourId}/archive` | Admin | Lưu trữ / Ẩn tour | Dừng hiển thị tour ra ngoài công chúng | ✅ Done |
+| **6.7** | Tours | `GET` | `/admin/tours/{tourId}/images` | Staff/Admin | Danh sách ảnh tour | Lazy-load tab Ảnh, giảm dung lượng thông tin chung | ✅ Done |
+| **6.8** | Tours | `POST` | `/admin/tours/{tourId}/images` | Admin | Thêm ảnh vào tour | Tải ảnh mới lên thư viện tour | ✅ Done |
+| **6.9** | Tours | `PUT` | `/admin/tours/{tourId}/images/reorder`| Admin | Sắp xếp ảnh & chọn ảnh đại diện | Thao tác kéo thả giao diện | ✅ Done |
+| **6.10**| Tours | `DELETE`| `/admin/tours/{tourId}/images/{imageId}` | Admin | Xóa ảnh khỏi tour | Xóa liên kết ảnh | ✅ Done |
+| **6.11**| Tours | `GET` | `/admin/tours/{tourId}/activities` | Staff/Admin | Lịch trình các ngày của tour | Lazy-load tab Lịch trình, nhóm theo ngày | ✅ Done |
+| **6.12**| Tours | `POST` | `/admin/tours/{tourId}/activities` | Admin | Thêm hoạt động vào lịch trình | Chặn nếu lịch trình đã bị khóa do có đơn đặt | ✅ Done |
+| **6.13**| Tours | `PUT` | `/admin/tours/{tourId}/activities/{activityId}` | Admin | Sửa hoạt động trong ngày | Cập nhật giờ, tên, mô tả hoạt động | ✅ Done |
+| **6.14**| Tours | `DELETE`| `/admin/tours/{tourId}/activities/{activityId}` | Admin | Xóa hoạt động | Xóa bước lịch trình | ✅ Done |
+| **6.15**| Tours | `PUT` | `/admin/tours/{tourId}/activities/reorder` | Admin | Sắp xếp lại thứ tự hoạt động | Kéo thả builder timeline theo ngày | ✅ Done |
+| **6.16**| Tours | `GET` | `/admin/tours/{tourId}/preparation-items` | Staff/Admin | Danh sách đồ tự mang | Lazy-load tab Đồ tự mang | ✅ Done |
+| **6.17**| Tours | `PUT` | `/admin/tours/{tourId}/preparation-items` | Admin | Cập nhật danh sách đồ tự mang | Cập nhật checklist cho khách chuẩn bị | ✅ Done |
+| **6.18**| Tours | `GET` | `/admin/tours/{tourId}/provided-items` | Staff/Admin | Danh sách đồ cấp cấu hình cho tour | Lazy-load tab Đồ cấp | ✅ Done |
+| **6.19**| Tours | `POST` | `/admin/tours/{tourId}/provided-items` | Admin | Thêm cấu hình đồ cấp | Chọn variant, số lượng, cơ sở tính (khách/nhóm) | ✅ Done |
+| **6.20**| Tours | `PUT` | `/admin/tours/{tourId}/provided-items/{itemId}` | Admin | Sửa cấu hình đồ cấp | Thay đổi định mức cấp phát | ✅ Done |
+| **6.21**| Tours | `DELETE`| `/admin/tours/{tourId}/provided-items/{itemId}` | Admin | Xóa cấu hình đồ cấp | Xóa định mức | ✅ Done |
+| **6.22**| Tours | `GET` | `/admin/tours/{tourId}/posts` | Staff/Admin | Danh sách bài viết gắn vào tour | Lazy-load tab Bài viết | ✅ Done |
+| **6.23**| Tours | `PUT` | `/admin/tours/{tourId}/posts` | Admin | Cập nhật bài viết gắn vào tour | Thay đổi bài viết kiến thức bắt buộc đọc | ✅ Done |
+| **6.24**| Tours | `GET` | `/admin/tours/{tourId}/versions` | Staff/Admin | Lịch sử phiên bản tour | Drawer O07 tra cứu cây phiên bản | ✅ Done |
+| **6.25**| Tours | `POST` | `/admin/tours/{tourId}/versions/clone` | Admin | Tạo phiên bản mới (Clone) | Nhân bản cấu trúc tour sang version mới (Draft) | ✅ Done |
+| **6.26**| Tours | `GET` | `/admin/tours/{tourId}/versions/diff` | Staff/Admin | So sánh 2 phiên bản tour | So sánh sai khác lịch trình giữa 2 phiên bản | ✅ Done |
+| **7.1** | Recurrence| `GET` | `/admin/tours/{tourId}/recurrence-rules` | Staff/Admin | Danh sách quy tắc lặp chuyến | Cấu hình lặp sinh chuyến của tour O08 | ✅ Done |
+| **7.2** | Recurrence| `POST`| `/admin/tours/{tourId}/recurrence-rules` | Admin | Tạo quy tắc lặp mới | Thiết lập tần suất, thứ trong tuần, số chỗ, giá | ✅ Done |
+| **7.3** | Recurrence| `PUT` | `/admin/recurrence-rules/{ruleId}` | Admin | Sửa quy tắc lặp | Không làm ảnh hưởng chuyến đã sinh ra trước đó | ✅ Done |
+| **7.4** | Recurrence| `DELETE`|`/admin/recurrence-rules/{ruleId}`| Admin | Xóa quy tắc lặp | Dừng lặp tự động | ✅ Done |
+| **7.5** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/preview` | Staff/Admin | Xem trước lịch sinh chuyến | Kiểm tra lịch trước khi chạy, tránh trùng ngày | ✅ Done |
+| **7.6** | Recurrence| `POST`| `/admin/recurrence-rules/{ruleId}/generate` | Admin | Kích hoạt sinh chuyến hàng loạt | Batch generate hàng loạt chuyến đi vào DB | ✅ Done |
+| **8.1** | Trips | `GET` | `/admin/trips` | Staff/Admin | Danh sách chuyến đi (Table/Calendar) | Lọc tour, trạng thái, khoảng ngày | ✅ Done |
+| **8.2** | Trips | `POST` | `/admin/trips` | Admin/Staff | Tạo chuyến đi thủ công | Khởi tạo chuyến với ngày, số chỗ, giá, guide | ✅ Done |
+| **8.3** | Trips | `GET` | `/admin/trips/{tripId}` | Staff/Admin | Chi tiết tổng quan chuyến đi | Tab 1 O10, kiểm tra tiến độ bán chỗ | ✅ Done |
+| **8.4** | Trips | `PUT` | `/admin/trips/{tripId}` | Admin/Staff | Sửa thông tin chuyến đi | Chặn giảm chỗ nhỏ hơn số khách đã mua | ✅ Done |
+| **8.5** | Trips | `GET` | `/admin/trips/{tripId}/readiness-checklist` | Staff/Admin | Checklist sẵn sàng khởi hành | Tổng hợp 5 điều kiện khởi hành (FR-D07) | ✅ Done |
+| **8.6** | Trips | `POST` | `/admin/trips/{tripId}/open-booking` | Admin/Staff | Mở bán chuyến | Chuyển trạng thái Draft -> Open | ✅ Done |
+| **8.7** | Trips | `POST` | `/admin/trips/{tripId}/close-booking`| Admin/Staff | Đóng cổng nhận khách | Chuyển trạng thái Open -> ClosedForBooking | ✅ Done |
+| **8.8** | Trips | `POST` | `/admin/trips/{tripId}/start` | Admin/Staff | Bắt đầu chuyến đi | Chuyển sang InProgress khi khách lên đường | ✅ Done |
+| **8.9** | Trips | `POST` | `/admin/trips/{tripId}/complete` | Admin/Staff | Hoàn thành chuyến đi | Chuyển sang Completed, kích hoạt quyền review | ✅ Done |
+| **8.10**| Trips | `POST` | `/admin/trips/{tripId}/cancel` | Admin | Hủy chuyến đi | Tính toán hoàn tiền, giải phóng kho thiết bị | ✅ Done |
+| **8.11**| Trips | `GET` | `/admin/trips/{tripId}/bookings` | Staff/Admin | Danh sách booking và khách của chuyến| Tab Booking O11 | ✅ Done |
+| **8.12**| Trips | `GET` | `/admin/trips/{tripId}/manifest` | Staff/Admin | Xuất danh sách khách (Manifest) | Báo cáo in ấn danh sách hành khách theo nhóm | ✅ Done |
+| **9.1** | Groups | `GET` | `/admin/trips/{tripId}/groups-board` | Staff/Admin | Bảng Kanban chia nhóm | Lấy cột chưa xếp + các cột nhóm và guide O12 | ✅ Done |
+| **9.2** | Groups | `POST` | `/admin/trips/{tripId}/groups` | Admin/Staff | Tạo nhóm mới trong chuyến | Tạo nhóm kèm sĩ số tối đa và gán Guide | ✅ Done |
+| **9.3** | Groups | `PUT` | `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Cập nhật thông tin nhóm | Đổi guide, đổi tên nhóm | ✅ Done |
+| **9.4** | Groups | `DELETE`| `/admin/trips/{tripId}/groups/{groupId}` | Admin/Staff | Giải tán nhóm | Chuyển toàn bộ khách về cột chưa chia nhóm | ✅ Done |
+| **9.5** | Groups | `PATCH`| `/admin/trips/{tripId}/participants/assign-group` | Admin/Staff | Gán / Chuyển nhóm cho khách | Kéo thả Kanban, kiểm tra sức chứa nhóm | ✅ Done |
+| **9.6** | Groups | `POST` | `/admin/trips/{tripId}/auto-group` | Admin/Staff | Tự động chia nhóm theo thuật toán | Thuật toán gom nhóm giữ nguyên các đơn đi chung | ✅ Done |
+| **9.7** | Groups | `POST` | `/admin/trips/{tripId}/bookings/{bookingId}/split-approve` | Admin/Staff | Duyệt tách booking đi chung | Bắt buộc nhập lý do tách đoàn, lưu audit | ✅ Done |
+| **10.1**| Gear | `GET` | `/admin/trips/{tripId}/provided-items` | Staff/Admin | Danh sách đồ cấp cần chuẩn bị | Tab O13 tính nhu cầu dựa theo số khách/nhóm | ✅ Done |
+| **10.2**| Gear | `GET` | `/admin/trips/{tripId}/provided-items/{itemId}/available-assets` | Staff/Admin | Tra cứu thiết bị trống trong kho | Tìm asset khả dụng trong khung ngày chuyến đi | ✅ Done |
+| **10.3**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/{itemId}/assignments` | Staff/Admin | Gán thiết bị cụ thể cho chuyến | Giữ chỗ asset (`Reserved`) | ✅ Done |
+| **10.4**| Gear | `DELETE`| `/admin/trips/{tripId}/assignments/{assignmentId}` | Staff/Admin | Hủy gán thiết bị | Giải phóng asset trả về kho | ✅ Done |
+| **10.5**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/issue` | Staff/Admin | Quét barcode xuất kho giao đoàn | Chuyển trạng thái sang `Issued` trước khi đi | ✅ Done |
+| **10.6**| Gear | `POST` | `/admin/trips/{tripId}/provided-items/return` | Staff/Admin | Quét barcode thu hồi sau chuyến | Ghi nhận tình trạng khi nhận lại thiết bị | ✅ Done |
+| **11.1**| Attendance| `GET` | `/admin/trips/{tripId}/attendance-matrix` | Staff/Admin | Ma trận điểm danh chuyến | Lấy lưới 2 chiều (khách × hoạt động tour) O14 | ✅ Done |
+| **11.2**| Attendance| `PUT` | `/admin/trips/{tripId}/attendances` | Staff/Admin/Guide | Ghi nhận/Cập nhật điểm danh | Cập nhật trạng thái điểm danh, bắt buộc lý do nếu sửa | ✅ Done |
+| **11.3**| Attendance| `GET` | `/admin/trips/{tripId}/attendances/history` | Staff/Admin | Lịch sử sửa đổi điểm danh | Audit trail chi tiết cho từng ô điểm danh | ✅ Done |
+| **12.1**| Orders | `GET` | `/admin/orders` | Staff/Admin | Danh sách đơn hàng tổng hợp | Màn O38 lọc cả đơn tour & đơn thuê, hạn đối soát | ✅ Done |
+| **12.2**| Orders | `GET` | `/admin/orders/{orderCode}` | Staff/Admin | Chi tiết đơn hàng cho vận hành | Màn O15 xem toàn bộ khách, khuyến mãi, thanh toán | ✅ Done |
+| **12.3**| Orders | `PATCH`| `/admin/orders/{orderCode}/participants/{participantId}` | Staff/Admin | Sửa thông tin participant thay khách | Hỗ trợ sửa sai sót họ tên/SĐT, ghi audit | ✅ Done |
+| **12.4**| Orders | `POST` | `/admin/orders/{orderCode}/manual-payment` | Admin | Ghi nhận thanh toán thủ công | Xử lý trường hợp khách chuyển khoản trực tiếp | ✅ Done |
+| **12.5**| Orders | `POST` | `/admin/orders/{orderCode}/cancel-by-admin` | Admin | Admin hủy đơn thay khách | Hủy đơn khẩn cấp, sinh yêu cầu hoàn tiền | ✅ Done |
+| **13.1**| Products | `GET` | `/admin/products` | Staff/Admin | Danh sách sản phẩm cho thuê | Màn O16 kèm số variant, tổng asset khả dụng | ✅ Done |
+| **13.2**| Products | `POST` | `/admin/products` | Admin | Tạo sản phẩm mới | Khởi tạo sản phẩm cha | ✅ Done |
+| **13.3**| Products | `GET` | `/admin/products/{productId}` | Staff/Admin | Chi tiết sản phẩm & biến thể | Màn O17 master-detail | ✅ Done |
+| **13.4**| Products | `PUT` | `/admin/products/{productId}` | Admin | Sửa thông tin sản phẩm | Cập nhật tên, danh mục, mô tả | ✅ Done |
+| **13.5**| Products | `DELETE`| `/admin/products/{productId}` | Admin | Xóa sản phẩm | Ẩn sản phẩm khỏi danh mục thuê | ✅ Done |
+| **13.6**| Products | `POST` | `/admin/products/{productId}/variants` | Admin | Tạo biến thể sản phẩm | Tạo SKU, màu sắc, kích thước mới | ✅ Done |
+| **13.7**| Products | `PUT` | `/admin/variants/{variantId}` | Admin | Sửa biến thể sản phẩm | Cập nhật thông tin chi tiết biến thể | ✅ Done |
+| **13.8**| Products | `DELETE`| `/admin/variants/{variantId}` | Admin | Xóa biến thể | Dừng kinh doanh biến thể | ✅ Done |
+| **13.9**| Products | `POST` | `/admin/variants/{variantId}/images` | Admin | Thêm ảnh biến thể | Quản lý media của biến thể | ✅ Done |
+| **13.10**| Products | `DELETE`| `/admin/variants/{variantId}/images/{imageId}` | Admin | Xóa ảnh biến thể | Xóa ảnh media | ✅ Done |
+| **13.11**| Products | `GET` | `/admin/variants/{variantId}/price-tiers` | Staff/Admin | Bảng giá thuê theo ngày của biến thể | Xem các bậc giá theo khoảng ngày | ✅ Done |
+| **13.12**| Products | `PUT` | `/admin/variants/{variantId}/price-tiers` | Admin | Cập nhật bậc giá thuê của biến thể | Validate khoảng ngày không chồng lấn | ✅ Done |
+| **13.13**| Products | `GET` | `/admin/pricing` | Staff/Admin | Bảng giá thuê tổng hợp | Màn O18 tra cứu tổng thể bảng giá toàn kho | ✅ Done |
+| **13.14**| Bundles | `GET` | `/admin/bundles` | Staff/Admin | Danh sách combo thiết bị | Màn O19 danh sách combo | ✅ Done |
+| **13.15**| Bundles | `POST` | `/admin/bundles` | Admin | Tạo combo mới | Tạo thông tin gói combo | ✅ Done |
+| **13.16**| Bundles | `GET` | `/admin/bundles/{bundleId}` | Staff/Admin | Chi tiết combo, thành phần & giá | Lấy đầy đủ cấu hình combo | ✅ Done |
+| **13.17**| Bundles | `PUT` | `/admin/bundles/{bundleId}` | Admin | Sửa thông tin combo | Cập nhật tên, mô tả combo | ✅ Done |
+| **13.18**| Bundles | `DELETE`| `/admin/bundles/{bundleId}` | Admin | Xóa combo | Ẩn combo | ✅ Done |
+| **13.19**| Bundles | `PUT` | `/admin/bundles/{bundleId}/items` | Admin | Cập nhật thành phần của combo | Chọn các variant thành phần và số lượng | ✅ Done |
+| **13.20**| Bundles | `GET` | `/admin/bundles/{bundleId}/price-tiers` | Staff/Admin | Bảng giá thuê của combo | Xem các bậc giá thuê theo số ngày combo | ✅ Done |
+| **13.21**| Bundles | `PUT` | `/admin/bundles/{bundleId}/price-tiers` | Admin | Cập nhật bậc giá thuê của combo | Thiết lập đơn giá thuê combo | ✅ Done |
 | **14.1**| Assets | `GET` | `/admin/assets` | Staff/Admin | Danh sách thiết bị cụ thể | Màn O20 lọc mã asset, SKU, tình trạng máy | ✅ Done |
 | **14.2**| Assets | `POST` | `/admin/assets/bulk-create` | Admin | Tạo hàng loạt thiết bị (Asset) | Sinh hàng loạt mã barcode theo tiền tố | ✅ Done |
 | **14.3**| Assets | `GET` | `/admin/assets/{assetCode}` | Staff/Admin | Chi tiết thiết bị & trạng thái dùng | Drawer tra cứu thiết bị đang giao cho ai | ✅ Done |
 | **14.4**| Assets | `PATCH`| `/admin/assets/{assetCode}/status` | Staff/Admin | Đổi tình trạng máy | Đổi sang Sẵn sàng, Bảo trì, Hỏng, Mất | ✅ Done |
 | **14.5**| Assets | `GET` | `/admin/assets/{assetCode}/history` | Staff/Admin | Lịch sử phân bổ của thiết bị | Tra cứu toàn bộ các lần thuê/cấp chuyến | ✅ Done |
 | **14.6**| Assets | `GET` | `/admin/assets/schedule-gantt` | Staff/Admin | Biểu đồ Gantt phân bổ thiết bị | Màn O21 xem trực quan lịch chiếm dụng kho | ✅ Done |
-| **15.1**| Rentals | `GET` | `/admin/management/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Màn O22 lọc tab giao hôm nay, nhận hôm nay | ⬜ TODO |
-| **15.2**| Rentals | `POST` | `/admin/management/rental-orders/{orderCode}/claim` | Staff/Admin | Nhân viên nhận xử lý đơn thuê | Gán `handled_by_user_id` | ⬜ TODO |
-| **15.3**| Rentals | `GET` | `/admin/management/rental-orders/{orderCode}` | Staff/Admin | Chi tiết đơn thuê vận hành | Màn O23 xem các món đồ, combo, asset đã gán | ⬜ TODO |
-| **15.4**| Rentals | `GET` | `/admin/rental-orders/{orderCode}/handover-checklist` | Staff/Admin | Danh sách thiết bị cần bàn giao | Màn O24 bảng tiến độ quét bàn giao | ⬜ TODO |
-| **15.5**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/scan` | Staff/Admin | Quét barcode kiểm tra & giao từng món | Phản hồi ngay kết quả quét barcode từng thiết bị | ⬜ TODO |
-| **15.6**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/handover/complete` | Staff/Admin | Hoàn tất bàn giao thiết bị | Chuyển trạng thái đơn sang `InFulfillment` | ⬜ TODO |
-| **15.7**| Rentals | `GET` | `/admin/rental-orders/{orderCode}/return-checklist` | Staff/Admin | Danh sách thiết bị cần thu hồi | Màn O25 bảng tiến độ nhận lại đồ | ⬜ TODO |
-| **15.8**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/scan` | Staff/Admin | Quét barcode nhận lại & kiểm tra tình trạng | Ghi nhận tình trạng (Bình thường, Hư hỏng, Thiếu) | ⬜ TODO |
-| **15.9**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/report-lost` | Staff/Admin | Báo mất thiết bị | Chuyển asset sang Lost, gợi ý tạo phí đền bù | ⬜ TODO |
-| **15.10**| Rentals | `POST` | `/admin/rental-orders/{orderCode}/return/complete` | Staff/Admin | Hoàn tất quy trình nhận đồ | Đóng phần kiểm kê thiết bị vật lý | ⬜ TODO |
-| **16.1**| Charges | `GET` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Danh sách phí phát sinh của đơn | Màn O26 bảng các khoản phí phạt | ⬜ TODO |
-| **16.2**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/charges` | Staff/Admin | Lập biên bản phí phát sinh mới | Tạo khoản phí ở trạng thái `Draft` | ⬜ TODO |
-| **16.3**| Charges | `POST` | `/admin/charges/{chargeId}/assess` | Staff/Admin | Chốt phí phát sinh | Chuyển từ Draft sang `Assessed` để yêu cầu trả | ⬜ TODO |
-| **16.4**| Charges | `POST` | `/admin/charges/{chargeId}/void` | Admin | Hủy phí phát sinh | Chỉ Admin được duyệt xóa phí, bắt buộc lý do | ⬜ TODO |
-| **16.5**| Charges | `POST` | `/admin/rental-orders/{orderCode}/charges/request-payment` | Staff/Admin | Tạo yêu cầu thanh toán phí | Sinh giao dịch Collection AdditionalCharge SePay | ⬜ TODO |
-| **16.6**| Charges | `POST` | `/admin/rental-orders/by-code/{orderCode}/complete` | Staff/Admin | Nghiệm thu đóng toàn bộ đơn thuê | Kiểm tra hết đồ trả, hết phí nợ -> `Completed` | ⬜ TODO |
-| **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ⬜ TODO |
-| **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Thất bại, Cần đối soát | ⬜ TODO |
-| **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền qua SePay | Gọi API cổng SePay thực hiện chuyển khoản | ⬜ TODO |
-| **17.4**| Payments | `POST` | `/admin/refunds/{paymentId}/retry` | Admin | Thử lại giao dịch hoàn tiền lỗi | Tối đa thử 3 lần nếu SePay gián đoạn | ⬜ TODO |
-| **17.5**| Payments | `POST` | `/admin/refunds/{paymentId}/mark-manual` | Admin | Đánh dấu đã hoàn tiền thủ công | Dành cho hoàn tiền mặt/chuyển khoản ngoài | ⬜ TODO |
-| **17.6**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-accept` | Admin | Chấp nhận khoản tiền đối soát | Xác nhận đơn và tự hoàn phần tiền thừa | ⬜ TODO |
-| **17.7**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-refund` | Admin | Hoàn toàn bộ & Hủy đơn đối soát | Hủy đơn và trả lại tiền khi khách chuyển sai hạn | ⬜ TODO |
-| **18.1**| Promos | `GET` | `/admin/promotions` | Staff/Admin | Danh sách chương trình khuyến mãi | Màn O29 tra cứu khuyến mãi | ⬜ TODO |
-| **18.2**| Promos | `POST` | `/admin/promotions` | Admin | Tạo chương trình khuyến mãi mới | Thiết lập mã, thời gian, phạm vi áp dụng | ⬜ TODO |
-| **18.3**| Promos | `GET` | `/admin/promotions/{promotionId}` | Staff/Admin | Chi tiết khuyến mãi & các bậc | Màn O30 editor thông tin | ⬜ TODO |
-| **18.4**| Promos | `PUT` | `/admin/promotions/{promotionId}` | Admin | Sửa thông tin khuyến mãi | Cập nhật điều kiện chung | ⬜ TODO |
-| **18.5**| Promos | `PATCH`| `/admin/promotions/{promotionId}/status` | Admin | Bật / Tắt / Tạm dừng khuyến mãi | Đổi trạng thái Active, Paused, Expired | ⬜ TODO |
-| **18.6**| Promos | `PUT` | `/admin/promotions/{promotionId}/tiers` | Admin | Cập nhật các bậc giảm giá & quà tặng | Bảng bậc tỷ lệ %, số tiền hoặc quà tặng kèm | ⬜ TODO |
-| **18.7**| Promos | `GET` | `/admin/promotions/{promotionId}/usage` | Staff/Admin | Lịch sử áp dụng khuyến mãi | Màn O31 danh sách đơn hàng đã dùng mã | ⬜ TODO |
-| **19.1**| Posts | `GET` | `/admin/management/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ⬜ TODO |
-| **19.2**| Posts | `POST` | `/admin/management/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ⬜ TODO |
-| **19.3**| Posts | `GET` | `/admin/management/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ⬜ TODO |
-| **19.4**| Posts | `PUT` | `/admin/management/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ⬜ TODO |
-| **19.5**| Posts | `DELETE`| `/admin/management/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ⬜ TODO |
-| **19.6**| Posts | `POST` | `/admin/management/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ⬜ TODO |
-| **19.7**| Posts | `POST` | `/admin/management/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ⬜ TODO |
-| **19.8**| Posts | `GET` | `/admin/management/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ⬜ TODO |
-| **20.1**| Policies| `GET` | `/admin/refund-policies` | Staff/Admin | Danh sách chính sách hoàn tiền | Màn O34 danh sách chính sách Tour & Thuê | ⬜ TODO |
-| **20.2**| Policies| `POST` | `/admin/refund-policies` | Admin | Tạo chính sách hoàn tiền mới | Thiết lập chính sách | ⬜ TODO |
-| **20.3**| Policies| `GET` | `/admin/refund-policies/{policyId}` | Staff/Admin | Chi tiết chính sách & quy tắc | Xem các bậc % hoàn theo mốc thời gian | ⬜ TODO |
-| **20.4**| Policies| `PUT` | `/admin/refund-policies/{policyId}` | Admin | Sửa chính sách hoàn tiền | Chỉ cho phép khi chưa có chuyến nào áp dụng | ⬜ TODO |
-| **20.5**| Policies| `PUT` | `/admin/refund-policies/{policyId}/rules` | Admin | Cập nhật bảng quy tắc hoàn tiền | Bảng giờ trước khởi hành vs % hoàn | ⬜ TODO |
-| **20.6**| Policies| `POST` | `/admin/refund-policies/{policyId}/clone-version` | Admin | Nhân bản chính sách sang bản mới | Đóng bản cũ và tạo version mới khi đã dùng | ⬜ TODO |
-| **21.1**| Settings| `GET` | `/admin/settings` | Admin | Danh sách cấu hình hệ thống | Màn O35 tra cứu các tham số toàn cục | ⬜ TODO |
-| **21.2**| Settings| `PUT` | `/admin/settings/{configKey}` | Admin | Cập nhật giá trị cấu hình | Sửa hạn giữ chỗ, phí trễ, có ghi audit | ⬜ TODO |
-| **21.3**| Audit | `GET` | `/admin/audit-logs` | Admin | Tra cứu nhật ký hệ thống | Màn O36 tra cứu audit log toàn diện | ⬜ TODO |
-| **22.1**| Reports | `GET` | `/admin/reports/revenue` | Admin | Báo cáo doanh thu & dòng tiền | Màn O37 doanh thu ròng theo tour & thuê | ⬜ TODO |
-| **22.2**| Reports | `GET` | `/admin/reports/trip-occupancy` | Admin | Báo cáo tỷ lệ lấp chỗ chuyến đi | Đo lường hiệu quả bán chỗ các chuyến | ⬜ TODO |
-| **22.3**| Reports | `GET` | `/admin/reports/asset-utilization` | Admin | Báo cáo hiệu suất khai thác thiết bị| Thống kê ngày hoạt động của thiết bị kho | ⬜ TODO |
-| **22.4**| Reports | `GET` | `/admin/reports/refunds-and-charges` | Admin | Báo cáo hoàn tiền & phạt phát sinh | Thống kê số tiền hoàn và tiền bồi thường | ⬜ TODO |
-| **23.1**| Reviews | `GET` | `/admin/reviews` | Staff/Admin | Danh sách đánh giá của khách | Màn O39 lọc số sao, tour, chuyến, guide | ⬜ TODO |
-| **23.2**| Reviews | `POST` | `/admin/reviews/{reviewId}/hide` | Admin | Ẩn đánh giá vi phạm tiêu chuẩn | Bắt buộc nhập lý do ẩn, ghi audit | ⬜ TODO |
-| **23.3**| Reviews | `POST` | `/admin/reviews/{reviewId}/unhide` | Admin | Khôi phục hiển thị đánh giá | Bỏ cờ ẩn đánh giá | ⬜ TODO |
-| **24.1**| Guide | `GET` | `/guide/trips` | Guide | Danh sách chuyến của Guide | Màn G01 xem chuyến hôm nay / sắp tới / đã xong | ⬜ TODO |
-| **24.2**| Guide | `GET` | `/guide/trips/{tripId}/group` | Guide | Chi tiết nhóm & danh sách khách | Màn G02 danh sách thành viên trong nhóm kèm số phone | ⬜ TODO |
-| **24.3**| Guide | `GET` | `/guide/participants/{participantId}` | Guide | Chi tiết thông tin khách & cứu hộ | Màn G03 liên hệ khẩn cấp & danh sách đồ cấp của khách | ⬜ TODO |
-| **24.4**| Guide | `POST` | `/guide/trips/{tripId}/attendances/batch` | Guide | Điểm danh thực địa nhanh (Batch) | Màn G04 điểm danh Present/Absent/Late, hỗ trợ offline sync | ⬜ TODO |
-| **24.5**| Guide | `GET` | `/guide/trips/{tripId}/itinerary` | Guide | Timeline lịch trình hoạt động chuyến | Màn G05 timeline hoạt động kèm tỉ lệ điểm danh | ⬜ TODO |
-| **24.6**| Guide | `GET` | `/guide/trips/{tripId}/provided-items` | Guide | Danh sách đồ cấp giao cho nhóm | Màn G06 kiểm tra đồ cấp, thiết bị trước khi leo | ⬜ TODO |
+| **15.1**| Rentals | `GET` | `/admin/rental-orders` | Staff/Admin | Danh sách đơn thuê vận hành | Xem mục 15.1 | ✅ Done |
+| **15.2**| Rentals | `GET` | `/admin/rental-orders/{orderId}` | Staff/Admin | Chi tiết đơn thuê vận hành | Xem mục 15.2 | ✅ Done |
+| **15.3**| Rentals | `POST` | `/admin/rental-orders/{orderId}/claim` | Staff/Admin | Nhận phụ trách đơn (Admin nhận lại được) | Xem mục 15.3 | ✅ Done |
+| **15.4**| Rentals | `POST` | `/admin/rental-orders/{orderId}/handover` | Staff/Admin | Giao toàn bộ / một phần thiết bị | Xem mục 15.4 | ✅ Done |
+| **15.5**| Rentals | `POST` | `/admin/rental-orders/{orderId}/handover/scan` | Staff/Admin | Quét / nhập mã giao từng thiết bị | Xem mục 15.5 | ✅ Done |
+| **15.6**| Rentals | `POST` | `/admin/rental-orders/{orderId}/returns` | Staff/Admin | Nhận trả từng thiết bị kèm tình trạng | Xem mục 15.6 | ✅ Done |
+| **15.7**| Rentals | `GET` | `/admin/rental-orders/handover-list` | Staff/Admin | Danh sách thiết bị cần giao trong ngày giờ VN (hỗ trợ `?format=csv`) | Xem mục 15.7 | ✅ Done |
+| **15.8**| Rentals | `GET` | `/admin/rental-orders/return-list` | Staff/Admin | Danh sách thiết bị cần nhận lại trong ngày giờ VN (hỗ trợ `?format=csv`) | Xem mục 15.8 | ✅ Done |
+| **15.9**| Rentals | `GET` | `/admin/rental-orders/{orderId}/adjustments` | Staff/Admin | Lịch sử điều chỉnh/gia hạn đơn thuê cho vận hành | Xem mục 15.9 | ✅ Done |
+| **16.1**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges` | Staff/Admin | Lập phí phát sinh | Xem mục 16.1 | ✅ Done |
+| **16.2**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/assess` | Staff/Admin | Xác nhận phí nháp | Xem mục 16.2 | ✅ Done |
+| **16.3**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/void` | Staff/Admin | Hủy phí | Xem mục 16.3 | ✅ Done |
+| **16.4**| Charges | `POST` | `/admin/rental-orders/{orderId}/complete` | Staff/Admin | Đóng đơn và quyết toán cọc | Xem mục 16.4 | ✅ Done |
+| **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ✅ Done |
+| **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Chờ chuyển, Thất bại, Cần đối soát | ✅ Done |
+| **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền | Chuyển kế toán chuyển khoản thủ công (không gọi SePay) | ✅ Done |
+| **17.4**| Payments | `POST` | `/admin/refunds/{paymentId}/retry` | Admin | Thử lại giao dịch hoàn tiền lỗi | Đưa khoản Failed về Pending, tối đa 3 lần | ✅ Done |
+| **17.5**| Payments | `POST` | `/admin/refunds/{paymentId}/mark-manual` | Admin | Đánh dấu đã hoàn tiền thủ công | Dành cho hoàn tiền mặt/chuyển khoản ngoài | ✅ Done |
+| **17.6**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-accept` | Admin | Chấp nhận khoản tiền đối soát | Xác nhận đơn và tự hoàn phần tiền thừa | ✅ Done |
+| **17.7**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-refund` | Admin | Hoàn toàn bộ & Hủy đơn đối soát | Hủy đơn và trả lại tiền khi khách chuyển sai hạn | ✅ Done |
+| **17.8**| Payments | `GET` | `/refund-cases/{refundCaseId}` | User | Khách xem hồ sơ hoàn tiền | — | ✅ Done |
+| **17.9**| Payments | `GET` | `/admin/refund-cases` | Admin | Hàng đợi hoàn tiền | — | ✅ Done |
+| **17.10**| Payments | `POST` | `/admin/refund-cases/export/verification-codes` | Admin | Gửi OTP xuất Excel | — | ✅ Done |
+| **17.11**| Payments | `POST` | `/admin/refund-cases/export` | Admin | Xuất Excel chuyển khoản | — | ✅ Done |
+| **17.12**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/reject` | Admin | Từ chối hoàn tiền | — | ✅ Done |
+| **17.13**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/complete` | Admin | Ghi nhận chuyển khoản thành công | — | ✅ Done |
+| **17.14**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/mark-failed` | Admin | Ghi nhận chuyển khoản thất bại | — | ✅ Done |
+| **18.1**| Promos | `GET` | `/admin/promotions` | Staff/Admin | Danh sách chương trình khuyến mãi | Màn O29 tra cứu khuyến mãi | ✅ Done |
+| **18.2**| Promos | `POST` | `/admin/promotions` | Admin | Tạo chương trình khuyến mãi mới | Thiết lập mã, thời gian, phạm vi áp dụng | ✅ Done |
+| **18.3**| Promos | `GET` | `/admin/promotions/{promotionId}` | Staff/Admin | Chi tiết khuyến mãi & các bậc | Màn O30 editor thông tin | ✅ Done |
+| **18.4**| Promos | `PUT` | `/admin/promotions/{promotionId}` | Admin | Sửa thông tin khuyến mãi | Cập nhật điều kiện chung | ✅ Done |
+| **18.5**| Promos | `PATCH`| `/admin/promotions/{promotionId}/status` | Admin | Bật / Tắt / Tạm dừng khuyến mãi | Đổi trạng thái Active, Paused, Expired | ✅ Done |
+| **18.6**| Promos | `PUT` | `/admin/promotions/{promotionId}/tiers` | Admin | Cập nhật các bậc giảm giá & quà tặng | Bảng bậc tỷ lệ %, số tiền hoặc quà tặng kèm | ✅ Done |
+| **18.7**| Promos | `GET` | `/admin/promotions/{promotionId}/usage` | Staff/Admin | Lịch sử áp dụng khuyến mãi | Màn O31 danh sách đơn hàng đã dùng mã | ✅ Done |
+| **19.1**| Posts | `GET` | `/admin/posts` | Staff/Admin | Danh sách bài viết & cẩm nang | Màn O32 danh sách bài viết | ✅ Done |
+| **19.2**| Posts | `POST` | `/admin/posts` | Staff/Admin | Tạo bài viết mới (Draft) | Khởi tạo bài viết | ✅ Done |
+| **19.3**| Posts | `GET` | `/admin/posts/{postId}` | Staff/Admin | Chi tiết bài viết & nội dung | Trình soạn thảo rich-text, tags, soft-skills | ✅ Done |
+| **19.4**| Posts | `PUT` | `/admin/posts/{postId}` | Staff/Admin | Sửa bài viết | Cập nhật nội dung bài hướng dẫn | ✅ Done |
+| **19.5**| Posts | `DELETE`| `/admin/posts/{postId}` | Admin | Xóa bài viết | Xóa bài viết | ✅ Done |
+| **19.6**| Posts | `POST` | `/admin/posts/{postId}/publish` | Staff/Admin | Xuất bản bài viết | Chuyển trạng thái Published | ✅ Done |
+| **19.7**| Posts | `POST` | `/admin/posts/{postId}/archive` | Staff/Admin | Lưu trữ bài viết | Ẩn bài viết cũ | ✅ Done |
+| **19.8**| Posts | `GET` | `/admin/posts/{postId}/read-analytics` | Staff/Admin | Báo cáo lượt đọc bài viết | Thống kê số khách đã đọc trước chuyến đi | ✅ Done |
+| **20.1**| Policies| `GET` | `/admin/refund-policies` | Staff/Admin | Danh sách chính sách hoàn tiền | Màn O34 danh sách chính sách Tour & Thuê | ✅ Done |
+| **20.2**| Policies| `POST` | `/admin/refund-policies` | Admin | Tạo chính sách hoàn tiền mới | Thiết lập chính sách | ✅ Done |
+| **20.3**| Policies| `GET` | `/admin/refund-policies/{policyId}` | Staff/Admin | Chi tiết chính sách & quy tắc | Xem các bậc % hoàn theo mốc thời gian | ✅ Done |
+| **20.4**| Policies| `PUT` | `/admin/refund-policies/{policyId}` | Admin | Sửa chính sách hoàn tiền | Chỉ cho phép khi chưa có chuyến nào áp dụng | ✅ Done |
+| **20.5**| Policies| `PUT` | `/admin/refund-policies/{policyId}/rules` | Admin | Cập nhật bảng quy tắc hoàn tiền | Bảng giờ trước khởi hành vs % hoàn | ✅ Done |
+| **20.6**| Policies| `POST` | `/admin/refund-policies/{policyId}/clone-version` | Admin | Nhân bản chính sách sang bản mới | Đóng bản cũ và tạo version mới khi đã dùng | ✅ Done |
+| **21.1**| Settings| `GET` | `/admin/settings` | Admin | Danh sách cấu hình hệ thống | Màn O35 tra cứu các tham số toàn cục | ✅ Done |
+| **21.2**| Settings| `PUT` | `/admin/settings/{configKey}` | Admin | Cập nhật giá trị cấu hình | Sửa hạn giữ chỗ, phí trễ, có ghi audit | ✅ Done |
+| **21.3**| Audit | `GET` | `/admin/audit-logs` | Admin | Tra cứu nhật ký hệ thống | Màn O36 tra cứu audit log toàn diện | ✅ Done |
+| **22.1**| Reports | `GET` | `/admin/reports/revenue` | Admin | Báo cáo doanh thu & dòng tiền (hỗ trợ `?format=csv`) | Màn O37 doanh thu ròng theo tour & thuê | ✅ Done |
+| **22.2**| Reports | `GET` | `/admin/reports/trip-occupancy` | Admin | Báo cáo tỷ lệ lấp chỗ chuyến đi | Đo lường hiệu quả bán chỗ các chuyến | ✅ Done |
+| **22.3**| Reports | `GET` | `/admin/reports/asset-utilization` | Admin | Báo cáo hiệu suất khai thác thiết bị| Thống kê ngày hoạt động của thiết bị kho | ✅ Done |
+| **22.4**| Reports | `GET` | `/admin/reports/refunds-and-charges` | Admin | Báo cáo hoàn tiền & phạt phát sinh (hỗ trợ `?format=csv`) | Thống kê số tiền hoàn và tiền bồi thường | ✅ Done |
+| **23.1**| Reviews | `GET` | `/admin/reviews` | Staff/Admin | Danh sách đánh giá của khách | Màn O39 lọc số sao, tour, chuyến, guide | ✅ Done |
+| **23.2**| Reviews | `POST` | `/admin/reviews/{reviewId}/hide` | Admin | Ẩn đánh giá vi phạm tiêu chuẩn | Bắt buộc nhập lý do ẩn, ghi audit | ✅ Done |
+| **23.3**| Reviews | `POST` | `/admin/reviews/{reviewId}/unhide` | Admin | Khôi phục hiển thị đánh giá | Bỏ cờ ẩn đánh giá | ✅ Done |
+| **24.1**| Guide | `GET` | `/guide/trips` | Guide | Danh sách chuyến của Guide | Màn G01 xem chuyến hôm nay / sắp tới / đã xong | ✅ Done |
+| **24.2**| Guide | `GET` | `/guide/trips/{tripId}/group` | Guide | Chi tiết nhóm & danh sách khách | Màn G02 danh sách thành viên trong nhóm kèm số phone | ✅ Done |
+| **24.3**| Guide | `GET` | `/guide/participants/{participantId}` | Guide | Chi tiết thông tin khách & cứu hộ | Màn G03 liên hệ khẩn cấp & danh sách đồ cấp của khách | ✅ Done |
+| **24.4**| Guide | `POST` | `/guide/trips/{tripId}/attendances/batch` | Guide | Điểm danh thực địa nhanh (Batch) | Màn G04 điểm danh Present/Absent/Late, hỗ trợ offline sync | ✅ Done |
+| **24.5**| Guide | `GET` | `/guide/trips/{tripId}/itinerary` | Guide | Timeline lịch trình hoạt động chuyến | Màn G05 timeline hoạt động kèm tỉ lệ điểm danh | ✅ Done |
+| **24.6**| Guide | `GET` | `/guide/trips/{tripId}/provided-items` | Guide | Danh sách đồ cấp giao cho nhóm | Màn G06 kiểm tra đồ cấp, thiết bị trước khi leo | ✅ Done |
+| **25.1**| Dev | `GET` | `/dev/clock` | Public | Xem giờ hệ thống (Development) | — | ✅ Done |
+| **25.2**| Dev | `PUT` | `/dev/clock` | Admin / Staff | Đặt giờ giả lập (Development) | — | ✅ Done |
+| **25.3**| Dev | `DELETE` | `/dev/clock` | Admin / Staff | Về giờ thật (Development) | — | ✅ Done |
+| **26.1**| Auth | `POST` | `/auth/forgot-password` | Public | Gửi email đặt lại mật khẩu | — | ✅ Done |
+| **26.2**| Auth | `POST` | `/auth/reset-password` | Public | Đặt lại mật khẩu bằng token | — | ✅ Done |
+| **26.3**| Auth | `POST` | `/auth/google` | Public | Đăng nhập bằng Google `idToken` | — | ✅ Done |
+| **26.4**| Users | `POST` | `/users/me/avatar` | User | Tải ảnh đại diện | — | ✅ Done |
+| **26.5**| Users | `PUT` | `/users/me/password` | User | Đổi mật khẩu | — | ✅ Done |
+| **26.6**| Posts | `GET` | `/posts` | Public | Danh sách bài đã xuất bản (lọc loại / tag / kỹ năng) | — | ✅ Done |
+| **26.7**| Posts | `GET` | `/posts/taxonomy` | Public | Tag và kỹ năng mềm cho bộ lọc | — | ✅ Done |
+| **26.8**| Posts | `GET` | `/posts/{slug}` | Public | Chi tiết bài viết theo slug | `relatedTours` chỉ gồm tour Active/Published | ✅ Done |
+| **26.9**| Posts | `POST` | `/admin/posts/images` | Staff/Admin | Upload ảnh chèn vào nội dung Markdown | — | ✅ Done |
+| **26.10**| Tours | `GET` | `/tours/{id}/recurrence-rules` | Staff/Admin | Danh sách quy tắc lịch lặp của tour | — | ✅ Done |
+| **26.11**| Trips | `GET` | `/trips/{tripId}` | Staff/Admin | Chi tiết chuyến (workspace xếp nhóm) | — | ✅ Done |
+| **26.12**| Trips | `POST` | `/trips` | Admin | Tạo chuyến | — | ✅ Done |
+| **26.13**| Trips | `PUT` | `/trips/{tripId}` | Admin | Sửa chuyến | — | ✅ Done |
+| **26.14**| Trips | `PATCH` | `/trips/{tripId}/status` | Staff/Admin | Đổi trạng thái chuyến (Staff: chỉ chuyến mình phụ trách) | — | ✅ Done |
+| **26.15**| Trips | `POST` | `/trips/generate-recurring` | Admin | Sinh chuyến từ quy tắc lặp | — | ✅ Done |
+| **26.16**| Trip Bookings | `GET` | `/trip-bookings/{orderId}/cancellation-preview` | User | Xem trước số tiền hoàn khi hủy | — | ✅ Done |
+| **26.17**| Trip Bookings | `GET` | `/trip-bookings/{orderId}/invite-link` | User | Lấy link mời người đi cùng | — | ✅ Done |
+| **26.18**| Trip Bookings | `POST` | `/trip-bookings/{orderId}/invite-link/rotate` | User | Tạo lại link mời (vô hiệu link cũ) | — | ✅ Done |
+| **26.19**| Payments | `POST` | `/payments/webhooks/sepay` | Public (SePay) | Webhook SePay báo giao dịch | — | ✅ Done |
+| **26.20**| Guide | `GET` | `/guide/trip-groups/{groupId}` | Guide | Chi tiết nhóm được phân công | — | ✅ Done |
+| **26.21**| Warehouse | `GET` | `/admin/assets/variants` | Staff/Admin | Danh sách biến thể để chọn khi nhập thiết bị | — | ✅ Done |
 
 > Trạng thái: ⬜ TODO · 🟨 In progress · ✅ Done · 🔁 Changed
 
@@ -545,7 +599,7 @@ HTTP 500 Internal Server Error
 ```json
 {
   "email": "customer@gmail.com",
-  "password": "Password123@",
+  "password": "<password>",
   "fullName": "Nguyễn Văn A",
   "phone": "0987654321"
 }
@@ -584,7 +638,7 @@ HTTP 500 Internal Server Error
 ```json
 {
   "email": "admin@rentrek.vn",
-  "password": "Password123@"
+  "password": "<password>"
 }
 ```
 
@@ -754,6 +808,44 @@ Gửi lại link xác thực email cho tài khoản đang đăng nhập. Nếu t
 
 ---
 
+### 2.5. Danh sách chuyến tham gia của tôi
+
+`GET /users/me/participations` · **Auth:** User
+
+Liệt kê mọi suất tham gia (`booking_participants`) đã liên kết tài khoản hiện tại (`LinkedUserId`), chưa xóa mềm và không ở trạng thái `Cancelled`, mới nhất trước.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách chuyến tham gia thành công",
+  "data": [
+    {
+      "participantId": "33333333-4444-5555-6666-777777777777",
+      "tripId": "88888888-9999-aaaa-bbbb-111111111111",
+      "tourId": "44444444-5555-6666-7777-888888888888",
+      "tourName": "Chinh phục Tà Năng - Phan Dũng",
+      "startAt": "2026-11-01T00:00:00+00:00",
+      "endAt": "2026-11-03T10:00:00+00:00",
+      "tripStatus": "Completed",
+      "unreadPostCount": 2,
+      "canReview": true,
+      "hasReview": false
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-08T10:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED` khi chưa đăng nhập hoặc token hết hạn.
+
+**FE note:** Dùng `participantId` từ endpoint này để gọi danh sách bài viết hướng dẫn của chuyến (`GET /participants/{participantId}/posts`), hiển thị badge số bài chưa đọc (`unreadPostCount`) và ẩn/hiện nút đánh giá theo `canReview` / `hasReview`. Đọc hay chưa đọc bài viết không chặn check-in hay tham gia chuyến.
+
+---
+
 ## 3. Admin: Dashboard & Cảnh báo (Màn O01)
 
 ### 3.1. Số liệu đếm tổng hợp nhanh
@@ -852,7 +944,9 @@ Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental
 
 **Response:** `201 Created`, `data` là `TripBookingResponse`.
 
-**Lỗi:** `400` thiếu `contactPhone`, đặt giùm không có người đi cùng, định dạng email sai hoặc thiếu/sai `Idempotency-Key`; `403` account không hoạt động; `404` không có account/trip; `409` hết chỗ, trip đóng, email trùng, hoặc key dùng cho payload khác.
+**Lỗi:** `400` thiếu `contactPhone`, đặt giùm không có người đi cùng, định dạng email sai hoặc thiếu/sai `Idempotency-Key`; `403` account không hoạt động; `404` không có account/trip; `409` hết chỗ, trip đóng, tour không còn Active/Published (Archived/Expired chỉ để xem lại), email trùng, hoặc key dùng cho payload khác.
+
+> **FE:** trước khi cho đặt, kiểm tra `status` của tour (`GET /tours/{id}`) là `Active` hoặc `Published`. Tour `Archived`/`Expired` chỉ để xem lại: không hiện nút đặt. Gặp `409` "Tour đã ngừng nhận booking" thì báo người dùng và tải lại trang tour. Booking đã có của tour này vẫn xem, huỷ/hoàn tiền, sửa người đi và dùng link mời bình thường.
 
 ### 3.2. Xem booking
 
@@ -1242,7 +1336,7 @@ Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ 
   "fullName": "Lê Văn Nam",
   "phone": "0988776655",
   "role": "Guide",
-  "password": "TemporaryPassword123@",
+  "password": "<temporary-password>",
   "careerStartDate": "2020-01-01"
 }
 ```
@@ -1754,6 +1848,16 @@ HTTP 400 Bad Request
 - `GET /admin/tours/{tourId}/posts` · Lấy danh sách bài viết cẩm nang gắn với tour này.
 - `PUT /admin/tours/{tourId}/posts` · Cập nhật danh sách bài viết và thứ tự đọc bắt buộc (`postId`, `displayOrder`).
 
+- `GET` trả mảng `{ postId, title, slug, postType, status, displayOrder }`, bỏ bài đã xoá, sắp theo `displayOrder`.
+- `PUT` · **Auth:** Admin · thay toàn bộ danh sách (gửi `items: []` để gỡ hết). Không bị khóa lịch trình chặn.
+
+```json
+{ "items": [ { "postId": "…", "displayOrder": 0 }, { "postId": "…", "displayOrder": 1 } ] }
+```
+
+- `400`: `postId` trùng, `displayOrder < 0`, hoặc có bài không tồn tại / đã xoá. `404`: không có tour.
+- Thứ tự đọc thuộc về tour: sửa bài viết (`tourIds`) chỉ thêm / gỡ liên kết, không ghi đè `displayOrder` đã đặt ở đây.
+
 ---
 
 ### 6.24. Lịch sử các phiên bản của tour
@@ -1766,7 +1870,7 @@ HTTP 400 Bad Request
 ### 6.25. Nhân bản tạo phiên bản mới (Clone Tour Version)
 `POST /admin/tours/{tourId}/versions/clone` · **Auth:** Admin
 
-- **Mục đích:** Khi tour đã có khách mua khiến lịch trình bị khóa (`itinerary_locked_at`), nhưng ban quản lý cần điều chỉnh lịch trình hoặc định mức đồ cho các chuyến tương lai: API này thực hiện sao chép toàn bộ cây thực thể (Tour, Activities, Preparation, Provided, Images) sang một bản ghi mới với `version = version_hiện_tại + 1`, trạng thái `Draft`.
+- **Mục đích:** Khi tour đã có khách mua khiến lịch trình bị khóa (`itinerary_locked_at`), nhưng ban quản lý cần điều chỉnh lịch trình hoặc định mức đồ cho các chuyến tương lai: API này thực hiện sao chép toàn bộ cây thực thể (Tour, Activities, Preparation, Provided, Images, Posts) sang một bản ghi mới với `version = version_hiện_tại + 1`, trạng thái `Draft`.
 - **Tại sao cần API này:** Đảm bảo nguyên tắc bảo toàn dữ liệu thương mại (G-05): việc sửa đổi sau này không làm sai lệch chuyến đi cũ của khách hàng trong quá khứ.
 
 **Response `201 Created`** (Trả về `tourId` của phiên bản mới).
@@ -1777,6 +1881,22 @@ HTTP 400 Bad Request
 `GET /admin/tours/{tourId}/versions/diff?compareWithVersionId={targetTourId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** So sánh trực quan giữa 2 phiên bản tour để người điều phối thấy rõ các thay đổi trong lịch trình, giờ xuất phát hoặc đồ cấp.
+- Đi từ bản `tourId` (base) sang bản `compareWithVersionId` (target). `400` nếu hai tour không cùng họ, `404` nếu không có tour.
+- `section`: `Info` / `Activities` / `ProvidedItems` / `PreparationItems` / `Posts`. `change`: `Added` / `Removed` / `Modified`. `before` / `after` là chuỗi mô tả, hiển thị thẳng.
+- Khóa so khớp: hoạt động theo `Ngày {dayNumber} · {tên}`, đồ cấp / đồ tự mang theo tên, bài viết theo tiêu đề. Hai dòng trùng khóa thì chỉ so dòng đầu.
+
+**Response `200 OK`** (`data`)
+
+```json
+{
+  "baseTourId": "…", "baseVersion": 1,
+  "targetTourId": "…", "targetVersion": 2,
+  "changes": [
+    { "section": "Info", "change": "Modified", "key": "basePrice", "before": "1500000", "after": "1650000" },
+    { "section": "Activities", "change": "Added", "key": "Ngày 2 · Lên đỉnh", "before": null, "after": "05:00, 240 phút, thứ tự 1, …" }
+  ]
+}
+```
 
 ---
 
@@ -2566,6 +2686,14 @@ HTTP 400 Bad Request
 - `POST /admin/variants/{variantId}/images` · Admin: Thêm ảnh cho biến thể (`imageUrl`, `displayOrder`, `isPrimary`).
 - `DELETE /admin/variants/{variantId}/images/{imageId}` · Admin: Xóa ảnh biến thể.
 
+```json
+{ "imageUrl": "https://cdn.example.com/tent-2p.jpg", "displayOrder": 0, "isPrimary": true }
+```
+
+- `POST` trả `201` kèm id ảnh. `imageUrl` phải là URL tuyệt đối http(s). Ảnh đầu tiên luôn là ảnh đại diện; thêm ảnh `isPrimary: true` thì ảnh đại diện cũ bị bỏ cờ.
+- `DELETE` là xoá mềm; xoá ảnh đại diện thì ảnh có `displayOrder` nhỏ nhất còn lại lên thay. `404` nếu không có biến thể / ảnh.
+- Chi tiết sản phẩm admin (`variants[]`) có thêm `images: [{ imageId, imageUrl, displayOrder, isPrimary }]` để lấy id xoá; `imageUrls` giữ nguyên.
+
 ---
 
 ### 13.11. Bảng giá thuê theo ngày của biến thể (Price Tiers)
@@ -2791,284 +2919,121 @@ HTTP 400 Bad Request
 
 ---
 
-## 15. Admin: Đơn thuê & Quy trình Giao nhận (Màn O22, O23, O24, O25)
+## 15. Admin: Vận hành đơn thuê (Màn O22–O26)
 
-### 15.1. Danh sách đơn thuê vận hành
-`GET /admin/management/rental-orders` · **Auth:** Staff / Admin
+Một luồng duy nhất: `/admin/rental-orders` (`AdminRentalOrdersController` → `IRentalFulfillmentService`). **Auth:** Staff / Admin. Mọi thao tác ghi dùng khóa đơn (chống hai người thao tác cùng lúc), ghi `audit_logs` (`entity_type = Order`) và trả về chi tiết đơn mới nhất `AdminRentalOrderDetailResponse`.
 
-- **Mục đích:** Màn O22 — danh sách chuyên biệt để nhân viên kho và giao nhận theo dõi việc chuẩn bị đồ, giao đồ và nhận đồ hàng ngày.
-- **Tabs nhanh:**
-  - `PickupToday`: Cần giao hôm nay.
-  - `ReturnToday`: Cần nhận lại hôm nay.
-  - `Overdue`: Quá hạn trả đồ (now > `rental_end_at` nhưng còn tài sản chưa trả).
-  - `InFulfillment`: Đang trong thời gian khách thuê.
-  - `All`: Toàn bộ đơn thuê.
-- **Cột tiến độ giao/nhận:** Tỷ lệ số món đã giao/nhận (`Issued / Total` và `Returned / Total`).
-- **Query params:** `pageNumber`, `pageSize`, `tab`, `handledByUserId` (lọc đơn mình phụ trách hoặc `unassigned`), `search`.
+### 15.1. Danh sách đơn thuê
+`GET /admin/rental-orders?status=&overdueOnly=&search=&pageNumber=&pageSize=` → `PagedResponse<AdminRentalOrderListItemResponse>` (`orderId`, `orderCode`, `customerName`, `status`, `paymentStatus`, `rentalStartAt`, `rentalEndAt`, `totalAmount`, `assetsCount`, `issuedCount`, `returnedCount`, `draftChargesCount`, `isOverdue`).
 
-**Response `200 OK`**
+### 15.2. Chi tiết đơn thuê
+`GET /admin/rental-orders/{orderId}` → `customer`, `lines`, `assignments` (`assignmentId`, `assetCode`, `status`, `assetStatus`, `issuedAt`, `returnedAt`, `returnCondition`), `charges`, `amounts`, `overdue`, `settlement`, `allowedActions`, `handledByName`, `serverNow`.
+
+### 15.3. Nhận phụ trách (FR-R05)
+`POST /admin/rental-orders/{orderId}/claim` — không body. Đơn ở `PendingPayment` / `Confirmed` / `InFulfillment`. Staff chỉ nhận được đơn chưa ai phụ trách (đơn của người khác → `409`). Admin được nhận lại đơn của người khác. Audit `RentalClaim` ghi `previousHandledByUserId`.
+
+### 15.4. Giao toàn bộ / một phần thiết bị (FR-R06)
+`POST /admin/rental-orders/{orderId}/handover` — body `{ "assignmentIds": ["guid"] }`; bỏ trống = giao mọi thiết bị đang `Reserved` của đơn.
+
+### 15.5. Quét / nhập mã giao từng thiết bị (FR-R06)
+`POST /admin/rental-orders/{orderId}/handover/scan` — body `{ "assetCode": "TENT-001" }` (bắt buộc, tối đa 100 ký tự, không phân biệt hoa thường). Chỉ nhận thiết bị đang `Reserved` cho chính đơn này; mã của đơn khác hoặc mã đã giao → `409`.
+
+Quy tắc chung 15.4–15.5: đơn `Confirmed` / `InFulfillment`, `paymentStatus = Paid`, từ 24 giờ trước giờ bắt đầu thuê đến trước giờ kết thúc, thiết bị phải `Available` / `Good`. Giao xong: assignment `Issued`, đơn `InFulfillment`, người giao thành người phụ trách nếu đơn chưa có.
+
+### 15.6. Nhận trả từng thiết bị (FR-R07)
+`POST /admin/rental-orders/{orderId}/returns` — body `{ "items": [{ "assignmentId": "guid", "condition": "Normal|Damaged|MissingAccessory|Lost", "note": "..." }] }`. Đơn phải `InFulfillment`. `Lost` → assignment `LostOrException`, asset `Lost`. Trả trễ quá thời gian ân hạn (`SystemConfiguration` late grace hours) tự tạo phí `LateReturn` ở trạng thái `Draft`.
+
+### 15.7. Danh sách thiết bị cần giao theo ngày & xuất CSV (FR-O06)
+`GET /admin/rental-orders/handover-list?date={yyyy-MM-dd}&format={csv}` · **Auth:** Staff / Admin
+
+- **Query params:**
+  - `date` (`DateOnly`, optional, mặc định ngày hiện tại theo giờ Việt Nam UTC+7). Lọc đơn thuê `Confirmed` hoặc `InFulfillment` có `rentalStartAt` thuộc ngày `date` (UTC+7) và còn assignment trạng thái `Reserved`.
+  - `format` (`string`, optional): bỏ trống trả JSON bọc `ApiResponse`; truyền `csv` trả file `text/csv; charset=utf-8` có UTF-8 BOM (`handover-{date:yyyy-MM-dd}.csv`).
+
+**Response `200 OK` (JSON)**
 
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Thành công",
+  "message": "Lấy danh sách giao đồ theo ngày thành công",
   "data": {
+    "date": "2026-11-08",
+    "totalItems": 1,
     "items": [
       {
-        "orderId": "22223333-4444-5555-6666-777788889999",
-        "orderCode": "RENT-2026-0089",
-        "customer": {
-          "fullName": "Trần Văn Cường",
-          "phone": "0933444555"
-        },
-        "rentalPeriod": {
-          "startAt": "2026-11-01T08:00:00Z",
-          "endAt": "2026-11-03T18:00:00Z"
-        },
-        "totalItemsCount": 5,
-        "issuedItemsCount": 5,
-        "returnedItemsCount": 0,
-        "totalAmount": 1250000,
-        "handlerFullName": "Lê Nhân Viên Kho",
-        "status": "InFulfillment",
-        "paymentStatus": "Paid",
-        "isOverdue": false
+        "orderId": "aaaa0000-1111-2222-3333-444455556666",
+        "orderCode": "RT-20261108-ABC123",
+        "customerName": "Nguyễn Văn An",
+        "customerPhone": "0901234567",
+        "productName": "Lều cắm trại 2 người",
+        "variantName": "Xanh rêu - Chống mưa",
+        "assetCode": "TENT-001",
+        "scheduledAt": "2026-11-08T16:30:00Z",
+        "status": "Reserved"
       }
-    ],
-    "pageNumber": 1,
-    "pageSize": 10,
-    "totalItems": 24,
-    "totalPages": 3,
-    "hasPrevious": false,
-    "hasNext": true
+    ]
   },
   "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
+  "timestamp": "2026-11-08T08:30:00Z"
 }
 ```
 
----
+- **Định dạng CSV (`format=csv`):** Cột `MaDon,TenKhach,SDT,SanPham,BienThe,MaTaiSan,GioNhan,TrangThai` (`GioNhan` định dạng `dd/MM/yyyy HH:mm` theo giờ VN).
+- **Mã lỗi:** `400 VALIDATION_ERROR` (nếu `date` sai định dạng), `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+- **FE note:** Hiển thị bảng thiết bị cần chuẩn bị giao trong ngày; nút "Xuất CSV" gọi lại đúng endpoint kèm `format=csv` bằng `responseType: 'blob'` để trình duyệt tải file `handover-yyyy-MM-dd.csv`.
 
-### 15.2. Nhân viên tiếp nhận xử lý đơn thuê (Claim)
-`POST /admin/management/rental-orders/{orderCode}/claim` · **Auth:** Staff / Admin
+### 15.8. Danh sách thiết bị cần nhận lại theo ngày & xuất CSV (FR-O06)
+`GET /admin/rental-orders/return-list?date={yyyy-MM-dd}&format={csv}` · **Auth:** Staff / Admin
 
-- **Mục đích:** Nút "Nhận xử lý" trên màn O22 — gán `RENTAL_ORDERS.handled_by_user_id` thành tài khoản của nhân viên đang thao tác, ghi nhật ký kiểm toán `AUDIT_LOGS`.
+- **Query params:** `date` (`DateOnly`, optional, mặc định hôm nay theo giờ VN UTC+7), `format` (`csv` để tải file `return-{date:yyyy-MM-dd}.csv`). Lọc đơn thuê `Confirmed` hoặc `InFulfillment` có `rentalEndAt` thuộc ngày `date` (UTC+7) và còn assignment trạng thái `Issued` chưa có `returnedAt`.
+- **Response `200 OK` (JSON):** Cùng cấu trúc `AdminRentalScheduleResponse` như mục 15.7 (trừ `scheduledAt` là `rentalEndAt`, `status` là `Issued`).
+- **Định dạng CSV (`format=csv`):** Cột `MaDon,TenKhach,SDT,SanPham,BienThe,MaTaiSan,GioTra,TrangThai` (`GioTra` định dạng `dd/MM/yyyy HH:mm` theo giờ VN).
+- **Mã lỗi:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+- **FE note:** Dùng cho danh sách thu hồi thiết bị trong ngày tại kho; tải CSV tương tự mục 15.7 (`return-yyyy-MM-dd.csv`).
 
----
+### 15.9. Lịch sử điều chỉnh đơn thuê (FR-R09, UAT-19)
+`GET /admin/rental-orders/{orderId}/adjustments` · **Auth:** Staff / Admin
 
-### 15.3. Chi tiết đơn thuê vận hành
-`GET /admin/management/rental-orders/{orderCode}` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O23 — xem chi tiết từng món đồ thuê lẻ và thành phần combo (`RENTAL_BUNDLE_ITEM_SNAPSHOTS`), danh sách các mã thiết bị cụ thể (`EQUIPMENT_ASSETS`) đã được hệ thống giữ chỗ cho đơn này.
-
----
-
-### 15.4. Danh sách thiết bị cần bàn giao (Handover Checklist)
-`GET /admin/rental-orders/{orderCode}/handover-checklist` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O24 — hiển thị bảng kiểm tra trước khi giao đồ cho khách: từng món/combo cần bao nhiêu cái, đã quét mã barcode được bao nhiêu cái.
-
----
-
-### 15.5. Quét barcode kiểm tra & bàn giao từng thiết bị
-`POST /admin/rental-orders/{orderCode}/handover/scan` · **Auth:** Staff / Admin
-
-- **Mục đích:** Ô quét mã vạch trên màn O24 — mỗi khi nhân viên cầm đầu đọc barcode bấm "bíp" vào tem QR của một thiết bị:
-  - Hệ thống kiểm tra: Mã này có tồn tại không? Thuộc đúng biến thể SKU của đơn không? Có đang ở trạng thái `Reserved` cho đơn này không? Tình trạng kỹ thuật có tốt không?
-  - Nếu hợp lệ: Cập nhật `ASSET_ASSIGNMENTS.status = Issued`, ghi nhận `assigned_at = now`.
-- **Tại sao cần API này:** Phản hồi ngay lập tức cho nhân viên kho tại hiện trường nếu quét nhầm mã đồ hoặc đồ đang bị hỏng.
-
-**Request body**
-
-```json
-{
-  "assetCode": "TENT-4P-0015"
-}
-```
-
-**Response `200 OK`**
-
+- **Mục đích:** Màn vận hành xem toàn bộ lịch sử gia hạn/điều chỉnh của một đơn thuê bất kỳ (sắp xếp cũ nhất trước).
+- **Path params:** `orderId` (GUID của đơn thuê).
+- **Response `200 OK` (JSON):**
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Quét mã bàn giao hợp lệ",
-  "data": {
-    "assetCode": "TENT-4P-0015",
-    "sku": "TENT-EUREKA-4P-ORANGE",
-    "productName": "Lều cắm trại 4 người Eureka",
-    "scannedAt": "2026-11-01T08:35:00Z",
-    "progress": {
-      "scannedItems": 3,
-      "totalRequiredItems": 5,
-      "isCompleted": false
-    }
-  },
-  "errors": null,
-  "timestamp": "2026-11-01T08:35:00Z"
-}
-```
-
-**Lỗi (Error Responses)**
-
-```json
-HTTP 400 Bad Request
-{
-  "success": false,
-  "statusCode": 400,
-  "message": "Thiết bị 'TENT-4P-0099' không thuộc biến thể SKU cần bàn giao cho đơn này.",
-  "data": null,
-  "errors": {
-    "code": ["ASSET_VARIANT_MISMATCH"]
-  },
-  "timestamp": "2026-11-01T08:35:00Z"
-}
-```
-
-| Status | Khi nào | Code | Hành động của FE |
-|---|---|---|---|
-| `400` | Mã asset không khớp SKU cần giao | `ASSET_VARIANT_MISMATCH` | Phát âm thanh cảnh báo lỗi quét mã, toast báo sai món đồ |
-| `400` | Thiết bị đang ở trạng thái hỏng/bảo trì | `ASSET_NOT_AVAILABLE` | Báo thiết bị hỏng, yêu cầu đổi mã asset khác |
-| `404` | Mã asset không tồn tại trong hệ thống | `NOT_FOUND` | Báo mã vạch không hợp lệ |
-
----
-
-### 15.6. Hoàn tất bàn giao thiết bị
-`POST /admin/rental-orders/{orderCode}/handover/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Hoàn tất bàn giao" màn O24.
-- **Ràng buộc:** Chặn hoàn tất nếu vẫn còn thiết bị chưa được quét bàn giao đủ số lượng. (Trường hợp khách không nhận đủ đồ phải có ghi nhận lý do đặc biệt).
-- **Chuyển trạng thái:** Chuyển trạng thái đơn `ORDERS.status` từ `Confirmed` sang `InFulfillment`.
-
----
-
-### 15.7. Danh sách thiết bị cần thu hồi (Return Checklist)
-`GET /admin/rental-orders/{orderCode}/return-checklist` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O25 — hiển thị danh sách các thiết bị khách hàng đang giữ để đối chiếu khi khách mang đồ trả lại kho.
-
----
-
-### 15.8. Quét barcode nhận lại & kiểm tra tình trạng thiết bị
-`POST /admin/rental-orders/{orderCode}/return/scan` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O25 — quét mã thiết bị khách trả, ghi nhận `returned_at = now`, chuyển `ASSET_ASSIGNMENTS.status = Returned`.
-- **Đánh giá tình trạng (`returnCondition`):**
-  - `Normal`: Thiết bị bình thường, tự động đưa `EQUIPMENT_ASSETS.asset_status` về `Available`.
-  - `Damaged` / `MissingAccessory`: Thiết bị bị rách/hỏng/thiếu phụ kiện, đưa thiết bị sang trạng thái `Maintenance` hoặc `Damaged`, đồng thời gợi ý mở popup lập biên bản phạt hư hại (O26).
-  - Trả trễ (`now > rental_end_at`): Tự động tính số ngày trễ hạn và gợi ý số tiền phạt trễ hạn theo quy định.
-
-**Request body**
-
-```json
-{
-  "assetCode": "TENT-4P-0015",
-  "returnCondition": "Damaged",
-  "conditionNote": "Bị rách mặt lưới chống côn trùng cửa chính",
-  "autoCreateDamageCharge": true,
-  "suggestedDamageAmount": 150000
-}
-```
-
----
-
-### 15.9. Báo mất thiết bị (Report Lost)
-`POST /admin/rental-orders/{orderCode}/return/report-lost` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Báo mất" trên màn O25 khi khách làm mất thiết bị trong chuyến đi.
-- **Xử lý:** Cập nhật `ASSET_ASSIGNMENTS.status = LostOrException`, đưa `EQUIPMENT_ASSETS.asset_status = Lost` (tài sản bị loại khỏi danh mục sẵn sàng cho thuê), và tự động tạo một biên bản phạt mất đồ (`charge_type = Loss`) ở trạng thái `Draft`.
-
----
-
-### 15.10. Hoàn tất thu hồi thiết bị
-`POST /admin/rental-orders/{orderCode}/return/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Chốt việc bàn giao tài sản vật lý khi tất cả các thiết bị đã được quét nhận lại hoặc báo mất đầy đủ.
-
----
-
-## 16. Admin: Phí phát sinh & Quyết toán Đơn thuê (Màn O26)
-
-### 16.1. Danh sách phí phát sinh của đơn thuê
-`GET /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
-
-- **Mục đích:** Màn O26 — danh sách các khoản phạt phát sinh (Phí trả trễ, Phí làm hỏng thiết bị, Phí làm mất đồ, Phí vệ sinh bẩn nặng).
-
-**Response `200 OK`**
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Thành công",
+  "message": "Lấy lịch sử điều chỉnh đơn thuê thành công",
   "data": [
     {
-      "chargeId": "cccc1111-2222-3333-4444-555566667777",
-      "chargeType": "Damage",
-      "equipmentAssetCode": "TENT-4P-0015",
-      "productName": "Lều cắm trại 4 người Eureka",
-      "amount": 150000,
-      "reason": "Rách lưới chống muỗi cửa chính cần thay mới",
-      "status": "Draft",
-      "createdByName": "Lê Nhân Viên Kho",
-      "createdAt": "2026-11-03T18:15:00Z"
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "adjustmentType": "Extension",
+      "oldEndAt": "2026-11-10T10:00:00Z",
+      "newEndAt": "2026-11-12T10:00:00Z",
+      "extraAmount": 200000.0,
+      "requestedByUserId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "requestedByName": "Nguyễn Văn A",
+      "createdAt": "2026-11-09T08:00:00Z"
     }
   ],
   "errors": null,
-  "timestamp": "2026-11-03T18:30:00Z"
+  "timestamp": "2026-11-09T08:00:00Z"
 }
 ```
+- **Mã lỗi:** `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 ORDER_NOT_FOUND`.
 
----
+## 16. Admin: Phí phát sinh & Đóng đơn thuê (FR-C02–C05, FR-R08)
 
-### 16.2. Lập biên bản phí phát sinh mới
-`POST /admin/rental-orders/by-code/{orderCode}/charges` · **Auth:** Staff / Admin
+### 16.1. Lập phí
+`POST /admin/rental-orders/{orderId}/charges` — body `{ "chargeType": "LateReturn|Damage|Loss|Other", "amount": 150000, "reason": "...", "assignmentId": "guid" }`. `assignmentId` bắt buộc với `Damage` / `Loss` và thiết bị phải từng được giao cho đơn. Phí tạo ở `Assessed`.
 
-- **Mục đích:** Tạo một khoản phí phát sinh mới ở trạng thái `Draft` (nháp) để nhân viên thương lượng với khách.
+### 16.2. Xác nhận phí nháp
+`POST /admin/rental-orders/{orderId}/charges/{chargeId}/assess` — `Draft` → `Assessed`; trạng thái khác → `409 CHARGE_NOT_REVIEWABLE`.
 
-**Request body**
+### 16.3. Hủy phí
+`POST /admin/rental-orders/{orderId}/charges/{chargeId}/void` — body `{ "reason": "..." }`. `Draft` / `Assessed` → `Voided`; không xóa, lý do nằm trong audit. Phí `Draft`: Staff / Admin hủy được; phí `Assessed` đã là công nợ của khách nên chỉ Admin hủy (Staff → `403`).
 
-```json
-{
-  "chargeType": "LateReturn",
-  "amount": 100000,
-  "equipmentAssetId": null,
-  "reason": "Trả trễ 1 ngày so với thời gian đăng ký trong hợp đồng"
-}
-```
-
----
-
-### 16.3. Chốt phí phát sinh (Draft -> Assessed)
-`POST /admin/charges/{chargeId}/assess` · **Auth:** Staff / Admin
-
-- **Mục đích:** Chốt khoản phí từ `Draft` sang `Assessed` để chính thức yêu cầu khách hàng thanh toán bồi thường.
-
----
-
-### 16.4. Admin hủy phí phát sinh (Void)
-`POST /admin/charges/{chargeId}/void` · **Auth:** Admin
-
-- **Mục đích:** Nút "Hủy phí" màn O26 — chỉ Quản trị viên (Admin) mới có thẩm quyền xóa/miễn giảm khoản phí phạt cho khách (ví dụ: xác định lỗi do thiết bị cũ tự rách). Bắt buộc nhập lý do hủy và lưu `AUDIT_LOGS`.
-
----
-
-### 16.5. Tạo yêu cầu thu phí bổ sung (Payment Request)
-`POST /admin/rental-orders/{orderCode}/charges/request-payment` · **Auth:** Staff / Admin
-
-- **Mục đích:** Nút "Tạo yêu cầu thanh toán phí" màn O26 — gom toàn bộ các khoản phí đang ở trạng thái `Assessed` chưa thu, tạo một giao dịch `PAYMENTS` (loại `Collection`, mục đích `AdditionalCharge`), cấp mã VietQR SePay để khách thanh toán online qua màn C04P. Khi thanh toán thành công, các khoản phí tự động chuyển sang `Settled`.
-
----
-
-### 16.6. Nghiệm thu đóng toàn bộ đơn thuê (Complete Order)
-`POST /admin/rental-orders/by-code/{orderCode}/complete` · **Auth:** Staff / Admin
-
-- **Mục đích:** Đóng đơn hàng thuê, chuyển `ORDERS.status` sang `Completed`.
-- **Checklist điều kiện tiên quyết (Invariants):**
-  1. Toàn bộ thiết bị đã trả (`Returned`) hoặc báo mất (`LostOrException`), không còn thiết bị nào đang `Issued`.
-  2. Không còn khoản phí nào ở trạng thái `Draft`.
-  3. Mọi khoản phí ở trạng thái `Assessed` đã được thanh toán (`Settled`) hoặc đã được Admin duyệt miễn (`Voided`).
+### 16.4. Đóng đơn
+`POST /admin/rental-orders/{orderId}/complete` — đơn `InFulfillment`. Bị chặn (`409`) khi còn thiết bị chưa giao, chưa nhận trả, hoặc còn phí `Draft`. Quyết toán theo PRD §8.7: phí `Assessed` trừ vào cọc đã thu → `settlement.depositToRefund` / `settlement.additionalAmountDue`; đơn chuyển `Completed`.
 
 ---
 
@@ -3078,7 +3043,14 @@ HTTP 400 Bad Request
 `GET /admin/payments` · **Auth:** Staff (phụ trách) / Admin
 
 - **Mục đích:** Màn O27 — bảng kê khai toàn bộ các dòng tiền Thu (`Collection`) và dòng tiền Hoàn (`Refund`) phát sinh trên hệ thống.
-- **Query params:** `pageNumber`, `pageSize`, `paymentType` (`Collection`, `Refund`), `purpose` (`TourFee`, `RentalFee`, `AdditionalCharge`), `status` (`PendingApproval`, `Pending`, `Succeeded`, `Failed`, `Cancelled`), `fromDate`, `toDate`, `search` (tìm mã đơn, mã giao dịch SePay `providerTransactionId`).
+- **Query params:** `pageNumber`, `pageSize`, `paymentType` (`Collection`, `Refund`), `purpose` (`TourFee`, `RentalFee`, `AdditionalCharge`), `status` (`PendingApproval`, `Pending`, `Succeeded`, `Failed`, `Cancelled`), `fromDate`, `toDate`, `search` (tìm mã đơn, mã giao dịch SePay `providerTransactionId`), `sortBy` (`createdAt` mặc định, `amount`, `status`), `sortOrder` (`asc` | `desc` mặc định).
+- **Phạm vi:** Admin thấy mọi đơn; Staff chỉ thấy giao dịch của đơn mình phụ trách (chuyến do mình quản lý hoặc đơn thuê mình nhận).
+- **Trường dữ liệu:**
+  - `amount`: dòng `Refund` trả số âm; DB vẫn lưu số dương.
+  - `receivedAmount`: số tiền thực nhận của dòng thu có mã giao dịch (`Collection` + `providerTransactionId`); `null` với dòng khác.
+  - `failureReason`: lý do từ chối / thất bại của hồ sơ hoàn tiền gắn với dòng hoàn (nếu có).
+  - `policyRuleDescription`: mốc chính sách hoàn đã áp khi khách hủy (nếu có hồ sơ hoàn tiền).
+  - `hasRefundCase`: `true` khi dòng hoàn đã có hồ sơ hoàn tiền → FE xử lý tại `/admin/refund-cases`, không dùng nút 17.3–17.5.
 
 **Response `200 OK`**
 
@@ -3091,16 +3063,19 @@ HTTP 400 Bad Request
     "items": [
       {
         "paymentId": "dddd0000-1111-2222-3333-444455556666",
+        "orderId": "aaaa0000-1111-2222-3333-444455556666",
         "orderCode": "TRIP-2026-0421",
+        "orderPaymentStatus": "Paid",
         "paymentType": "Refund",
         "purpose": "TourFee",
         "amount": -2560000,
         "receivedAmount": null,
         "paymentMethod": "BankTransfer",
-        "providerTransactionId": "SP-REF-992182",
+        "providerTransactionId": null,
         "status": "PendingApproval",
         "failureReason": null,
         "policyRuleDescription": "Hủy trước 72 giờ · Hoàn 80%",
+        "hasRefundCase": false,
         "createdAt": "2026-11-01T09:00:00Z"
       }
     ],
@@ -3121,22 +3096,25 @@ HTTP 400 Bad Request
 ### 17.2. Hàng đợi yêu cầu hoàn tiền & đối soát (Màn O28)
 `GET /admin/refunds` · **Auth:** Admin
 
-- **Mục đích:** Màn O28 — danh sách các khoản hoàn tiền chia theo các Tab nghiệp vụ:
+- **Mục đích:** Màn O28 — danh sách các khoản hoàn tiền chia theo các Tab nghiệp vụ (`tab`, mặc định `PendingApproval`):
   - `PendingApproval`: Yêu cầu hoàn tiền mới sinh ra khi khách hoặc admin hủy đơn, đang chờ Admin duyệt.
-  - `Pending`: Đang xử lý chuyển tiền qua cổng SePay.
-  - `Failed`: Hoàn tiền thất bại (do lỗi kết nối ngân hàng hoặc tài khoản đích bị chặn).
-  - `NeedsReconciliation`: Các đơn hàng chuyển khoản sai số tiền hoặc chuyển muộn cần can thiệp đối soát.
+  - `Pending`: Đã duyệt, chờ kế toán chuyển khoản thủ công (hệ thống không gọi API hoàn tiền SePay).
+  - `Failed`: Hoàn tiền thất bại (do lỗi ngân hàng hoặc tài khoản đích bị chặn).
+  - `NeedsReconciliation`: Các khoản tiền khách đã chuyển (`Collection` `Pending` có `providerTransactionId`) của đơn sai số tiền / chuyển muộn cần đối soát. Dùng `orderId` của dòng để gọi 17.6 / 17.7.
+- **Query params:** `tab`, `pageNumber`, `pageSize`, `purpose`, `fromDate`, `toDate`, `search`, `sortBy`, `sortOrder`. `paymentType` và `status` bị bỏ qua vì tab đã cố định. Tab khác 4 giá trị trên → `400`.
+- **Response:** cùng cấu trúc item với 17.1.
 
 ---
 
-### 17.3. Duyệt hoàn tiền tự động qua SePay (Approve Refund)
-`POST /admin/refunds/{paymentId}/approve` · **Auth:** Admin
+### 17.3. Duyệt hoàn tiền (Approve Refund)
+`POST /admin/refunds/{paymentId}/approve` · **Auth:** Admin · **Rate limit:** `RefundSensitive`
 
-- **Mục đích:** Nút "Duyệt & hoàn qua SePay" màn O28.
+- **Mục đích:** Nút "Duyệt hoàn tiền" màn O28. Luồng thủ công: duyệt chỉ chuyển khoản hoàn `PendingApproval` → `Pending` để kế toán chuyển khoản; **không gọi API SePay**. Sau khi chuyển xong, Admin gọi 17.5.
 - **Quy tắc an toàn (Invariants):**
-  - Hệ thống tự động tính toán lại số tiền hoàn tại đúng thời điểm bấm nút dựa trên mốc chính sách (`refund_policy_rules`) để đảm bảo không bị gian lận thời gian.
-  - API không cho phép admin nhập sửa tay số tiền hoàn tùy tiện nhằm chống tiêu cực.
-  - Gọi API v2 SePay thực hiện lệnh chuyển khoản hoàn tiền. Chuyển trạng thái sang `Pending` hoặc `Succeeded`.
+  - Số tiền hoàn đã được chốt lúc khách / admin hủy đơn theo mốc chính sách (`refund_policy_rules`); API không cho admin sửa tay số tiền.
+  - Tổng hoàn (đã hoàn + đang chờ chuyển + khoản này) không được vượt tổng tiền đã thu của đơn → `409 REFUND_EXCEEDS_COLLECTED`.
+  - Khoản hoàn đã có hồ sơ hoàn tiền (`hasRefundCase = true`) → `409 REFUND_NOT_APPROVABLE`, xử lý tại `/admin/refund-cases`.
+  - Ghi audit `RefundApproved`.
 
 **Response `200 OK`**
 
@@ -3150,7 +3128,7 @@ HTTP 400 Bad Request
     "orderCode": "TRIP-2026-0421",
     "amount": -2560000,
     "status": "Pending",
-    "providerRefundId": "SP-REF-992182"
+    "providerRefundId": null
   },
   "errors": null,
   "timestamp": "2026-11-01T08:30:00Z"
@@ -3175,37 +3153,28 @@ HTTP 409 Conflict
 }
 ```
 
-- **Response `502 Bad Gateway` — Cổng SePay lỗi kết nối:**
-
-```json
-HTTP 502 Bad Gateway
-{
-  "success": false,
-  "statusCode": 502,
-  "message": "Không thể kết nối tới cổng thanh toán SePay. Vui lòng bấm Thử lại sau ít phút.",
-  "data": null,
-  "errors": {
-    "code": ["PAYMENT_PROVIDER_ERROR"]
-  },
-  "timestamp": "2026-11-01T08:30:00Z"
-}
-```
-
 | Status | Khi nào | Code | Hành động của FE |
 |---|---|---|---|
-| `404` | Không tìm thấy dòng thanh toán hoàn | `NOT_FOUND` | Báo dòng hoàn không tồn tại |
+| `404` | Không tìm thấy dòng hoàn (hoặc `paymentId` là dòng thu) | `NOT_FOUND` | Báo dòng hoàn không tồn tại |
 | `409` | Dòng hoàn không ở PendingApproval | `REFUND_NOT_APPROVABLE` | Tải lại danh sách hoàn tiền O28 |
+| `409` | Dòng hoàn đã có hồ sơ hoàn tiền | `REFUND_NOT_APPROVABLE` | Chuyển sang `/admin/refund-cases` |
 | `409` | Số tiền hoàn vượt tổng tiền đã thu | `REFUND_EXCEEDS_COLLECTED` | Chặn duyệt và cảnh báo |
-| `429` | Quá 10 thao tác duyệt / 60 giây | `TOO_MANY_REQUESTS` | Đọc header `Retry-After` và hiển thị đồng hồ chờ |
-| `502` | Cổng SePay phản hồi lỗi không hoàn được | `PAYMENT_PROVIDER_ERROR` | Cho phép bấm nút "Thử lại" hoặc "Hoàn thủ công" |
+| `429` | Vượt giới hạn `RefundSensitive` | `TOO_MANY_REQUESTS` | Đọc header `Retry-After` và hiển thị đồng hồ chờ |
+
+> Response 17.3 / 17.4 / 17.5 cùng cấu trúc `{ paymentId, orderCode, amount (âm), status, providerRefundId }`; `providerRefundId` chỉ có khi `status = Succeeded` (= `manualReference`).
 
 ---
 
 ### 17.4. Thử lại giao dịch hoàn tiền bị lỗi (Retry Refund)
 `POST /admin/refunds/{paymentId}/retry` · **Auth:** Admin
 
-- **Mục đích:** Khi giao dịch hoàn tiền bị `Failed` (do ngân hàng bảo trì), Admin bấm "Thử lại".
-- **Ràng buộc:** Tối đa thử lại 3 lần. Nếu vượt quá 3 lần, hệ thống khóa nút thử lại và yêu cầu chuyển sang hoàn thủ công (`mark-manual`).
+- **Mục đích:** Khi giao dịch hoàn tiền bị `Failed` (do ngân hàng bảo trì), Admin bấm "Thử lại": khoản hoàn quay về `Pending` để kế toán chuyển khoản lại. **Rate limit:** `RefundSensitive`.
+- **Ràng buộc:** Tối đa thử lại 3 lần (đếm theo audit `RefundRetry`). Từ lần thứ 4 trả `409 REFUND_NOT_RETRYABLE` và yêu cầu chuyển sang hoàn thủ công (`mark-manual`).
+
+| Status | Khi nào | Code |
+|---|---|---|
+| `404` | Không tìm thấy dòng hoàn | `NOT_FOUND` |
+| `409` | Dòng hoàn không ở `Failed`, đã thử đủ 3 lần, hoặc đã có hồ sơ hoàn tiền | `REFUND_NOT_RETRYABLE` |
 
 ---
 
@@ -3223,6 +3192,18 @@ HTTP 502 Bad Gateway
 }
 ```
 
+- `manualReference` bắt buộc, tối đa 100 ký tự; `note` tối đa 500 ký tự. **Rate limit:** `RefundSensitive`.
+- Chỉ áp dụng cho dòng hoàn `Pending` (đã duyệt) hoặc `Failed`. Dòng hoàn chuyển `Succeeded`, lưu `manualReference` vào `providerTransactionId`; đơn chuyển `paymentStatus` = `Refunded` (đã hoàn hết tiền thu) hoặc `PartiallyRefunded`. Ghi audit `RefundMarkedManual` kèm `note`.
+- Gọi lại với cùng `manualReference` sau khi đã thành công → `200` (idempotent, không ghi audit lần 2).
+
+| Status | Khi nào | Code |
+|---|---|---|
+| `400` | Thiếu / quá dài `manualReference` | `VALIDATION_ERROR` |
+| `404` | Không tìm thấy dòng hoàn | `NOT_FOUND` |
+| `409` | Dòng hoàn không ở `Pending` / `Failed`, hoặc đã có hồ sơ hoàn tiền | `REFUND_NOT_COMPLETABLE` |
+| `409` | Đơn đang `NeedsReconciliation` (đối soát trước bằng 17.6 / 17.7) | `ORDER_NOT_RECONCILABLE` |
+| `409` | `manualReference` đã dùng cho giao dịch khác | `REFUND_TRANSACTION_DUPLICATED` |
+
 ---
 
 ### 17.6. Chấp nhận khoản tiền chuyển đối soát (Reconcile Accept)
@@ -3230,6 +3211,14 @@ HTTP 502 Bad Gateway
 
 - **Mục đích:** Nút "Chấp nhận khoản tiền" màn O28 Tab Cần đối soát.
 - **Trường hợp áp dụng:** Khách chuyển tiền thừa hoặc chuyển thành 2 lần nhưng tổng vẫn đủ trước hạn chót (`reconciliation_deadline_at`). Hệ thống xác nhận đơn (`Confirmed`), gán `paymentStatus = Paid` và tự động sinh một lệnh hoàn phần tiền thừa cho khách.
+- **Điều kiện:** đơn `paymentStatus = NeedsReconciliation`; đơn `Confirmed` hoặc `PendingPayment` còn hạn giữ chỗ (`holdExpiresAt` chưa qua); tổng đã thu (không tính `AdditionalCharge`) + tiền chờ đối soát ≥ `totalAmount`. Không có body.
+- **Kết quả:** các khoản chờ đối soát → `Succeeded`; mã giảm giá `Reserved` → `Applied`; phần thừa sinh dòng `Refund` `PendingApproval` (duyệt tiếp ở 17.3); gửi thông báo xác nhận nếu đơn vừa chuyển từ `PendingPayment`; xoá `holdExpiresAt` / `reconciliationDeadlineAt`; ghi audit `ReconcileAccept`.
+- **Response `200`:** `data = null`.
+
+| Status | Khi nào | Code |
+|---|---|---|
+| `404` | Không tìm thấy đơn (hoặc ngoài phạm vi) | `NOT_FOUND` |
+| `409` | Đơn không `NeedsReconciliation`, hết hạn giữ chỗ / đã đóng, hoặc tổng tiền nhận chưa đủ (→ dùng 17.7) | `ORDER_NOT_RECONCILABLE` |
 
 ---
 
@@ -3237,6 +3226,145 @@ HTTP 502 Bad Gateway
 `POST /admin/orders/{orderId}/reconcile-refund` · **Auth:** Admin
 
 - **Mục đích:** Nút "Hoàn toàn bộ" màn O28 khi khách chuyển tiền quá muộn sau khi chỗ đã bị giải phóng hoặc chuyển không đủ và từ chối nộp thêm. Hệ thống hoàn lại 100% số tiền thực nhận cho khách và đóng đơn ở trạng thái `Expired`.
+- **Điều kiện:** đơn `paymentStatus = NeedsReconciliation` và không ở `Confirmed` (đơn đã xác nhận → dùng 17.6 để hoàn phần thừa, hoặc hủy đơn). Không có body.
+- **Kết quả:** các khoản chờ đối soát → `Succeeded`; sinh dòng `Refund` `PendingApproval` cho phần chưa hoàn của mọi khoản thu thành công; đơn `PendingPayment` được giải phóng giữ chỗ (thiết bị, hành khách, lời mời, mã giảm giá `Reversed`) và chuyển `Expired`; đơn đã `Cancelled` / `Expired` giữ nguyên trạng thái. `paymentStatus` rời `NeedsReconciliation` (`Paid` / `PartiallyPaid`) để duyệt hoàn ở 17.3 và đánh dấu ở 17.5. Ghi audit `ReconcileRefund`.
+- **Response `200`:** `data = null`.
+
+| Status | Khi nào | Code |
+|---|---|---|
+| `404` | Không tìm thấy đơn | `NOT_FOUND` |
+| `409` | Đơn không `NeedsReconciliation`, hoặc đã `Confirmed` | `ORDER_NOT_RECONCILABLE` |
+
+---
+
+#### Hồ sơ hoàn tiền thủ công (Refund Cases)
+
+> Luồng đang chạy trên BE. Quy trình nghiệp vụ: [05-MANUAL-REFUND-WORKFLOW.md](05-MANUAL-REFUND-WORKFLOW.md).
+
+Hồ sơ được tạo tự động khi khách hủy booking có tiền hoàn. Vòng đời: `Requested` → (xuất Excel) `Approved` → `Completed` / `Failed`; `Requested` → `Rejected`.
+Các thao tác ghi dùng `expectedRowVersion` để chống ghi đè đồng thời (sai → `409 CONCURRENCY_CONFLICT`).
+Mọi endpoint `POST` của Admin dùng rate limit `RefundSensitive`: 10 request / phút / người dùng (`429`).
+
+### 17.8. Khách xem hồ sơ hoàn tiền
+
+`GET /refund-cases/{refundCaseId}` · **Auth:** User (chủ đơn; Staff/Admin tự đặt tour cũng xem được hồ sơ của mình)
+
+```json
+{
+  "refundCaseId": "guid",
+  "orderId": "guid",
+  "orderCode": "TOUR-20261105-0001",
+  "amount": 1500000,
+  "status": "Approved",
+  "bankCode": "VCB",
+  "maskedAccount": "******6789",
+  "timeline": [
+    { "status": "Requested", "occurredAt": "2026-11-05T08:00:00Z" },
+    { "status": "Approved", "occurredAt": "2026-11-05T10:00:00Z" }
+  ],
+  "completedAt": null
+}
+```
+
+Lỗi: `404 REFUND_CASE_NOT_FOUND` (không tồn tại hoặc không phải chủ đơn).
+
+### 17.9. Hàng đợi hoàn tiền (Admin)
+
+`GET /admin/refund-cases` · **Auth:** Admin
+
+Query: `status` (`Requested`, `Approved`, `Completed`, `Rejected`, `Failed`), `fromDate`, `toDate`, `pageNumber` (mặc định 1), `pageSize` (mặc định 10).
+
+`data` là Paged data, mỗi item:
+
+```json
+{
+  "refundCaseId": "guid",
+  "orderId": "guid",
+  "orderCode": "TOUR-20261105-0001",
+  "tourName": "Chinh phục Tà Năng",
+  "tripStartAt": "2026-11-20T00:00:00Z",
+  "customerName": "Nguyễn Văn A",
+  "orderTotalAmount": 3000000,
+  "amount": 1500000,
+  "status": "Requested",
+  "bankCode": "VCB",
+  "maskedAccount": "******6789",
+  "policyName": "Chính sách hủy tiêu chuẩn",
+  "policyVersion": 2,
+  "minHoursBefore": 72,
+  "refundPercentage": 50,
+  "cancelReason": "Bận việc",
+  "providerTransactionId": null,
+  "createdAt": "2026-11-05T08:00:00Z",
+  "rowVersion": 1
+}
+```
+
+### 17.10. Gửi mã OTP xuất Excel
+
+`POST /admin/refund-cases/export/verification-codes` · **Auth:** Admin (email đã xác minh)
+
+Không có body. Gửi mã OTP tới email Admin, hiệu lực 5 phút.
+
+```json
+{ "challengeId": "guid", "expiresAt": "2026-11-05T08:05:00Z" }
+```
+
+Lỗi: `403` khi email Admin chưa xác minh.
+
+### 17.11. Xuất Excel chuyển khoản
+
+`POST /admin/refund-cases/export` · **Auth:** Admin
+
+```json
+{
+  "challengeId": "guid",
+  "verificationCode": "123456",
+  "reExport": false,
+  "fromDate": null,
+  "toDate": null
+}
+```
+
+- Trả file `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Cache-Control: no-store`) chứa số tài khoản đầy đủ. Không bọc trong Response wrapper.
+- `reExport = false`: xuất hồ sơ `Requested` và chuyển chúng sang `Approved`.
+- `reExport = true`: xuất lại hồ sơ `Approved` (khi mất file), không đổi trạng thái.
+- Mỗi lần xuất cần một OTP mới.
+
+Lỗi: `400 REFUND_VERIFICATION_REQUIRED` / `REFUND_VERIFICATION_EXPIRED`, `409 REFUND_EXPORT_EMPTY`, `409 REFUND_SENSITIVE_DATA_PURGED`.
+
+### 17.12. Từ chối hoàn tiền
+
+`POST /admin/refund-cases/{refundCaseId}/reject` · **Auth:** Admin
+
+```json
+{ "reason": "Khách cung cấp sai tài khoản", "expectedRowVersion": 1 }
+```
+
+Chỉ áp dụng cho hồ sơ `Requested` → `Rejected`. Trả `RefundCaseSummaryResponse`:
+
+```json
+{ "refundCaseId": "guid", "amount": 1500000, "status": "Rejected", "bankCode": "VCB", "maskedAccount": "******6789", "rowVersion": 2 }
+```
+
+Lỗi: `409 REFUND_CASE_NOT_REJECTABLE`.
+
+### 17.13. Ghi nhận chuyển khoản thành công
+
+`POST /admin/refund-cases/{refundCaseId}/complete` · **Auth:** Admin
+
+```json
+{ "providerTransactionId": "FT26110512345", "expectedRowVersion": 2 }
+```
+
+Chỉ áp dụng cho hồ sơ `Approved` → `Completed`. Trả `RefundCaseSummaryResponse`.
+Lỗi: `409 REFUND_CASE_NOT_COMPLETABLE`, `409 REFUND_TRANSACTION_DUPLICATED` (mã giao dịch đã dùng).
+
+### 17.14. Ghi nhận chuyển khoản thất bại
+
+`POST /admin/refund-cases/{refundCaseId}/mark-failed` · **Auth:** Admin
+
+Body giống 17.12. Chỉ áp dụng cho hồ sơ `Approved` → `Failed`. Trả `RefundCaseSummaryResponse`.
 
 ---
 
@@ -3370,7 +3498,7 @@ HTTP 502 Bad Gateway
 ## 19. Admin: Quản lý Bài viết & Nội dung Hướng dẫn (Màn O32)
 
 ### 19.1. Danh sách bài viết & cẩm nang
-`GET /admin/management/posts` · **Auth:** Staff / Admin
+`GET /admin/posts` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O32 — danh sách các bài viết hướng dẫn trekking, kỹ năng sinh tồn, thông tin địa điểm.
 - **Trường thống kê:** Tác giả, số tour đang gắn bài viết này (`COUNT(tour_posts)`), tổng số lượt khách tham gia tour đã bấm đọc bài viết này (`COUNT(participant_post_reads)`).
@@ -3411,7 +3539,7 @@ HTTP 502 Bad Gateway
 ---
 
 ### 19.2. Tạo bài viết mới (Draft)
-`POST /admin/management/posts` · **Auth:** Staff / Admin
+`POST /admin/posts` · **Auth:** Staff / Admin
 
 **Request body**
 
@@ -3420,45 +3548,46 @@ HTTP 502 Bad Gateway
   "title": "Hướng dẫn chuẩn bị thể lực 4 tuần trước khi đi Bidoup",
   "slug": "chuan-bi-the-luc-truoc-khi-di-bidoup",
   "postType": "Guide",
-  "content": "<p>Nội dung rich text bài viết chi tiết...</p>",
+  "content": "## Tuần 1\nChạy bộ **30 phút** mỗi ngày...\n\n![Bidoup](https://<project>.supabase.co/storage/v1/object/public/uploads/posts/x.jpg)",
   "tagIds": ["11110000-aaaa-bbbb-cccc-111122223333"],
-  "softSkillIds": ["22220000-aaaa-bbbb-cccc-111122223333"]
+  "softSkillIds": ["22220000-aaaa-bbbb-cccc-111122223333"],
+  "tourIds": ["33330000-aaaa-bbbb-cccc-111122223333"]
 }
 ```
 
 ---
 
 ### 19.3. Chi tiết bài viết & trình soạn thảo
-`GET /admin/management/posts/{postId}` · **Auth:** Staff / Admin
+`GET /admin/posts/{postId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Trình soạn thảo rich-text màn O32.
 
 ---
 
 ### 19.4. Sửa bài viết
-`PUT /admin/management/posts/{postId}` · **Auth:** Staff / Admin
+`PUT /admin/posts/{postId}` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.5. Xóa bài viết
-`DELETE /admin/management/posts/{postId}` · **Auth:** Admin
+`DELETE /admin/posts/{postId}` · **Auth:** Admin
 
 ---
 
 ### 19.6. Xuất bản bài viết
-`POST /admin/management/posts/{postId}/publish` · **Auth:** Staff / Admin
+`POST /admin/posts/{postId}/publish` · **Auth:** Staff / Admin
 
 - **Mục đích:** Đổi trạng thái sang `Published`, cập nhật `published_at = now`.
 
 ---
 
 ### 19.7. Lưu trữ bài viết
-`POST /admin/management/posts/{postId}/archive` · **Auth:** Staff / Admin
+`POST /admin/posts/{postId}/archive` · **Auth:** Staff / Admin
 
 ---
 
 ### 19.8. Báo cáo lượt đọc bài viết của khách hàng
-`GET /admin/management/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
+`GET /admin/posts/{postId}/read-analytics` · **Auth:** Staff / Admin
 
 - **Mục đích:** Thống kê tỷ lệ hành khách đã đọc bài viết chuẩn bị trước khi chuyến khởi hành (dựa trên bảng `PARTICIPANT_POST_READS`).
 
@@ -3625,9 +3754,12 @@ HTTP 502 Bad Gateway
 ## 22. Admin: Báo cáo Vận hành & Phân tích (Màn O37)
 
 ### 22.1. Báo cáo doanh thu & dòng tiền ròng
-`GET /admin/reports/revenue?from={date}&to={date}&groupBy={month|week}` · **Auth:** Admin
+`GET /admin/reports/revenue?from={date}&to={date}&groupBy={month|week}&format={csv}` · **Auth:** Admin
 
 - **Mục đích:** Biểu đồ doanh thu màn O37 — tổng thu (`Collection Succeeded`), tổng hoàn (`Refund Succeeded`), doanh thu thực nhận ròng phân theo Tour và Cho thuê thiết bị.
+- **Xuất CSV (`format=csv`):** Trả `text/csv; charset=utf-8` có UTF-8 BOM, tên file `revenue-{todayVn:yyyy-MM-dd}.csv`, cột `KyBaoCao,LoaiDonHang,TongThuVnd,TongHoanVnd,DoanhThuRongVnd` (cùng quyền Admin-only như JSON, Staff/Customer gọi trả `403 FORBIDDEN`).
+- **Mã lỗi:** `400 VALIDATION_ERROR` (khoảng ngày không hợp lệ), `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+- **FE note:** Chỉ hiển thị nút xuất CSV báo cáo doanh thu với tài khoản `Admin`; tải qua blob bằng chính bộ lọc `from`/`to`/`groupBy` đang xem.
 
 ---
 
@@ -3646,9 +3778,12 @@ HTTP 502 Bad Gateway
 ---
 
 ### 22.4. Báo cáo hoàn tiền và bồi thường thiệt hại
-`GET /admin/reports/refunds-and-charges?from={date}&to={date}` · **Auth:** Admin
+`GET /admin/reports/refunds-and-charges?from={date}&to={date}&format={csv}` · **Auth:** Admin
 
 - **Mục đích:** Thống kê tổng số tiền đã hoàn trả cho khách theo từng mốc chính sách hủy tour và tổng số tiền phạt thu được do khách làm hỏng/mất/trả trễ đồ.
+- **Xuất CSV (`format=csv`):** Trả `text/csv; charset=utf-8` có UTF-8 BOM, tên file `refunds-and-charges-{todayVn:yyyy-MM-dd}.csv`, cột `TongTienHoanVnd,TongPhuPhiThuDuocVnd` (cùng quyền Admin-only như JSON, Staff/Customer gọi trả `403 FORBIDDEN`).
+- **Mã lỗi:** `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+- **FE note:** Chỉ cho phép `Admin` xuất CSV báo cáo hoàn tiền & phụ phí; giữ nguyên query `from`/`to` đang chọn.
 
 ---
 
@@ -4424,6 +4559,511 @@ Query: `pageNumber`, `pageSize`, `search` (tên hoặc SKU), `status` (`Active`,
 
 ---
 
+## 25. Dev Clock (chỉ Development)
+
+Tua "giờ hiện tại" của server để test luồng trước / trong / sau chuyến và trả đồ trễ.
+Ngoài môi trường Development mọi endpoint trả `404`. Phiên đăng nhập và job xóa dữ liệu hoàn tiền luôn dùng giờ thật.
+
+`data` của cả 3 endpoint:
+
+```json
+{
+  "isSimulated": true,
+  "now": "2026-11-07T08:00:00+00:00",
+  "realNow": "2026-11-05T08:00:00+00:00",
+  "offsetSeconds": 172800
+}
+```
+
+| Method | Endpoint | Auth | Mô tả |
+|---|---|---|---|
+| `GET` | `/dev/clock` | Public | Xem giờ hệ thống hiện tại |
+| `PUT` | `/dev/clock` | Admin / Staff | Đặt giờ giả lập. Body: `{ "now": "2026-11-07T08:00:00Z" }` (ISO 8601) |
+| `DELETE` | `/dev/clock` | Admin / Staff | Về lại giờ thật |
+
+---
+
+## 26. Participants, Bài viết Tour & Đánh giá
+
+Áp dụng cho hành khách có tài khoản liên kết (`booking_participants.linked_user_id == currentUserId`, chưa xóa mềm và `status != Cancelled`). Không lộ sự tồn tại của participant của người khác: sai chủ trả `404`. Đọc bài viết không có hiệu lực pháp lý và không chặn check-in hay khởi hành.
+
+### 26.1. Danh sách bài viết của chuyến cho người tham gia
+
+`GET /participants/{participantId}/posts` · **Auth:** User (chủ participant)
+
+Trả các bài viết `Published`, chưa xóa mềm, đang gắn qua `tour_posts` với tour của chuyến (`trip.tour_id`), sắp theo `displayOrder`, kèm trạng thái đã đọc của riêng `participantId`. Bài đã `Archived` bị ẩn khỏi danh sách nhưng bản ghi đọc vẫn được giữ nguyên.
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `participantId` | `guid` | ID suất tham gia lấy từ `GET /users/me/participations` |
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách bài viết của chuyến đi thành công",
+  "data": [
+    {
+      "postId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "title": "Quy định an toàn trekking",
+      "slug": "quy-dinh-an-toan-trekking",
+      "isRead": true,
+      "readAt": "2026-11-08T08:15:00Z"
+    },
+    {
+      "postId": "bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
+      "title": "Chuẩn bị giày và balo",
+      "slug": "chuan-bi-giay-va-balo",
+      "isRead": false,
+      "readAt": null
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-08T10:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED` chưa đăng nhập; `404 NOT_FOUND` không tìm thấy participant, đã `Cancelled` hoặc thuộc user khác.
+
+**FE note:** Dùng `slug` để mở nội dung chi tiết bài viết qua `GET /posts/{slug}`. Hiển thị badge đã đọc / chưa đọc theo `isRead`; bài có `isRead = true` luôn có `readAt` (UTC).
+
+---
+
+### 26.2. Đánh dấu đã đọc bài viết tour (Idempotent)
+
+`POST /participants/{participantId}/posts/{postId}/read` · **Auth:** User (chủ participant)
+
+Ghi nhận lần đọc đầu tiên vào `participant_post_reads`. Nếu đã đọc trước đó hoặc gọi lặp lại đồng thời nhiều request, trả `200 OK` với bản ghi và `readAt` ban đầu không đổi.
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `participantId` | `guid` | ID suất tham gia của user hiện tại |
+| `postId` | `guid` | ID bài viết `Published` đang gắn với tour của chuyến |
+
+**Request body:** Không có body (để trống).
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đánh dấu đã đọc bài viết thành công",
+  "data": {
+    "participantPostReadId": "cccccccc-dddd-eeee-ffff-111111111111",
+    "participantId": "33333333-4444-5555-6666-777777777777",
+    "postId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "isRead": true,
+    "readAt": "2026-11-08T08:15:00Z"
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED` chưa đăng nhập; `404 NOT_FOUND` nếu participant không thuộc user / đã `Cancelled`, hoặc bài viết chưa `Published` / không gắn với tour của chuyến.
+
+**FE note:** Gọi khi user mở đọc hoặc bấm xác nhận "Đã đọc" bài viết; có thể gọi lại nhiều lần an toàn và cập nhật `unreadPostCount` (invalidate query `/users/me/participations` và `/participants/{participantId}/posts`).
+
+---
+
+### 26.3. Gửi đánh giá sau chuyến đi
+
+`POST /participants/{participantId}/review` · **Auth:** User (chủ participant)
+
+Chỉ chính hành khách được liên kết tài khoản (`booking_participants.linked_user_id == currentUserId`) mới được viết đánh giá (chủ đơn không viết hộ được). Điều kiện: `trip.status == Completed`, `order.status != Cancelled`, `participant.status != Cancelled`, `order.payment_status` thuộc `Paid` hoặc `PartiallyRefunded`, và chưa từng tạo đánh giá cho suất tham gia này.
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `participantId` | `guid` | ID suất tham gia của user hiện tại |
+
+**Request body**
+
+```json
+{
+  "rating": 5,
+  "comment": "Hướng dẫn viên rất nhiệt tình, cung đường đẹp."
+}
+```
+
+- `rating`: số nguyên `1..5` (bắt buộc).
+- `comment`: chuỗi tối đa `2000` ký tự, cho phép `null` hoặc rỗng (tự trim).
+
+**Response `201 Created`**
+
+```json
+{
+  "success": true,
+  "statusCode": 201,
+  "message": "Gửi đánh giá chuyến đi thành công",
+  "data": {
+    "reviewId": "dddddddd-eeee-ffff-0000-111111111111",
+    "participantId": "33333333-4444-5555-6666-777777777777",
+    "rating": 5,
+    "comment": "Hướng dẫn viên rất nhiệt tình, cung đường đẹp.",
+    "createdAt": "2026-11-08T10:15:00Z",
+    "updatedAt": "2026-11-08T10:15:00Z"
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:15:00Z"
+}
+```
+
+**Lỗi:** `400 VALIDATION_ERROR` (`rating` ngoài `1..5` hoặc `comment` > 2000 ký tự); `401 UNAUTHORIZED`; `404 NOT_FOUND` (sai chủ hoặc đã xóa mềm); `409 REVIEW_NOT_ELIGIBLE` (chuyến chưa `Completed`, đơn chưa `Paid`/`PartiallyRefunded`, hoặc đơn/participant đã `Cancelled`); `409 REVIEW_ALREADY_EXISTS` (đã có review hoặc gửi trùng đồng thời).
+
+**FE note:** Hiển thị form đánh giá khi `canReview = true` từ `GET /users/me/participations`. Sau khi `201`, invalidate `/users/me/participations` (`canReview` thành `false`, `hasReview` thành `true`) và `/tours/{tourId}/reviews`.
+
+---
+
+### 26.4. Chỉnh sửa đánh giá sau chuyến đi
+
+`PUT /participants/{participantId}/review` · **Auth:** User (chủ participant)
+
+Cho phép chỉnh sửa đánh giá đã tạo trong thời hạn `ReviewEditWindowDays` ngày kể từ `createdAt` (cấu hình trong `system_configurations`, mặc định `7` ngày). Review đang bị Admin ẩn (`isHidden = true`) vẫn sửa được nhưng vẫn giữ nguyên trạng thái ẩn.
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `participantId` | `guid` | ID suất tham gia của user hiện tại |
+
+**Request body**
+
+```json
+{
+  "rating": 4,
+  "comment": "Lịch trình hợp lý, đồ ăn ngon."
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Cập nhật đánh giá chuyến đi thành công",
+  "data": {
+    "reviewId": "dddddddd-eeee-ffff-0000-111111111111",
+    "participantId": "33333333-4444-5555-6666-777777777777",
+    "rating": 4,
+    "comment": "Lịch trình hợp lý, đồ ăn ngon.",
+    "createdAt": "2026-11-08T10:15:00Z",
+    "updatedAt": "2026-11-08T11:00:00Z"
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T11:00:00Z"
+}
+```
+
+**Lỗi:** `400 VALIDATION_ERROR`; `401 UNAUTHORIZED`; `404 NOT_FOUND` (participant sai chủ hoặc chưa có review); `409 REVIEW_EDIT_WINDOW_CLOSED` (đã quá hạn `ReviewEditWindowDays` ngày kể từ `createdAt`).
+
+**FE note:** Khi `409 REVIEW_EDIT_WINDOW_CLOSED`, ẩn/khóa nút sửa và thông báo hết hạn chỉnh sửa đánh giá.
+
+---
+
+### 26.5. Danh sách & tổng hợp đánh giá công khai theo họ tour
+
+`GET /tours/{tourId}/reviews?page=1&pageSize=10` · **Auth:** Public
+
+Gộp toàn bộ đánh giá công khai (`!isHidden && !isDeleted`) thuộc mọi phiên bản tour có cùng `tourFamilyId` với `tourId`, không trộn họ tour khác. Nếu `tourId` không tồn tại, đã xóa mềm hoặc đang ở trạng thái `Draft`, trả `404 NOT_FOUND`.
+
+**Path params**
+
+| Param | Type | Mô tả |
+|---|---|---|
+| `tourId` | `guid` | ID phiên bản tour (trả `404` nếu `Draft`) |
+
+**Query params**
+
+| Param | Type | Required | Default | Mô tả |
+|---|---|---|---|---|
+| `page` | `int` | ✘ | `1` | Trang hiện tại (`>= 1`) |
+| `pageSize` | `int` | ✘ | `10` | Số dòng mỗi trang (`1..100`) |
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách đánh giá tour thành công",
+  "data": {
+    "averageRating": 4.5,
+    "reviewCount": 2,
+    "distribution": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 1,
+      "5": 1
+    },
+    "reviews": {
+      "items": [
+        {
+          "reviewId": "dddddddd-eeee-ffff-0000-111111111111",
+          "rating": 5,
+          "comment": "Hướng dẫn viên rất nhiệt tình, cung đường đẹp.",
+          "createdAt": "2026-11-08T10:15:00Z",
+          "reviewerName": "Nguyễn Văn A",
+          "tripStartAt": "2026-11-01T23:00:00Z"
+        }
+      ],
+      "pageNumber": 1,
+      "pageSize": 10,
+      "totalItems": 2,
+      "totalPages": 1,
+      "hasPrevious": false,
+      "hasNext": false
+    }
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T11:05:00Z"
+}
+```
+
+**Lỗi:** `404 NOT_FOUND` nếu tour không tồn tại, đã xóa hoặc đang `Draft`.
+
+**FE note:** Dùng trực tiếp trên trang chi tiết tour cho widget điểm trung bình (`averageRating`, làm tròn 1 chữ số thập phân), biểu đồ phân bố `distribution["1"]..["5"]` và danh sách phân trang `reviews.items` (mới nhất trước).
+
+---
+
+## 27. Thông báo trong ứng dụng
+
+Thông báo được sinh đồng bộ trong cùng transaction với các nghiệp vụ tạo đơn (`OrderPlaced`), xác nhận thanh toán (`OrderConfirmed`), hủy đơn (`OrderCancelled`), hủy chuyến đi (`TripCancelled`), đổi lịch khởi hành/kết thúc chuyến khi có booking hiệu lực (`TripScheduleChanged`) và kết quả xử lý hoàn tiền (`RefundResult`). Hệ thống dùng cặp `(recipient_user_id, event_key)` để chống trùng sự kiện.
+
+### 27.1. Danh sách thông báo của tôi
+
+`GET /users/me/notifications` · **Auth:** User
+
+Lấy danh sách thông báo thuộc người dùng hiện tại, sắp xếp mới nhất trước (`createdAt DESC`).
+
+**Query params**
+
+| Param | Type | Required | Default | Mô tả |
+|---|---|---|---|---|
+| `unreadOnly` | `bool` | ✘ | | Truyền `true` để chỉ lấy thông báo chưa đọc (`readAt == null`) |
+| `page` | `int` | ✘ | `1` | Trang (>= 1) |
+| `pageSize` | `int` | ✘ | `20` | Kích thước trang (1..100) |
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách thông báo thành công",
+  "data": {
+    "items": [
+      {
+        "notificationId": "11111111-2222-3333-4444-555555555555",
+        "type": "OrderConfirmed",
+        "title": "Đơn hàng đã được xác nhận",
+        "content": "Đơn RT-20261108-ABC123 cho chuyến đi Tà Năng - Phan Dũng đã được xác nhận.",
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-11-08T10:30:00Z",
+        "relatedEntityType": "Order",
+        "relatedEntityId": "66666666-7777-8888-9999-aaaaaaaaaaaa"
+      }
+    ],
+    "pageNumber": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasPrevious": false,
+    "hasNext": false
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:31:00Z"
+}
+```
+
+---
+
+### 27.2. Đếm số thông báo chưa đọc
+
+`GET /users/me/notifications/unread-count` · **Auth:** User
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy số lượng thông báo chưa đọc thành công",
+  "data": {
+    "unreadCount": 3
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:31:00Z"
+}
+```
+
+---
+
+### 27.3. Đánh dấu đã đọc một thông báo
+
+`POST /users/me/notifications/{notificationId}/read` · **Auth:** User (chủ thông báo)
+
+Đánh dấu một thông báo thuộc người dùng hiện tại là đã đọc. Nếu thông báo đã đọc trước đó, giữ nguyên `readAt` ban đầu và trả `200 OK`. Nếu `notificationId` không tồn tại hoặc thuộc user khác, trả `404 NOT_FOUND`.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đánh dấu đã đọc thông báo thành công",
+  "data": {
+    "notificationId": "11111111-2222-3333-4444-555555555555",
+    "isRead": true,
+    "readAt": "2026-11-08T10:35:00Z"
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:35:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED`; `404 NOT_FOUND`.
+
+---
+
+### 27.4. Đánh dấu đã đọc tất cả thông báo
+
+`POST /users/me/notifications/read-all` · **Auth:** User
+
+Đánh dấu tất cả thông báo chưa đọc của người dùng hiện tại là đã đọc, không chạm tới dữ liệu của user khác.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Đánh dấu đã đọc tất cả thông báo thành công",
+  "data": {
+    "markedCount": 3
+  },
+  "errors": null,
+  "timestamp": "2026-11-08T10:36:00Z"
+}
+```
+
+---
+
+## 28. Gia hạn đơn thuê (FR-R09, UAT-19)
+
+### 28.1. Báo giá gia hạn đơn thuê
+`POST /rental-orders/{orderId}/extensions/quote` · **Auth:** Customer (chủ đơn)
+
+- **Mục đích:** Tính lại tiền thuê khi khách muốn lùi ngày trả đồ. Kiểm tra xung đột thiết bị trên khoảng thời gian cộng thêm và áp bảng giá mới nếu số ngày nhảy sang bậc giá khác. Không ghi dữ liệu.
+- **Request body:**
+```json
+{
+  "newEndAt": "2026-11-12T10:00:00Z"
+}
+```
+- **Response `200 OK` (JSON):**
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Báo giá gia hạn thành công",
+  "data": {
+    "orderId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "oldEndAt": "2026-11-10T10:00:00Z",
+    "newEndAt": "2026-11-12T10:00:00Z",
+    "oldBillableDays": 3,
+    "newBillableDays": 5,
+    "extraAmount": 100000.0,
+    "lines": [
+      {
+        "rentalOrderItemId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "displayName": "Lều — 2 người",
+        "quantity": 1,
+        "oldBillableDays": 3,
+        "newBillableDays": 5,
+        "oldDailyPrice": 100000.0,
+        "newDailyPrice": 80000.0,
+        "oldLineAmount": 300000.0,
+        "newLineAmount": 400000.0
+      }
+    ]
+  },
+  "errors": null,
+  "timestamp": "2026-11-09T08:00:00Z"
+}
+```
+- **Mã lỗi:**
+  - `400 VALIDATION_ERROR`: `newEndAt` thiếu hoặc không hợp lệ.
+  - `400 INVALID_RENTAL_PERIOD`: rút ngắn hạn (`newEndAt < currentEndAt`) hoặc vượt quá 60 ngày.
+  - `404 ORDER_NOT_FOUND`: đơn không tồn tại hoặc không thuộc quyền sở hữu của khách.
+  - `409 RENTAL_NOT_EXTENDABLE`: đơn không ở trạng thái `Confirmed`/`InFulfillment`, đã quá hạn hiện tại, hoặc `newEndAt == currentEndAt`.
+  - `409 RESOURCE_UNAVAILABLE`: một hoặc nhiều thiết bị đã được xếp lịch cho đơn khác trong khoảng thời gian gia hạn (trả kèm `errors.assetCodes`).
+
+---
+
+### 28.2. Gia hạn đơn thuê
+`POST /rental-orders/{orderId}/extensions` · **Auth:** Customer (chủ đơn)
+
+- **Mục đích:** Xác nhận gia hạn đơn thuê. Kiểm tra và áp dụng trong lock giao dịch (advisory lock + variant lock). Cập nhật `rentalEndAt`, cập nhật `reservedUntil` của các tài sản đã phân bổ, tạo bản ghi `rental_order_adjustments`, lập phụ phí `RentalCharge` loại `Extension` (trạng thái `Assessed`, giải quyết khi trả đồ) và gửi thông báo in-app `RentalExtended`.
+- **Request body:**
+```json
+{
+  "newEndAt": "2026-11-12T10:00:00Z",
+  "acceptedExtraAmount": 100000.0
+}
+```
+- **Response `200 OK` (JSON):** Trả về đối tượng `RentalExtensionResultResponse` gồm bản ghi điều chỉnh vừa tạo và toàn bộ chi tiết đơn hàng cập nhật:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Gia hạn đơn thuê thành công",
+  "data": {
+    "adjustment": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "adjustmentType": "Extension",
+      "oldEndAt": "2026-11-10T10:00:00Z",
+      "newEndAt": "2026-11-12T10:00:00Z",
+      "extraAmount": 100000.0,
+      "requestedByUserId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "requestedByName": "Nguyễn Văn A",
+      "createdAt": "2026-11-09T08:00:00Z"
+    },
+    "order": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "orderCode": "RT-20261110-XYZ789",
+      "rentalEndAt": "2026-11-12T10:00:00Z",
+      "billableDays": 5
+    }
+  },
+  "errors": null,
+  "timestamp": "2026-11-09T08:00:00Z"
+}
+```
+- **Mã lỗi:** Các lỗi tương tự `extensions/quote`, bổ sung `409 RENTAL_EXTENSION_PRICE_CHANGED` nếu số tiền phụ phí tính lại trong lock khác với `acceptedExtraAmount`.
+
+---
+
+### 28.3. Lịch sử điều chỉnh đơn thuê của tôi
+`GET /rental-orders/{orderId}/adjustments` · **Auth:** Customer (chủ đơn)
+
+- **Mục đích:** Xem toàn bộ các lần gia hạn/điều chỉnh của đơn thuê (cũ nhất trước).
+- **Response `200 OK` (JSON):** Mảng các đối tượng điều chỉnh tương tự mục 15.9.
+- **Mã lỗi:** `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 ORDER_NOT_FOUND`.
+
+---
+
 ## Phụ lục: Enum
 
 Tất cả Enum được serialize sang **string** trong JSON payload:
@@ -4456,7 +5096,8 @@ Tất cả Enum được serialize sang **string** trong JSON payload:
 | `AssetStatus` | `Available`, `Maintenance`, `Damaged`, `Lost`, `Retired` | Tình trạng vật lý thiết bị |
 | `AssetAssignmentStatus`| `Reserved`, `Issued`, `Returned`, `LostOrException` | Trạng thái điều phối thiết bị |
 | `ReturnCondition` | `Normal`, `Damaged`, `MissingAccessory`, `Lost` | Tình trạng khi trả thiết bị |
-| `ChargeType` | `LateReturn`, `Damage`, `Loss`, `Other` | Loại phí phạt phát sinh |
+| `ChargeType` | `LateReturn`, `Damage`, `Loss`, `Other`, `Extension` | Loại phí phạt phát sinh (Extension: phụ phí gia hạn do hệ thống tự lập, không cho Staff tạo tay) |
+| `AdjustmentType` | `Extension` | Loại điều chỉnh đơn thuê (hiện hỗ trợ gia hạn) |
 | `ChargeStatus` | `Draft`, `Assessed`, `Settled`, `Voided` | Vòng đời khoản phí phát sinh |
 | `PaymentType` | `Collection`, `Refund` | Loại giao dịch tiền (Thu / Hoàn) |
 | `PaymentPurpose` | `TourFee`, `RentalFee`, `AdditionalCharge` | Mục đích khoản thanh toán |
@@ -4467,6 +5108,7 @@ Tất cả Enum được serialize sang **string** trong JSON payload:
 | `QualificationMetric` | `OrderAmount`, `ParticipantCount`, `RentalDays` | Thước đo xét bậc ưu đãi |
 | `DiscountType` | `Percentage`, `FixedAmount`, `GiftItem` | Hình thức ưu đãi |
 | `PolicyType` | `Tour`, `Rental` | Loại chính sách hoàn tiền |
+| `NotificationType` | `OrderPlaced`, `OrderConfirmed`, `OrderCancelled`, `TripCancelled`, `TripScheduleChanged`, `RefundResult`, `RentalExtended` | Loại thông báo trong ứng dụng |
 
 ---
 
@@ -4503,8 +5145,10 @@ FE xử lý theo `errors.code`, không so khớp `message`. Lỗi validation the
 | `VALIDATION_ERROR` | 400 | 7.3 | `Idempotency-Key` dài hơn 100 ký tự |
 | `ITEM_NOT_FOUND` | 404 | 7.1, 7.2, 7.3 | Biến thể không tồn tại / ngừng kinh doanh (hoặc combo có thành phần ngừng kinh doanh) |
 | `BUNDLE_NOT_FOUND` | 404 | 6.2, 7.1, 7.2, 7.3 | Combo không tồn tại / ngừng kinh doanh / chưa có thành phần |
-| `ORDER_NOT_FOUND` | 404 | 7.4 | Đơn không tồn tại, không thuộc user, hoặc không phải đơn thuê |
-| `RESOURCE_UNAVAILABLE` | 409 | 7.3 | Không đủ thiết bị trong khoảng thời gian thuê |
+| `ORDER_NOT_FOUND` | 404 | 7.4, 7.5, 7.6, 7.7, 15.9 | Đơn không tồn tại, không thuộc user, hoặc không phải đơn thuê |
+| `RESOURCE_UNAVAILABLE` | 409 | 7.3, 7.5, 7.6 | Không đủ thiết bị trong khoảng thời gian thuê hoặc gia hạn (kèm `errors.assetCodes`) |
+| `RENTAL_NOT_EXTENDABLE` | 409 | 7.5, 7.6 | Đơn không ở trạng thái Confirmed/InFulfillment, đã quá hạn hoặc ngày kết thúc không đổi |
+| `RENTAL_EXTENSION_PRICE_CHANGED` | 409 | 7.6 | Số tiền phụ phí gia hạn tính lại trong lock khác với acceptedExtraAmount |
 | `PROMOTION_INVALID` | 409 (7.3) | 7.2, 7.3 | Mã khuyến mãi không tồn tại, hết hiệu lực, không áp dụng cho đơn thuê, hoặc chưa đạt điều kiện. Ở 7.2 nằm trong `data.promotionError.code`, không làm API lỗi |
 | `PROMOTION_EXHAUSTED` | 409 (7.3) | 7.2, 7.3 | Mã hết lượt dùng (tổng hoặc theo user). Ở 7.2 nằm trong `data.promotionError.code` |
 | `REFUND_POLICY_CHANGED` | 409 | 7.3 | Chưa có chính sách hoàn tiền thuê hiệu lực, hoặc `acceptedRefundPolicyVersion` khác phiên bản hiện hành |
@@ -4537,6 +5181,9 @@ FE xử lý theo `errors.code`, không so khớp `message`. Lỗi validation the
 | `409` | `REFUND_EXCEEDS_COLLECTED`| Tổng tiền hoàn vượt quá số tiền đã thu | Lỗi tính toán hoàn tiền vượt mức giao dịch gốc | Khóa nút duyệt và báo kế toán kiểm tra |
 | `409` | `REFUND_RETRY_LIMIT_REACHED`| Đã vượt quá 3 lần thử lại hoàn tiền tự động | Giao dịch SePay hoàn thất bại liên tiếp 3 lần | Chuyển sang nút "Đã hoàn thủ công ngoài hệ thống" |
 | `409` | `ORDER_NOT_RECONCILABLE`| Đơn hàng không đủ điều kiện đối soát | Đơn đã quá hạn đối soát hoặc VA chưa đóng | Báo chỉ được hoàn tiền toàn bộ |
+| `409` | `REVIEW_NOT_ELIGIBLE` | Không đủ điều kiện đánh giá chuyến đi | Trip chưa `Completed`, đơn chưa `Paid`/`PartiallyRefunded`, hoặc đơn/participant đã `Cancelled` | Hiện lý do chưa đủ điều kiện và ẩn form đánh giá |
+| `409` | `REVIEW_ALREADY_EXISTS` | Đã đánh giá suất tham gia này | Gửi `POST /participants/{participantId}/review` lần thứ 2 | Chuyển sang chế độ xem/sửa đánh giá hiện có |
+| `409` | `REVIEW_EDIT_WINDOW_CLOSED` | Đã hết thời hạn chỉnh sửa đánh giá | Gửi `PUT /participants/{participantId}/review` sau `ReviewEditWindowDays` ngày (mặc định 7 ngày) | Khóa chỉnh sửa đánh giá và thông báo quá hạn |
 | `429` | `TOO_MANY_REQUESTS` | Vượt tần suất cho phép (Rate Limiting) | Gửi quá 10 request duyệt hoàn tiền trong 60 giây | Đọc header `Retry-After` và đếm ngược thời gian chờ |
 | `500` | `INTERNAL_SERVER_ERROR`| Lỗi hệ thống ngoài dự kiến | Exception chưa được bắt tại Backend | Toast thông báo "Lỗi hệ thống, vui lòng thử lại sau" |
 | `502` | `PAYMENT_PROVIDER_ERROR`| Lỗi nhà cung cấp cổng thanh toán SePay | Cổng SePay timeout, lỗi mạng ngân hàng | Thông báo lỗi cổng thanh toán, cho phép bấm "Thử lại" |
@@ -4621,6 +5268,16 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-08 | Antigravity | `/rental-orders/{orderId}/extensions/quote`, `/rental-orders/{orderId}/extensions`, `/rental-orders/{orderId}/adjustments`, `/admin/rental-orders/{orderId}/adjustments` | Triển khai T5 (FR-R09, UAT-19): tính năng gia hạn đơn thuê cho khách hàng (báo giá tính lại theo bậc giá mới, gia hạn nguyên tử kèm khóa advisory lock & variant lock, kiểm tra thiết bị không xung đột, ghi nhận điều chỉnh `rental_order_adjustments`, lập phụ phí `Extension` trạng thái `Assessed` và gửi thông báo in-app `RentalExtended`), kèm API xem lịch sử điều chỉnh cho khách và màn vận hành Staff/Admin. |
+| 2026-11-08 | Antigravity | `/admin/rental-orders/handover-list`, `/admin/rental-orders/return-list`, `/admin/reports/revenue`, `/admin/reports/refunds-and-charges` | Triển khai T4 (FR-O06, UAT-36): thêm danh sách thiết bị cần giao và nhận lại theo ngày giờ VN (JSON + `?format=csv` có UTF-8 BOM) cho Staff/Admin, và thêm `?format=csv` cho 2 báo cáo Admin-only (tái dùng dữ liệu JSON, giữ nguyên quyền `[Authorize(Roles = Admin)]`). Chuẩn hóa `CsvHelper` dùng chung với manifest chuyến đi. |
+| 2026-11-08 | Tri Tin | `/admin/payments`, `/admin/refunds*`, `/admin/orders/{orderId}/reconcile-*` | Triển khai 17.1–17.7 theo luồng hoàn tiền thủ công: duyệt chỉ chuyển `PendingApproval` → `Pending` (không gọi SePay, bỏ lỗi `502 PAYMENT_PROVIDER_ERROR`), thử lại tối đa 3 lần, `mark-manual` ghi `Succeeded` + cập nhật `Refunded` / `PartiallyRefunded` (mã lỗi mới `REFUND_NOT_COMPLETABLE`). Dòng hoàn đã có hồ sơ hoàn tiền trả `409` và xử lý ở `/admin/refund-cases`. Item danh sách thêm `orderId`, `orderPaymentStatus`, `hasRefundCase`. |
+| 2026-11-08 | Antigravity | `/users/me/notifications*` | Triển khai T3 (FR-O01, JOB-03): hệ thống thông báo trong ứng dụng chống trùng theo `(recipient_user_id, event_key)`, tự động sinh khi tạo đơn, xác nhận thanh toán, hủy đơn, hủy/đổi lịch chuyến đi và kết quả hoàn tiền, kèm các endpoint xem danh sách, đếm chưa đọc và đánh dấu đã đọc. |
+| 2026-11-08 | Antigravity | `/participants/{participantId}/review`, `/tours/{tourId}/reviews` | Triển khai T2 (FR-V04, FR-V05, FR-V06, BR-12): gửi đánh giá 1–5 sao duy nhất sau chuyến đi (trả `409 REVIEW_NOT_ELIGIBLE` / `409 REVIEW_ALREADY_EXISTS`), chỉnh sửa đánh giá trong thời hạn cấu hình `ReviewEditWindowDays` (`409 REVIEW_EDIT_WINDOW_CLOSED`), và xem thống kê/danh sách đánh giá công khai gộp theo họ tour (`TourFamilyId`, loại trừ review bị ẩn). |
+| 2026-11-08 | Antigravity | `/users/me/participations`, `/participants/{participantId}/posts`, `/participants/{participantId}/posts/{postId}/read` | Triển khai T1 (FR-N04, FR-N05): danh sách chuyến tham gia đã liên kết của user kèm `unreadPostCount` / `canReview` / `hasReview`, danh sách bài viết Published của tour theo `DisplayOrder`, và đánh dấu đã đọc bài viết idempotent. |
+| 2026-11-08 | Tri Tin | `/admin/tours/{tourId}/posts`, `/admin/tours/{tourId}/versions/diff`, `/admin/variants/{variantId}/images*`, `/tours`, `/tours/{id}`, `/posts/{slug}`, `/trip-bookings` | Triển khai 6.22–6.23 (bài viết gắn tour + thứ tự đọc), 6.26 (so sánh phiên bản), 13.9–13.10 (ảnh biến thể); clone phiên bản chép cả bài viết. Phía khách chỉ thấy tour Active/Published: `GET /tours` ẩn tour Draft/Archived/Expired, `GET /tours/{id}` chỉ trả 404 cho tour Draft (Archived/Expired vẫn mở được để xem lịch sử), `relatedTours` của `GET /posts/{slug}` bỏ các tour đó. `POST /trip-bookings` trả `409` khi tour của trip không còn Active/Published, nên tour Archived/Expired chỉ còn để xem. Publish bản mới không đụng bản cũ: `GET /tours` gộp cả họ thành 1 thẻ (bản mới nhất), trip Open của bản cũ vẫn bán tiếp và hiện trong `availableTrips` với `tourId` của bản cũ (trường mới). |
+| 2026-11-08 | Tri Tin | `/admin/tours*`, `/admin/products*`, `/admin/variants*`, `/admin/pricing`, `/admin/bundles*`, `/admin/refund-policies*` | Triển khai quản lý tour 6.2–6.21, 6.24, 6.25 (khóa lịch trình khi đã có người đặt, clone phiên bản) và thêm `DELETE /admin/tours/{tourId}` xóa mềm cả họ tour khi chưa có chuyến; quản lý sản phẩm / biến thể / bậc giá / combo 13.2–13.8, 13.11–13.21; chính sách hoàn tiền 20.1–20.6. Chưa làm: 6.22–6.23 (bài viết), 6.26 (diff), 13.9–13.10 (ảnh biến thể). |
+| 2026-11-05 | Tri Tin | `/refund-cases/{refundCaseId}`, `/admin/refund-cases*`, `/dev/clock` | Bổ sung tài liệu hồ sơ hoàn tiền (khách xem, hàng đợi Admin, OTP + xuất Excel, từ chối / hoàn tất / thất bại) và đồng hồ giả lập Development. |
+| 2026-11-05 | Tri Tin | `/admin/rental-orders/{orderId}/claim`, `/admin/rental-orders/{orderId}/handover/scan` | Gộp vận hành đơn thuê về một luồng theo GUID: thêm nhận phụ trách và quét mã giao; bỏ `/admin/management/rental-orders*` và `/admin/rental-orders/by-code/*`. |
 | 2026-11-04 | Codex | `/admin/management/posts*`, `/admin/management/rental-orders*`, `/admin/rental-orders/by-code/{orderCode}/*` | Tách route quản trị mới và thao tác kho theo mã đơn để tránh trùng action; giữ URL frontend hiện có và khôi phục Swagger. |
 | 2026-10-31 | Antigravity | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping`, `/trip-bookings/{orderId}/cancel`, `/tours/{id}/group-settings`, `/tours/{id}/recurrence-rules`, `/trips*`, `/guide/trip-groups*` | Hoàn thiện triển khai BE cho Chia TripGroup (Section 7): migration DB, tự xếp sau webhook SePay, quản trị cấu hình group/lịch lặp, snapshot Staff/Guide, gán guide chống trùng lịch, chuyển/tách booking, tính lại đồ cấp chuyến, chốt group, hủy booking giữ lịch sử và lọc hiển thị theo quyền |
 | 2026-10-31 | Codex | `/trips/{tripId}/grouping*`, `/trips/{tripId}/groups/*`, `/trips/{tripId}/bookings/*`, `/trip-bookings/{orderId}/grouping` | Thêm contract dự kiến cho FE: cấu hình số group, snapshot Staff/Guide, gán guide, chuyển/tách booking, chốt và Customer xem group Published theo quyền |

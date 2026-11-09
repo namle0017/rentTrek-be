@@ -6,4 +6,7 @@ namespace RenTrek.API.Common;
 public static class RateLimitPolicies
 {
     public const string RefundSensitive = "refund-sensitive";
+
+    /// <summary>Endpoint auth ẩn danh (login, register, OTP...): giới hạn theo IP (PRD NFR-02).</summary>
+    public const string AuthSensitive = "auth-sensitive";
 }

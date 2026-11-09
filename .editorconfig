@@ -18,6 +18,8 @@ dotnet_diagnostic.IDE1006.severity = warning
 dotnet_diagnostic.CA2000.severity = warning
 dotnet_diagnostic.CA2012.severity = warning
 dotnet_diagnostic.CA2200.severity = warning
+# Log cảnh báo/lỗi ít, LoggerMessage chưa đáng công
+dotnet_diagnostic.CA1848.severity = suggestion
 
 dotnet_naming_rule.types_pascal.symbols = types
 dotnet_naming_rule.types_pascal.style = pascal
@@ -56,6 +58,12 @@ dotnet_naming_symbols.generic_parameters.applicable_kinds = type_parameter
 dotnet_naming_style.generic_style.required_prefix = T
 dotnet_naming_style.generic_style.capitalization = pascal_case
 
+# static readonly giống hằng: PascalCase (rule cụ thể hơn được ưu tiên)
+dotnet_naming_rule.static_readonly_pascal.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_pascal.style = pascal
+dotnet_naming_rule.static_readonly_pascal.severity = warning
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
 dotnet_naming_rule.private_fields_camel.symbols = private_fields
 dotnet_naming_rule.private_fields_camel.style = underscore_camel
 dotnet_naming_rule.private_fields_camel.severity = warning
@@ -66,6 +74,17 @@ dotnet_naming_style.pascal.capitalization = pascal_case
 dotnet_naming_style.camel.capitalization = camel_case
 dotnet_naming_style.underscore_camel.required_prefix = _
 dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+[tests/**.cs]
+# Fake UnitOfWork trong test không giữ tài nguyên; tên test dùng Method_Condition_Result
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1707.severity = none
+
+[src/RenTrek.DAL/Repositories/**.cs]
+# ToLower()/ToUpper() trong query EF được dịch sang SQL lower()/upper(); overload culture/StringComparison không dịch được
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
 
 [*.{yml,yaml,json}]
 indent_style = space

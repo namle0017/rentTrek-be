@@ -18,16 +18,18 @@ public sealed class AdminTripGroupsController(
     IAdminTripGroupService adminTripGroupService) : ControllerBase
 {
     [HttpGet("groups-board")]
-    public async Task<IActionResult> GetGroupsBoard(
+    [ProducesResponseType(typeof(ApiResponse<KanbanGroupsBoardResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetGroupsBoardAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await adminTripGroupService.GetGroupsBoardAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<KanbanGroupsBoardResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<KanbanGroupsBoardResponse>.Ok(result, "Lấy bảng phân nhóm thành công"));
     }
 
     [HttpPost("groups")]
-    public async Task<IActionResult> CreateGroup(
+    [ProducesResponseType(typeof(ApiResponse<KanbanGroupColumnResponse>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateGroupAsync(
         Guid tripId,
         [FromBody] CreateTripGroupRequest request,
         CancellationToken cancellationToken)
@@ -39,7 +41,8 @@ public sealed class AdminTripGroupsController(
     }
 
     [HttpPut("groups/{groupId:guid}")]
-    public async Task<IActionResult> UpdateGroup(
+    [ProducesResponseType(typeof(ApiResponse<KanbanGroupColumnResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateGroupAsync(
         Guid tripId,
         Guid groupId,
         [FromBody] UpdateTripGroupRequest request,
@@ -50,7 +53,8 @@ public sealed class AdminTripGroupsController(
     }
 
     [HttpDelete("groups/{groupId:guid}")]
-    public async Task<IActionResult> DeleteGroup(
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteGroupAsync(
         Guid tripId,
         Guid groupId,
         CancellationToken cancellationToken)
@@ -60,7 +64,8 @@ public sealed class AdminTripGroupsController(
     }
 
     [HttpPatch("participants/assign-group")]
-    public async Task<IActionResult> AssignParticipantGroup(
+    [ProducesResponseType(typeof(ApiResponse<KanbanGroupsBoardResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AssignParticipantGroupAsync(
         Guid tripId,
         [FromBody] AssignParticipantGroupRequest request,
         CancellationToken cancellationToken)
@@ -70,7 +75,8 @@ public sealed class AdminTripGroupsController(
     }
 
     [HttpPost("auto-group")]
-    public async Task<IActionResult> AutoGroup(
+    [ProducesResponseType(typeof(ApiResponse<AutoGroupResultResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AutoGroupAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
@@ -79,7 +85,8 @@ public sealed class AdminTripGroupsController(
     }
 
     [HttpPost("bookings/{bookingId:guid}/split-approve")]
-    public async Task<IActionResult> ApproveBookingSplit(
+    [ProducesResponseType(typeof(ApiResponse<SplitApproveBookingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ApproveBookingSplitAsync(
         Guid tripId,
         Guid bookingId,
         [FromBody] SplitApproveBookingRequest request,

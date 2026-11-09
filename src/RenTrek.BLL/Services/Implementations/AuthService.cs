@@ -1,3 +1,5 @@
+using System.Globalization;
+using RenTrek.BLL.Constants;
 using System.Net;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -5,6 +7,7 @@ using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.DTOs.Auth.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
@@ -30,6 +33,8 @@ public class AuthService : IAuthService
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<AuthService> _logger;
+    private readonly IAuthAttemptLimiter _attemptLimiter;
+    private readonly GoogleAuthSettings _google;
 
     public AuthService(
         IUnitOfWork unitOfWork,
@@ -41,8 +46,12 @@ public class AuthService : IAuthService
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
         ILogger<AuthService> logger,
-        IEmailService emailService)
+        IEmailService emailService,
+        IAuthAttemptLimiter attemptLimiter,
+        IOptions<GoogleAuthSettings> googleOptions)
     {
+        _attemptLimiter = attemptLimiter;
+        _google = googleOptions.Value;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtHelper = jwtHelper;
@@ -76,7 +85,7 @@ public class AuthService : IAuthService
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
             RoleId = customerRole.RoleId,
             Role = customerRole,
-            Status = "Active",
+            Status = AccountStatuses.Active,
             CreatedAt = utcNow,
             UpdatedAt = utcNow
         };
@@ -90,20 +99,35 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var attemptKey = "login:" + normalizedEmail;
+        await EnsureNotLockedAsync(attemptKey, cancellationToken);
 
         var account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
 
         if (account is null || !_passwordHasher.Verify(request.Password, account.PasswordHash))
         {
+            await _attemptLimiter.RecordFailureAsync(attemptKey, cancellationToken);
             throw new UnauthorizedException("Email hoặc mật khẩu không chính xác");
         }
 
-        if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        await _attemptLimiter.ResetAsync(attemptKey, cancellationToken);
+
+        if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
         {
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
         }
 
         return await IssueTokensAsync(account, Guid.NewGuid(), replaces: null, cancellationToken);
+    }
+
+    private async Task EnsureNotLockedAsync(string attemptKey, CancellationToken cancellationToken)
+    {
+        if (await _attemptLimiter.IsLockedAsync(attemptKey, cancellationToken))
+        {
+            throw new TooManyRequestsException(
+                $"Bạn đã nhập sai quá {AuthAttemptLimiter.MaxFailures} lần. Vui lòng thử lại sau {AuthAttemptLimiter.LockDuration.TotalMinutes:0} phút",
+                ErrorCodes.TooManyRequests);
+        }
     }
 
     public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
@@ -132,7 +156,7 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại");
         }
 
-        if (!string.Equals(existingToken.Account.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(existingToken.Account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
         {
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
         }
@@ -178,7 +202,7 @@ public class AuthService : IAuthService
         var account = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken)
             ?? throw new BadRequestException("Mã xác thực email không hợp lệ");
 
-        if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
 
         var normalizedEmail = account.Email.Trim().ToLowerInvariant();
@@ -201,7 +225,7 @@ public class AuthService : IAuthService
                 if (seat.LinkedUserId is not null)
                     continue;
                 if (seat.BookingOrder?.Order is { } order &&
-                    (!string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                    (!string.Equals(order.Status, OrderStatuses.Confirmed, StringComparison.OrdinalIgnoreCase) ||
                      !string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase) ||
                      order.IsDeleted))
                 {
@@ -229,7 +253,7 @@ public class AuthService : IAuthService
         var account = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: false, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy tài khoản");
 
-        if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
 
         if (account.EmailConfirmedAt is not null)
@@ -291,7 +315,7 @@ public class AuthService : IAuthService
         await _unitOfWork.PasswordResetTokens.InvalidateTokensByUserIdAsync(account.UserId, cancellationToken);
 
         // Sinh mã OTP 6 chữ số ngẫu nhiên cryptographically secure
-        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString(CultureInfo.InvariantCulture);
         var otpHash = _jwtHelper.HashToken(otp);
 
         var resetToken = new PasswordResetToken
@@ -312,10 +336,14 @@ public class AuthService : IAuthService
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var attemptKey = "reset:" + normalizedEmail;
+        await EnsureNotLockedAsync(attemptKey, cancellationToken);
+
         var account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: true, cancellationToken);
 
         if (account is null)
         {
+            await _attemptLimiter.RecordFailureAsync(attemptKey, cancellationToken);
             throw new ValidationException("Email hoặc mã xác thực OTP không chính xác");
         }
 
@@ -324,8 +352,17 @@ public class AuthService : IAuthService
 
         if (validToken is null)
         {
+            if (await _attemptLimiter.RecordFailureAsync(attemptKey, cancellationToken))
+            {
+                // Sai quá nhiều: hủy OTP hiện tại để chặn đoán mò 6 chữ số, buộc xin mã mới.
+                await _unitOfWork.PasswordResetTokens.InvalidateTokensByUserIdAsync(account.UserId, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
             throw new ValidationException("Mã xác thực OTP không chính xác hoặc đã hết hạn (15 phút)");
         }
+
+        await _attemptLimiter.ResetAsync(attemptKey, cancellationToken);
 
         // Cập nhật mật khẩu mới
         account.PasswordHash = _passwordHasher.Hash(request.NewPassword);
@@ -360,46 +397,69 @@ public class AuthService : IAuthService
         string fullName;
         string? avatarUrl;
 
-        using (var httpClient = new HttpClient())
+        if (_google.AllowUnsignedDevTokens)
         {
-            HttpResponseMessage? response = null;
-            try
+            // Chỉ máy dev: đọc mock token KHÔNG kiểm chữ ký (FE chưa cấu hình VITE_GOOGLE_CLIENT_ID).
+            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+            if (!handler.CanReadToken(request.IdToken))
             {
-                response = await httpClient.GetAsync($"https://oauth2.googleapis.com/tokeninfo?id_token={request.IdToken}", cancellationToken);
-            }
-            catch
-            {
-                // Bỏ qua lỗi kết nối mạng để thử fallback decode JWT
+                throw new UnauthorizedException("Google ID Token không hợp lệ hoặc đã hết hạn");
             }
 
-            if (response != null && response.IsSuccessStatusCode)
+            var jwt = handler.ReadJwtToken(request.IdToken);
+            subject = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? Guid.NewGuid().ToString();
+            email = (jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty).Trim().ToLowerInvariant();
+            fullName = jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value ?? "Google User";
+            avatarUrl = jwt.Claims.FirstOrDefault(c => c.Type == "picture")?.Value;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(_google.ClientId))
             {
+                throw new UnauthorizedException("Đăng nhập Google chưa được cấu hình (GoogleAuth:ClientId)");
+            }
+
+            // Google tokeninfo kiểm chữ ký + hạn token; aud và email_verified do mình kiểm.
+            using var httpClient = new HttpClient();
+            HttpResponseMessage response;
+            try
+            {
+                response = await httpClient.GetAsync(
+                    $"https://oauth2.googleapis.com/tokeninfo?id_token={Uri.EscapeDataString(request.IdToken)}", cancellationToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "Không gọi được Google tokeninfo");
+                throw new UnauthorizedException("Không xác minh được Google ID Token, vui lòng thử lại");
+            }
+
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new UnauthorizedException("Google ID Token không hợp lệ hoặc đã hết hạn");
+                }
+
                 var content = await response.Content.ReadAsStringAsync(cancellationToken);
                 using var jsonDoc = System.Text.Json.JsonDocument.Parse(content);
                 var root = jsonDoc.RootElement;
 
-                subject = root.GetProperty("sub").GetString()
-                    ?? throw new UnauthorizedException("Thiếu Google Subject ID");
-                email = (root.GetProperty("email").GetString() ?? string.Empty).Trim().ToLowerInvariant();
-                fullName = root.TryGetProperty("name", out var nameEl) ? (nameEl.GetString() ?? "Google User") : "Google User";
-                avatarUrl = root.TryGetProperty("picture", out var picEl) ? picEl.GetString() : null;
-            }
-            else
-            {
-                // Fallback decode nếu mạng offline hoặc test bằng Mock Token trong môi trường Dev
-                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-                if (handler.CanReadToken(request.IdToken))
+                string? Read(string name) => root.TryGetProperty(name, out var el) ? el.ToString() : null;
+
+                if (!string.Equals(Read("aud"), _google.ClientId, StringComparison.Ordinal))
                 {
-                    var jwt = handler.ReadJwtToken(request.IdToken);
-                    subject = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? Guid.NewGuid().ToString();
-                    email = (jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty).Trim().ToLowerInvariant();
-                    fullName = jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value ?? "Google User";
-                    avatarUrl = jwt.Claims.FirstOrDefault(c => c.Type == "picture")?.Value;
+                    throw new UnauthorizedException("Google ID Token không dành cho ứng dụng này");
                 }
-                else
+
+                if (!string.Equals(Read("email_verified"), "true", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new UnauthorizedException("Google ID Token không hợp lệ hoặc đã hết hạn");
+                    throw new UnauthorizedException("Email Google chưa được xác minh");
                 }
+
+                subject = Read("sub") ?? throw new UnauthorizedException("Thiếu Google Subject ID");
+                email = (Read("email") ?? string.Empty).Trim().ToLowerInvariant();
+                fullName = Read("name") ?? "Google User";
+                avatarUrl = Read("picture");
             }
         }
 
@@ -432,7 +492,7 @@ public class AuthService : IAuthService
                     PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N")),
                     RoleId = customerRole.RoleId,
                     Role = customerRole,
-                    Status = "Active",
+                    Status = AccountStatuses.Active,
                     EmailConfirmedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -463,7 +523,7 @@ public class AuthService : IAuthService
             await _unitOfWork.UserExternalLogins.AddAsync(newExtLogin, cancellationToken);
         }
 
-        if (account.Status != "Active")
+        if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
         {
             throw new UnauthorizedException("Tài khoản đã bị vô hiệu hóa");
         }

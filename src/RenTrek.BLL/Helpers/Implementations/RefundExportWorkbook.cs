@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClosedXML.Excel;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.Helpers.Interfaces;
@@ -37,7 +38,7 @@ public static class RefundExportWorkbook
             sheet.Cell(rowNumber, 7).Value = refund.Amount;
             sheet.Cell(rowNumber, 7).Style.NumberFormat.Format = "#,##0";
             sheet.Cell(rowNumber, 8).Value = $"Hoan tien don {refund.Order.OrderCode}";
-            sheet.Cell(rowNumber, 9).Value = refund.CreatedAt.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm");
+            sheet.Cell(rowNumber, 9).Value = refund.CreatedAt.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
             rowNumber++;
         }
 

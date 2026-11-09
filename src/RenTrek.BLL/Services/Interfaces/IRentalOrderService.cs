@@ -23,4 +23,30 @@ public interface IRentalOrderService
 
     /// <summary>Chi tiết đơn thuê của khách; 404 ORDER_NOT_FOUND nếu không tồn tại hoặc không thuộc khách.</summary>
     Task<RentalOrderDetailResponse> GetByIdAsync(Guid userId, Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Báo giá gia hạn đơn thuê (không ghi dữ liệu): kiểm đơn được gia hạn, kiểm xung đột tài sản trong [RentalEndAt, newEndAt)
+    /// và tính tiền thêm theo bậc giá của tổng số ngày mới. 404 nếu không thuộc khách; 409 RENTAL_NOT_EXTENDABLE / RESOURCE_UNAVAILABLE.
+    /// </summary>
+    Task<RentalExtensionQuoteResponse> QuoteExtensionAsync(
+        Guid userId,
+        Guid orderId,
+        ExtendRentalQuoteRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Áp dụng gia hạn trong transaction có khoá đơn và khoá biến thể: tính lại báo giá trong khoá, chỉ áp dụng khi
+    /// acceptedExtraAmount khớp (ngược lại 409 RENTAL_EXTENSION_PRICE_CHANGED), ghi lịch sử điều chỉnh và phí Extension nếu tiền thêm lớn hơn 0.
+    /// </summary>
+    Task<RentalExtensionResultResponse> ExtendAsync(
+        Guid userId,
+        Guid orderId,
+        ExtendRentalOrderRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Lịch sử điều chỉnh của đơn thuê thuộc khách (cũ nhất trước); 404 ORDER_NOT_FOUND nếu không thuộc khách.</summary>
+    Task<List<RentalOrderAdjustmentResponse>> GetAdjustmentsAsync(
+        Guid userId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 }

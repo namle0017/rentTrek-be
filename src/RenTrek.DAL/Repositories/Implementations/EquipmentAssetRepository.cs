@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -186,8 +187,8 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
     }
 
     public async Task<IReadOnlyList<EquipmentAsset>> GetAssetsForGanttAsync(
-        DateTime from,
-        DateTime to,
+        DateTime fromDate,
+        DateTime toDate,
         Guid? categoryId,
         Guid? productVariantId,
         CancellationToken cancellationToken = default)
@@ -197,15 +198,15 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
             .Include(a => a.ProductVariant)
                 .ThenInclude(v => v.Product)
                 .ThenInclude(p => p.Category)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.RentalOrderItem!)
                 .ThenInclude(roi => roi.RentalOrder)
                 .ThenInclude(ro => ro.Order)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.TripProvidedItem!)
                 .ThenInclude(tpi => tpi.Trip)
                 .ThenInclude(t => t.Tour)
-            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < to && x.ReservedUntil > from))
+            .Include(a => a.AssetAssignments.Where(x => x.ReservedFrom < toDate && x.ReservedUntil > fromDate))
                 .ThenInclude(x => x.AppliedPromotion!)
                 .ThenInclude(ap => ap.PromotionTier)
                 .ThenInclude(pt => pt.Promotion)
@@ -225,6 +226,33 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
             .OrderBy(a => a.ProductVariant.Product.Name)
             .ThenBy(a => a.ProductVariant.Name)
             .ThenBy(a => a.AssetCode)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Guid>> GetBlockedAssetIdsAsync(
+        IReadOnlyCollection<Guid> equipmentAssetIds,
+        IReadOnlyCollection<Guid> excludedAssignmentIds,
+        AssetAvailabilityFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var assetIds = equipmentAssetIds.ToArray();
+        var excludedIds = excludedAssignmentIds.ToArray();
+        var blockingStatuses = filter.BlockingAssignmentStatuses.ToArray();
+        var issuedStatus = filter.IssuedStatus;
+        var windowStart = filter.WindowStart;
+        var windowEnd = filter.WindowEnd;
+        var now = filter.NowUtc;
+
+        return await _context.AssetAssignments
+            .AsNoTracking()
+            .Where(x => assetIds.Contains(x.EquipmentAssetId)
+                        && !excludedIds.Contains(x.AssetAssignmentId)
+                        && blockingStatuses.Contains(x.Status)
+                        && x.ReservedFrom < windowEnd
+                        && (x.ReservedUntil > windowStart
+                            || (x.Status == issuedStatus && x.ReturnedAt == null && x.ReservedUntil <= now)))
+            .Select(x => x.EquipmentAssetId)
+            .Distinct()
             .ToListAsync(cancellationToken);
     }
 

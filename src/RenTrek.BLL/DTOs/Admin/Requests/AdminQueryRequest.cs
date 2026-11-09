@@ -9,8 +9,13 @@ public sealed class AdminQueryRequest : PagingRequest
     public string? CategoryType { get; set; }
     public string? OrderType { get; set; }
     public string? PaymentStatus { get; set; }
+
+    /// <summary>Lọc giao dịch: Collection | Refund.</summary>
+    public string? PaymentType { get; set; }
+
+    /// <summary>Lọc giao dịch: TourFee | RentalFee | AdditionalCharge.</summary>
+    public string? Purpose { get; set; }
     public string? Tab { get; set; }
-    public string? HandledByUserId { get; set; }
     public string? AppliesTo { get; set; }
     public string? PostType { get; set; }
     public int? Rating { get; set; }

@@ -24,6 +24,7 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IAuthAttemptRepository, AuthAttemptRepository>();
         services.AddScoped<IAdminOperationRepository, AdminOperationRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

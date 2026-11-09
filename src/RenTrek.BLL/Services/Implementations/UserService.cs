@@ -13,6 +13,8 @@ namespace RenTrek.BLL.Services.Implementations;
 /// </summary>
 public class UserService : IUserService
 {
+    private const long AvatarMaxBytes = 2 * 1024 * 1024;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IFileStorageService _fileStorageService;
@@ -98,8 +100,8 @@ public class UserService : IUserService
             throw new NotFoundException($"Không tìm thấy người dùng với Id '{userId}'");
         }
 
-        var avatarUrl = await _fileStorageService.SaveAvatarAsync(
-            fileStream, originalFileName, contentType, fileLength, userId, cancellationToken);
+        var avatarUrl = await _fileStorageService.SaveImageAsync(
+            fileStream, originalFileName, contentType, fileLength, "avatars", AvatarMaxBytes, cancellationToken);
 
         var profile = await _unitOfWork.Profiles.GetByUserIdAsync(userId, tracking: true, cancellationToken);
         if (profile is null)
@@ -122,10 +124,7 @@ public class UserService : IUserService
             profile.UpdatedAt = DateTime.UtcNow;
             _unitOfWork.Profiles.Update(profile);
 
-            if (!string.IsNullOrWhiteSpace(oldAvatar) && oldAvatar.StartsWith("/uploads/avatars/"))
-            {
-                _fileStorageService.DeleteFile(oldAvatar);
-            }
+            await _fileStorageService.DeleteImageAsync(oldAvatar, cancellationToken);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

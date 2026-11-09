@@ -1,4 +1,4 @@
-using AutoMapper;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.DAL.Entities;
 
@@ -31,7 +31,7 @@ public class TourProfile : AutoMapper.Profile
                 s.Images.Where(i => i.IsPrimary).Select(i => i.ImageUrl).FirstOrDefault()
                 ?? s.Images.OrderBy(i => i.DisplayOrder).Select(i => i.ImageUrl).FirstOrDefault()))
             .ForMember(d => d.BadgeStatus, opt => opt.MapFrom(s =>
-                s.Status == "Expired" ? "Hết hạn" : "Đang mở"))
+                s.Status == TourStatuses.Expired ? "Hết hạn" : "Đang mở"))
             .ForMember(d => d.DepartureDateRange, opt => opt.MapFrom(s =>
                 s.Trips.OrderBy(t => t.StartAt)
                     .Select(t => $"{t.StartAt:dd} – {t.EndAt:dd/MM/yyyy}")
@@ -39,12 +39,12 @@ public class TourProfile : AutoMapper.Profile
             .ForMember(d => d.SlotStatusText, opt => opt.MapFrom(s =>
                 GetSlotStatusText(s)))
             .ForMember(d => d.AvailableSlots, opt => opt.MapFrom(s =>
-                s.Trips.Where(t => t.StartAt > DateTime.UtcNow && t.Status == "Open")
+                s.Trips.Where(t => t.StartAt > DateTime.UtcNow && t.Status == TripStatuses.Open)
                     .OrderBy(t => t.StartAt)
                     .Select(t => (int?)Math.Max(0, t.TotalSlots - t.BookedSlots))
                     .FirstOrDefault()))
             .ForMember(d => d.NextDepartureDate, opt => opt.MapFrom(s =>
-                s.Trips.Where(t => t.StartAt > DateTime.UtcNow && t.Status == "Open")
+                s.Trips.Where(t => t.StartAt > DateTime.UtcNow && t.Status == TripStatuses.Open)
                     .OrderBy(t => t.StartAt)
                     .Select(t => (DateTime?)t.StartAt.UtcDateTime)
                     .FirstOrDefault()));
@@ -58,10 +58,10 @@ public class TourProfile : AutoMapper.Profile
             .ForMember(d => d.Images, opt => opt.MapFrom(s => s.Images.OrderBy(i => i.DisplayOrder)))
             .ForMember(d => d.Activities, opt => opt.MapFrom(s => s.Activities.OrderBy(a => a.DayNumber).ThenBy(a => a.DisplayOrder)))
             .ForMember(d => d.AvailableTrips, opt => opt.MapFrom(s => s.Trips
-                .Where(t => t.Status != "Draft" && t.Status != "Cancelled")
+                .Where(t => t.Status != TripStatuses.Draft && t.Status != TripStatuses.Cancelled)
                 .OrderBy(t => t.StartAt)))
             .ForMember(d => d.RelatedPosts, opt => opt.MapFrom(s => s.TourPosts
-                .Where(tp => !tp.Post.IsDeleted && tp.Post.Status == "Published")
+                .Where(tp => !tp.Post.IsDeleted && tp.Post.Status == PostStatuses.Published)
                 .OrderBy(tp => tp.DisplayOrder)
                 .Select(tp => new TourRelatedPostResponse
                 {
@@ -75,7 +75,7 @@ public class TourProfile : AutoMapper.Profile
 
     private static string GetSlotStatusText(Tour tour)
     {
-        if (tour.Status == "Expired")
+        if (tour.Status == TourStatuses.Expired)
         {
             var trip = tour.Trips.OrderByDescending(t => t.EndAt).FirstOrDefault();
             if (trip != null && trip.EndAt < DateTime.UtcNow)
@@ -84,7 +84,7 @@ public class TourProfile : AutoMapper.Profile
         }
 
         var openTrip = tour.Trips
-            .Where(t => t.StartAt > DateTime.UtcNow && t.Status == "Open")
+            .Where(t => t.StartAt > DateTime.UtcNow && t.Status == TripStatuses.Open)
             .OrderBy(t => t.StartAt)
             .FirstOrDefault();
 

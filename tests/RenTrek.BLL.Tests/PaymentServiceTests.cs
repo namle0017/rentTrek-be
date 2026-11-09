@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.DTOs.Payment.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
@@ -16,7 +15,7 @@ namespace RenTrek.BLL.Tests;
 
 public sealed class PaymentServiceTests
 {
-    private const string ApiKey = "test-api-key";
+    private const string ApiKey = "<test-api-key>";
     private static readonly DateTimeOffset Now = new(2026, 10, 28, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -261,10 +260,11 @@ public sealed class PaymentServiceTests
             Microsoft.Extensions.Options.Options.Create(new EmailSettings
             {
                 Username = "rentrek@gmail.com",
-                Password = "app-password",
+                Password = "<app-password>",
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             tripGroups,
+            TestProxy.Create<INotificationService>(),
             NullLogger<PaymentService>.Instance);
         return new Fixture(service, repository, tripBookings, tripGroups, emailSender, order);
     }
@@ -277,7 +277,7 @@ public sealed class PaymentServiceTests
         FakeEmailSender EmailSender,
         Order Order);
 
-    private sealed class FakeTripGroupService : ITripGroupService
+    private sealed class FakeTripGroupService : ITripGroupingService
     {
         public List<Guid> AutoAssignedOrderIds { get; } = [];
 
@@ -287,23 +287,10 @@ public sealed class PaymentServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<TourGroupSettingsResponse> UpdateTourGroupSettingsAsync(Guid tourId, UpdateTourGroupSettingsRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TourRecurrenceRuleResponse> CreateRecurrenceRuleAsync(Guid tourId, CreateTourRecurrenceRuleRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<TourRecurrenceRuleResponse>> GetRecurrenceRulesAsync(Guid tourId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<GenerateRecurringTripsResponse> GenerateRecurringTripsAsync(GenerateRecurringTripsRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> GetAdminTripAsync(Guid tripId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> CreateTripAsync(CreateTripRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> UpdateTripAsync(Guid tripId, UpdateTripRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> UpdateTripStatusAsync(Guid tripId, UpdateTripStatusRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TripGroupingSnapshotResponse> GetGroupingSnapshotAsync(Guid tripId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TripGroupingSnapshotResponse> AssignGuideAsync(Guid tripId, Guid groupId, AssignTripGroupGuideRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TripGroupingSnapshotResponse> MoveBookingAsync(Guid tripId, Guid bookingOrderId, MoveBookingGroupRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TripGroupingSnapshotResponse> SplitBookingAsync(Guid tripId, Guid bookingOrderId, SplitTripBookingRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<RecalculateTripProvidedItemsResponse> RecalculateProvidedItemsAsync(Guid tripId, PublishTripGroupingRequest? request = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> PublishGroupsAsync(Guid tripId, PublishTripGroupingRequest? request = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<GuideTripGroupResponse>> GetGuideGroupsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<GuideTripGroupResponse> GetGuideGroupByIdAsync(Guid groupId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<CustomerTripGroupingResponse> GetCustomerGroupingAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
@@ -382,6 +369,15 @@ public sealed class PaymentServiceTests
         public Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.Any(p => p.ProviderTransactionId == providerTransactionId));
 
+        public Task<(IReadOnlyList<RenTrek.DAL.Models.AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
+            RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Payment?> GetForUpdateAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<bool> HasRefundCaseAsync(Guid paymentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<Payment?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.SingleOrDefault(p => p.PaymentId == (Guid)id));
 
@@ -391,9 +387,6 @@ public sealed class PaymentServiceTests
             return Task.CompletedTask;
         }
 
-        public IQueryable<Payment> Query() => throw new NotSupportedException();
-        public IQueryable<Payment> QueryTracking() => throw new NotSupportedException();
-        public Task<bool> AnyAsync(Expression<Func<Payment, bool>> predicate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Payment> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Update(Payment entity) => throw new NotSupportedException();
         public void Remove(Payment entity) => throw new NotSupportedException();
@@ -462,6 +455,7 @@ public sealed class PaymentServiceTests
         public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public void Dispose()
         {
