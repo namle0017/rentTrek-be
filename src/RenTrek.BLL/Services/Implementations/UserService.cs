@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using Microsoft.Extensions.Caching.Memory;
 using RenTrek.BLL.DTOs.Users.Requests;
 using RenTrek.BLL.DTOs.Users.Responses;
 using RenTrek.BLL.Exceptions;
@@ -16,15 +18,21 @@ public class UserService : IUserService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IEmailService _emailService;
+    private readonly IMemoryCache _cache;
 
     public UserService(
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        IFileStorageService fileStorageService)
+        IFileStorageService fileStorageService,
+        IEmailService emailService,
+        IMemoryCache cache)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _fileStorageService = fileStorageService;
+        _emailService = emailService;
+        _cache = cache;
     }
 
     public async Task<UserDetailResponse> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -132,8 +140,29 @@ public class UserService : IUserService
         return avatarUrl;
     }
 
+    public async Task SendChangePasswordOtpAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: false, cancellationToken);
+        if (user is null)
+        {
+            throw new NotFoundException($"Không tìm thấy người dùng với Id '{userId}'");
+        }
+
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
+        var cacheKey = $"pwd_change_otp_{userId}";
+        _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(15));
+
+        await _emailService.SendChangePasswordOtpAsync(user.Email, user.FullName, otp, cancellationToken);
+    }
+
     public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, string? currentJti, CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"pwd_change_otp_{userId}";
+        if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || !string.Equals(cachedOtp, request.Otp?.Trim(), StringComparison.Ordinal))
+        {
+            throw new BadRequestException("Mã OTP xác thực đổi mật khẩu không chính xác hoặc đã hết hạn (15 phút)");
+        }
+
         var user = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken);
 
         if (user is null)
@@ -145,6 +174,8 @@ public class UserService : IUserService
         {
             throw new UnauthorizedException("Mật khẩu hiện tại không chính xác");
         }
+
+        _cache.Remove(cacheKey);
 
         user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;

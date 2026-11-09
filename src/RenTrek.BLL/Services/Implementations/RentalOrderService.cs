@@ -40,17 +40,20 @@ public class RentalOrderService : IRentalOrderService
     private readonly IRentalAvailabilityService _availabilityService;
     private readonly IPromotionService _promotionService;
     private readonly TimeProvider _timeProvider;
+    private readonly IEmailService? _emailService;
 
     public RentalOrderService(
         IUnitOfWork unitOfWork,
         IRentalAvailabilityService availabilityService,
         IPromotionService promotionService,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IEmailService? emailService = null)
     {
         _unitOfWork = unitOfWork;
         _availabilityService = availabilityService;
         _promotionService = promotionService;
         _timeProvider = timeProvider;
+        _emailService = emailService;
     }
 
     public async Task<RentalQuoteResponse> QuoteAsync(
@@ -133,6 +136,30 @@ public class RentalOrderService : IRentalOrderService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
             orderId = order.OrderId;
+
+            if (_emailService is not null)
+            {
+                try
+                {
+                    var buyer = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, false, cancellationToken);
+                    if (buyer is not null && !string.IsNullOrWhiteSpace(buyer.Email))
+                    {
+                        var rentalDates = $"{period.StartUtc:dd/MM/yyyy} - {period.EndUtc:dd/MM/yyyy}";
+                        await _emailService.SendRentalOrderConfirmationAsync(
+                            buyer.Email,
+                            buyer.FullName,
+                            orderCode,
+                            computation.DepositAmount,
+                            computation.TotalAmount,
+                            rentalDates,
+                            cancellationToken);
+                    }
+                }
+                catch
+                {
+                    // Ignore email failure so order creation never breaks
+                }
+            }
         }
         catch
         {

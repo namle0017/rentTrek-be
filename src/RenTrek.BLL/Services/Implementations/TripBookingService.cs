@@ -25,7 +25,8 @@ public sealed class TripBookingService(
     TimeProvider timeProvider,
     IInviteTokenHelper inviteTokenHelper,
     IOptions<EmailSettings> emailOptions,
-    IRefundCaseService? refundCaseService = null) : ITripBookingService
+    IRefundCaseService? refundCaseService = null,
+    IEmailService? emailService = null) : ITripBookingService
 {
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
@@ -200,6 +201,31 @@ public sealed class TripBookingService(
             await unitOfWork.TripBookings.AddOrderAsync(order, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
+
+            if (emailService is not null)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(account.Email))
+                    {
+                        var tripDate = $"{trip.StartAt.ToOffset(VietnamOffset):dd/MM/yyyy HH:mm}";
+                        await emailService.SendTourBookingConfirmationAsync(
+                            account.Email,
+                            account.FullName,
+                            order.OrderCode,
+                            trip.Tour.Name,
+                            tripDate,
+                            subtotal,
+                            booking.Participants.Count,
+                            cancellationToken);
+                    }
+                }
+                catch
+                {
+                    // Ignore email failure so booking creation succeeds
+                }
+            }
+
             return MapResponse(order, account.UserId);
         }
         catch

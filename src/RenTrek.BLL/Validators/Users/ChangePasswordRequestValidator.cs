@@ -13,6 +13,11 @@ public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRe
         RuleFor(x => x.CurrentPassword)
             .NotEmpty().WithMessage("Mật khẩu hiện tại không được để trống");
 
+        RuleFor(x => x.Otp)
+            .NotEmpty().WithMessage("Mã OTP xác thực không được để trống")
+            .Length(6).WithMessage("Mã OTP phải có đúng 6 chữ số")
+            .Matches(@"^\d{6}$").WithMessage("Mã OTP chỉ bao gồm chữ số");
+
         RuleFor(x => x.NewPassword)
             .NotEmpty().WithMessage("Mật khẩu mới không được để trống")
             .MinimumLength(8).WithMessage("Mật khẩu mới phải có tối thiểu 8 ký tự")

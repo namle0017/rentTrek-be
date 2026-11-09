@@ -68,6 +68,15 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { avatarUrl }, "Tải lên ảnh đại diện thành công"));
     }
 
+    [HttpPost("me/password/request-otp")]
+    [Authorize]
+    public async Task<IActionResult> RequestChangePasswordOtp(CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.RequiredUserId;
+        await _userService.SendChangePasswordOtpAsync(userId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Mã OTP xác thực đổi mật khẩu đã được gửi về email của bạn"));
+    }
+
     [HttpPut("me/password")]
     [Authorize]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)

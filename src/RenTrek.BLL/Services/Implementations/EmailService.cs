@@ -68,25 +68,107 @@ public class EmailService : IEmailService
         await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, otp, "EMAIL VERIFICATION OTP", cancellationToken);
     }
 
+    public async Task SendChangePasswordOtpAsync(
+        string toEmail,
+        string recipientName,
+        string otp,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = "[renTrek] Mã xác thực yêu cầu đổi mật khẩu tài khoản";
+        var htmlBody = GenerateHtmlTemplate(
+            title: "Xác thực đổi mật khẩu renTrek",
+            recipientName: recipientName,
+            description: "Chúng tôi nhận được yêu cầu đổi mật khẩu cho tài khoản renTrek của bạn. Vui lòng nhập mã OTP dưới đây để hoàn tất việc cập nhật mật khẩu mới:",
+            otp: otp,
+            note: "Mã OTP có hiệu lực trong 15 phút. Nếu bạn không thực hiện yêu cầu này, vui lòng đổi mật khẩu ngay hoặc liên hệ bộ phận hỗ trợ của renTrek.",
+            accentColor: "#2A9D8F");
+
+        await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, otp, "CHANGE PASSWORD OTP", cancellationToken);
+    }
+
+    public async Task SendRentalOrderConfirmationAsync(
+        string toEmail,
+        string recipientName,
+        string orderCode,
+        decimal totalDeposit,
+        decimal totalRentalFee,
+        string rentalDates,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"[renTrek] Xác nhận đơn thuê thiết bị #{orderCode}";
+        var totalAmount = totalDeposit + totalRentalFee;
+        var htmlBody = GenerateOrderNotificationHtml(
+            title: "Xác nhận đặt thuê thiết bị thành công",
+            recipientName: recipientName,
+            orderCode: orderCode,
+            orderTypeLabel: "Đơn thuê thiết bị dã ngoại",
+            detailRows: new[]
+            {
+                ("Mã đơn hàng", $"<strong>#{orderCode}</strong>"),
+                ("Thời gian thuê", rentalDates),
+                ("Tiền thuê thiết bị", $"{totalRentalFee:N0} đ"),
+                ("Tiền cọc thiết bị", $"{totalDeposit:N0} đ"),
+                ("Tổng thanh toán", $"<strong style=\"color: #1B4332; font-size: 16px;\">{totalAmount:N0} đ</strong>")
+            },
+            instruction: "Quý khách vui lòng đến cửa hàng renTrek đúng thời gian đã đăng ký để nhận và kiểm tra thiết bị. Khi trả đồ nguyên vẹn, tiền cọc sẽ được hoàn lại tự động.",
+            accentColor: "#1B4332");
+
+        await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, null, "RENTAL ORDER CONFIRMATION", cancellationToken);
+    }
+
+    public async Task SendTourBookingConfirmationAsync(
+        string toEmail,
+        string recipientName,
+        string orderCode,
+        string tourName,
+        string tripDate,
+        decimal totalAmount,
+        int participantCount,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"[renTrek] Xác nhận đặt tour trekking #{orderCode}";
+        var htmlBody = GenerateOrderNotificationHtml(
+            title: "Xác nhận đặt vé tour trekking thành công",
+            recipientName: recipientName,
+            orderCode: orderCode,
+            orderTypeLabel: "Vé tour trekking dã ngoại",
+            detailRows: new[]
+            {
+                ("Mã đặt chỗ", $"<strong>#{orderCode}</strong>"),
+                ("Tên tour", tourName),
+                ("Ngày khởi hành", tripDate),
+                ("Số người tham gia", $"{participantCount} người"),
+                ("Tổng tiền vé tour", $"<strong style=\"color: #1B4332; font-size: 16px;\">{totalAmount:N0} đ</strong>")
+            },
+            instruction: "Hướng dẫn viên (Tour Guide) sẽ liên hệ trước ngày khởi hành để cung cấp chi tiết lịch trình và hướng dẫn chuẩn bị thể lực, tư trang.",
+            accentColor: "#264653");
+
+        await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, null, "TOUR BOOKING CONFIRMATION", cancellationToken);
+    }
+
     private async Task SendEmailOrDevFallbackAsync(
         string toEmail,
         string recipientName,
         string subject,
         string htmlBody,
-        string otp,
+        string? otp,
         string devTag,
         CancellationToken cancellationToken)
     {
         // 1. Nếu chưa cấu hình SMTP Host/Username -> Chế độ Development: In console màu nổi bật
         if (!_settings.IsConfigured)
         {
+            var otpSnippet = string.IsNullOrWhiteSpace(otp)
+                ? "(Không có mã OTP - Thông báo xác nhận đơn)"
+                : $"MÃ OTP (6 CHỮ SỐ): [ {otp} ]";
+
             var devBox = $"""
                 ================================================================================
                 [renTrek Email Mock / Dev] {devTag}
                 Gửi tới: {recipientName} <{toEmail}>
                 Tiêu đề: {subject}
                 Thời gian: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-                MÃ OTP (6 CHỮ SỐ): [ {otp} ]
+                {otpSnippet}
                 (Lưu ý: Cấu hình section 'Email' trong .env để gửi mail SMTP thật)
                 ================================================================================
                 """;
@@ -111,7 +193,9 @@ public class EmailService : IEmailService
             var bodyBuilder = new BodyBuilder
             {
                 HtmlBody = htmlBody,
-                TextBody = $"Mã xác thực renTrek của bạn là: {otp} (Hiệu lực 15 phút)."
+                TextBody = string.IsNullOrWhiteSpace(otp)
+                    ? $"{subject}. Cảm ơn quý khách đã sử dụng dịch vụ của renTrek."
+                    : $"Mã xác thực renTrek của bạn là: {otp} (Hiệu lực 15 phút)."
             };
             message.Body = bodyBuilder.ToMessageBody();
 
@@ -129,11 +213,94 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Gửi email qua MailKit thất bại tới {ToEmail}. In mã OTP ra console dự phòng: [{Otp}]", toEmail, otp);
+            _logger.LogError(ex, "Gửi email qua MailKit thất bại tới {ToEmail}. Thẻ: {DevTag}", toEmail, devTag);
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[renTrek SMTP Error Fallback] Gửi mail tới {toEmail} thất bại: {ex.Message}. Mã OTP: {otp}");
+            Console.WriteLine($"[renTrek SMTP Error Fallback] Gửi mail tới {toEmail} thất bại: {ex.Message}. Thẻ: {devTag}");
             Console.ResetColor();
         }
+    }
+
+    private static string GenerateOrderNotificationHtml(
+        string title,
+        string recipientName,
+        string orderCode,
+        string orderTypeLabel,
+        (string Label, string Value)[] detailRows,
+        string instruction,
+        string accentColor)
+    {
+        var rowsHtml = string.Join("\n", detailRows.Select(row => $"""
+            <tr>
+              <td style="padding: 10px 14px; border-bottom: 1px solid #edf2f7; color: #718096; font-size: 14px; width: 40%;">{row.Label}</td>
+              <td style="padding: 10px 14px; border-bottom: 1px solid #edf2f7; color: #1a202c; font-size: 14px; text-align: right;">{row.Value}</td>
+            </tr>
+            """));
+
+        return $"""
+            <!DOCTYPE html>
+            <html lang="vi">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>{title}</title>
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #2d3748;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f4f6f8; padding: 40px 10px;">
+                <tr>
+                  <td align="center">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+                      <!-- Header -->
+                      <tr>
+                        <td align="center" style="background-color: {accentColor}; padding: 32px 20px;">
+                          <div style="font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
+                            <span style="color: #52B788;">▲</span> renTrek
+                          </div>
+                          <div style="font-size: 13px; color: #D8F3DC; margin-top: 6px; text-transform: uppercase; letter-spacing: 1px;">
+                            {orderTypeLabel}
+                          </div>
+                        </td>
+                      </tr>
+                      <!-- Body -->
+                      <tr>
+                        <td style="padding: 36px 32px;">
+                          <h2 style="margin: 0 0 16px 0; color: #1a202c; font-size: 20px; font-weight: 700;">{title}</h2>
+                          <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4a5568;">
+                            Kính chào <strong>{recipientName}</strong>,
+                          </p>
+                          <div style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #4a5568;">
+                            Cảm ơn bạn đã lựa chọn dịch vụ của <strong>renTrek</strong>. Đơn hàng của bạn đã được ghi nhận thành công trên hệ thống với thông tin chi tiết dưới đây:
+                          </div>
+                          
+                          <!-- Order Details Table -->
+                          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin: 24px 0;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+                              {rowsHtml}
+                            </table>
+                          </div>
+
+                          <div style="background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 14px 16px; border-radius: 4px; font-size: 13px; color: #2b6cb0; line-height: 1.5; margin-bottom: 24px;">
+                            <strong>Hướng dẫn tiếp theo:</strong> {instruction}
+                          </div>
+
+                          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #718096;">
+                            Nếu cần hỗ trợ thêm thông tin, bạn có thể xem lại tại mục <strong>Đơn của tôi</strong> trên website renTrek hoặc liên hệ hotline chăm sóc khách hàng của chúng tôi.
+                          </p>
+                        </td>
+                      </tr>
+                      <!-- Footer -->
+                      <tr>
+                        <td align="center" style="background-color: #f7fafc; padding: 20px; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0;">
+                          © {DateTime.UtcNow.Year} renTrek Inc. Nền tảng thuê trang bị dã ngoại & tour trekking ký quỹ.<br>
+                          Email này được gửi tự động để xác nhận giao dịch của bạn tại renTrek.
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """;
     }
 
     private static string GenerateHtmlTemplate(
