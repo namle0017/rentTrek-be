@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.Exceptions;
@@ -6,6 +7,7 @@ using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -33,9 +35,33 @@ public sealed class AuthServiceTests
         Assert.False(response.User.EmailConfirmed);
         var account = Assert.Single(fixture.Accounts.Accounts);
         Assert.Null(account.EmailConfirmedAt);
-        var sent = Assert.Single(fixture.EmailSender.Sent);
+        var sent = Assert.Single(fixture.EmailService.Verifications);
         Assert.Equal("guest@example.com", sent.To);
-        Assert.Contains("http://localhost:5173/verify-email#t=", sent.Body);
+        Assert.Contains("http://localhost:5173/verify-email#t=", sent.VerifyUrl);
+        Assert.Matches(@"^\d{6}$", sent.Otp);
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_AcceptsOtpFromVerificationEmailAndRejectsWrongOne()
+    {
+        var fixture = CreateFixture();
+        await fixture.Service.RegisterAsync(new RegisterRequest
+        {
+            Email = "otp@example.com",
+            Password = "<Password@123>",
+            FullName = "Khách OTP",
+            Phone = "0901234567"
+        });
+        var otp = Assert.Single(fixture.EmailService.Verifications).Otp;
+        var wrongOtp = otp == "000000" ? "111111" : "000000";
+
+        await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.VerifyEmailAsync(
+            new VerifyEmailRequest { Email = "otp@example.com", Otp = wrongOtp }));
+        await fixture.Service.VerifyEmailAsync(new VerifyEmailRequest { Email = "OTP@example.com", Otp = otp });
+
+        Assert.NotNull(Assert.Single(fixture.Accounts.Accounts).EmailConfirmedAt);
+        await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.VerifyEmailAsync(
+            new VerifyEmailRequest { Email = "otp@example.com", Otp = otp }));
     }
 
     [Fact]
@@ -148,7 +174,7 @@ public sealed class AuthServiceTests
         var accounts = new FakeAccountRepository();
         var tripBookings = new FakeTripBookingRepository();
         var tokenHelper = new InviteTokenHelper(Microsoft.Extensions.Options.Options.Create(new InviteSettings { SigningKey = new string('s', 32) }));
-        var emailSender = new FakeEmailSender();
+        var emailService = new FakeEmailService();
         var service = new AuthService(
             new FakeUnitOfWork(accounts, tripBookings),
             new FakePasswordHasher(),
@@ -156,7 +182,6 @@ public sealed class AuthServiceTests
             Microsoft.Extensions.Options.Options.Create(new JwtSettings { RefreshTokenExpirationDays = 7 }),
             new FixedTimeProvider(Now),
             tokenHelper,
-            emailSender,
             Microsoft.Extensions.Options.Options.Create(new EmailSettings
             {
                 Username = "rentrek@gmail.com",
@@ -164,10 +189,11 @@ public sealed class AuthServiceTests
                 FrontendBaseUrl = "http://localhost:5173"
             }),
             NullLogger<AuthService>.Instance,
-            new EmailService(NullLogger<EmailService>.Instance),
+            emailService,
             new AuthAttemptLimiter(new InMemoryAuthAttempts(), new FixedTimeProvider(Now)),
-            Microsoft.Extensions.Options.Options.Create(new GoogleAuthSettings()));
-        return new Fixture(service, accounts, tripBookings, tokenHelper, emailSender);
+            Microsoft.Extensions.Options.Options.Create(new GoogleAuthSettings()),
+            new MemoryCache(new MemoryCacheOptions()));
+        return new Fixture(service, accounts, tripBookings, tokenHelper, emailService);
     }
 
     private sealed record Fixture(
@@ -175,7 +201,7 @@ public sealed class AuthServiceTests
         FakeAccountRepository Accounts,
         FakeTripBookingRepository TripBookings,
         InviteTokenHelper TokenHelper,
-        FakeEmailSender EmailSender);
+        FakeEmailService EmailService);
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
@@ -197,13 +223,16 @@ public sealed class AuthServiceTests
         public string HashToken(string token) => $"hash:{token}";
     }
 
-    private sealed class FakeEmailSender : IEmailSender
+    private sealed class FakeEmailService : IEmailService
     {
-        public List<(string To, string Body)> Sent { get; } = [];
+        public List<(string To, string Otp, string? VerifyUrl)> Verifications { get; } = [];
 
-        public Task SendAsync(string toAddress, string toName, string subject, string htmlBody, CancellationToken cancellationToken = default)
+        public Task SendPasswordResetOtpAsync(string toEmail, string recipientName, string otp, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SendEmailVerificationOtpAsync(string toEmail, string recipientName, string otp, string? verifyUrl = null, CancellationToken cancellationToken = default)
         {
-            Sent.Add((toAddress, htmlBody));
+            Verifications.Add((toEmail, otp, verifyUrl));
             return Task.CompletedTask;
         }
     }
