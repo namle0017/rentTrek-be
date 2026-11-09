@@ -31,7 +31,7 @@ public sealed class RentalCancellationTests
             ("get_RentalOrders", _ => repository),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>()),
             ("SaveChangesAsync", _ => Task.FromResult(1)));
-        return (new RentalOrderService(unit, null!, null!, TimeProvider.System), order);
+        return (new RentalOrderService(unit, null!, null!, TimeProvider.System, null!), order);
     }
 
     [Fact]
