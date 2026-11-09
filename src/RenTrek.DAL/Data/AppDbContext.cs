@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<RentalPriceTier> RentalPriceTiers => Set<RentalPriceTier>();
     public DbSet<EquipmentAsset> EquipmentAssets => Set<EquipmentAsset>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ParticipantInvitation> ParticipantInvitations => Set<ParticipantInvitation>();
     public DbSet<ParticipantPostRead> ParticipantPostReads => Set<ParticipantPostRead>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Post> Posts => Set<Post>();
@@ -41,12 +42,15 @@ public class AppDbContext : DbContext
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<PromotionTier> PromotionTiers => Set<PromotionTier>();
+    public DbSet<RefundActionChallenge> RefundActionChallenges => Set<RefundActionChallenge>();
+    public DbSet<RefundCase> RefundCases => Set<RefundCase>();
     public DbSet<RefundPolicy> RefundPolicies => Set<RefundPolicy>();
     public DbSet<RefundPolicyRule> RefundPolicyRules => Set<RefundPolicyRule>();
     public DbSet<RentalBundleItemSnapshot> RentalBundleItemSnapshots => Set<RentalBundleItemSnapshot>();
     public DbSet<RentalCharge> RentalCharges => Set<RentalCharge>();
     public DbSet<RentalOrder> RentalOrders => Set<RentalOrder>();
     public DbSet<RentalOrderItem> RentalOrderItems => Set<RentalOrderItem>();
+    public DbSet<RentalOrderAdjustment> RentalOrderAdjustments => Set<RentalOrderAdjustment>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<SoftSkill> SoftSkills => Set<SoftSkill>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
@@ -62,7 +66,6 @@ public class AppDbContext : DbContext
     public DbSet<TripBookingOrder> TripBookingOrders => Set<TripBookingOrder>();
     public DbSet<BookingParticipant> BookingParticipants => Set<BookingParticipant>();
     public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<ParticipantInvitation> ParticipantInvitations => Set<ParticipantInvitation>();
 
     // Tour DbSets
     public DbSet<Tour> Tours => Set<Tour>();

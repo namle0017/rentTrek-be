@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Repositories.Implementations;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -10,6 +12,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 /// </summary>
 public class UnitOfWork : IUnitOfWork
 {
+    public IAdminOperationRepository AdminOperations => new AdminOperationRepository(_context);
     private readonly AppDbContext _context;
     private readonly Dictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
@@ -41,6 +44,7 @@ public class UnitOfWork : IUnitOfWork
     private IPromotionRepository? _promotions;
     private IPromotionTierRepository? _promotionTiers;
     private IRefreshTokenRepository? _refreshTokens;
+    private IRefundCaseRepository? _refundCases;
     private IRefundPolicyRepository? _refundPolicies;
     private IRefundPolicyRuleRepository? _refundPolicyRules;
     private IRentalBundleItemSnapshotRepository? _rentalBundleItemSnapshots;
@@ -100,6 +104,7 @@ public class UnitOfWork : IUnitOfWork
     public IPromotionRepository Promotions => _promotions ??= new PromotionRepository(_context);
     public IPromotionTierRepository PromotionTiers => _promotionTiers ??= new PromotionTierRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
+    public IRefundCaseRepository RefundCases => _refundCases ??= new RefundCaseRepository(_context);
     public IRefundPolicyRepository RefundPolicies => _refundPolicies ??= new RefundPolicyRepository(_context);
     public IRefundPolicyRuleRepository RefundPolicyRules => _refundPolicyRules ??= new RefundPolicyRuleRepository(_context);
     public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => _rentalBundleItemSnapshots ??= new RentalBundleItemSnapshotRepository(_context);
@@ -139,6 +144,23 @@ public class UnitOfWork : IUnitOfWork
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);
+
+    public async Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Gỡ các thực thể gây lỗi để ChangeTracker không giữ bản ghi trùng cho lần lưu sau
+            foreach (var entry in ex.Entries)
+                entry.State = EntityState.Detached;
+
+            return false;
+        }
+    }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {

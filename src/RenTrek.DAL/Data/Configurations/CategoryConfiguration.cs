@@ -13,22 +13,22 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
     {
         builder.ToTable("categories");
 
-        builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasColumnName("category_id");
+        builder.HasKey(c => c.Id).HasName("categories_pkey");
+        builder.Property(c => c.Id).HasColumnName("category_id").HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(c => c.Name)
-            .IsRequired()
-            .HasMaxLength(200);
+            .IsRequired().HasMaxLength(255);
 
-        builder.Property(c => c.Description)
-            .HasMaxLength(2000);
+        builder.Property(c => c.Description).HasColumnType("text");
 
         builder.Property(c => c.CategoryType)
-            .IsRequired()
-            .HasMaxLength(30);
+            .IsRequired().HasMaxLength(50);
 
         builder.Property(c => c.Status)
-            .IsRequired()
-            .HasMaxLength(30);
+            .IsRequired().HasMaxLength(50);
+
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
     }
 }

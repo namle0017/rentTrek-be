@@ -48,9 +48,10 @@
 | Service interface / impl | `I{Entity}Service` / `{Entity}Service` | `IProductService` / `ProductService` |
 | Repository interface / impl | `I{Entity}Repository` / `{Entity}Repository` | `IProductRepository` / `ProductRepository` |
 | Entity | `{Entity}` (số ít) | `Product`, `Booking`, `User` |
-| Request DTO | `{Action}{Entity}Request` | `CreateProductRequest`, `UpdateProductRequest` |
-| Query DTO (filter/paging) | `{Entity}QueryRequest` | `ProductQueryRequest` |
-| Response DTO | `{Entity}Response` / `{Entity}DetailResponse` | `ProductResponse`, `ProductDetailResponse` |
+| Request DTO — `DTOs/{Module}/Requests/` | `{Action}{Entity}Request` | `CreateProductRequest`, `UpdateProductRequest` |
+| Query DTO (filter/paging) — `DTOs/{Module}/Requests/` | `{Entity}QueryRequest` | `ProductQueryRequest` |
+| Response DTO — `DTOs/{Module}/Responses/` | `{Entity}Response` / `{Entity}DetailResponse` | `ProductResponse`, `ProductDetailResponse`, `PagedResponse<T>` |
+| Internal DTO — `DTOs/{Module}/Internal/` (chỉ dùng trong BLL, không ra HTTP) | `...Input` (dữ liệu vào) · `...Result` (kết quả tính) · `...Item` (phần tử con của Result) · `...Option` (lựa chọn để chọn ra) · `...Kind` (enum) | `RentalLineInput`, `RentalPeriodResult`, `RentalLineComponentItem`, `RentalPriceTierOption`, `PromotionDiscountKind` |
 | Validator (FluentValidation) | `{RequestName}Validator` | `CreateProductRequestValidator` |
 | Custom Exception | `{Mô tả}Exception` | `NotFoundException`, `BadRequestException` |
 | Middleware | `{Chức năng}Middleware` | `ExceptionHandlingMiddleware` |
@@ -189,7 +190,7 @@ app.MapControllers();                              // 6.
 POST /api/v1/products
 {
   "name": "Lều cắm trại 2 người",
-  "categoryId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "categoryId": "<category-id>",
   "pricePerDay": 120000,
   "quantity": 10,
   "description": "Lều chống nước, nặng 2kg"
@@ -269,7 +270,7 @@ HTTP 200 OK
   "statusCode": 200,
   "message": "Lấy sản phẩm thành công",
   "data": {
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "id": "<id>",
     "name": "Lều cắm trại 2 người",
     "pricePerDay": 120000,
     "createdAt": "2026-10-06T08:30:00Z"
@@ -302,7 +303,7 @@ HTTP 200 OK
 ```
 
 ```csharp
-public class PagedResult<T>
+public class PagedResponse<T>
 {
     public IReadOnlyList<T> Items { get; set; } = [];
     public int PageNumber { get; set; }
@@ -551,10 +552,11 @@ Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵ
 | 2 | DAL | `src/RenTrek.DAL/Entities/Enums/CategoryStatus.cs` | 🆕 |
 | 3 | DAL | `src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs` — do scaffold sinh | 🆕 |
 | 4 | DAL | `src/RenTrek.DAL/Data/AppDbContext.cs` — scaffold tự thêm `DbSet` | ✏️ |
-| 6 | BLL | `src/RenTrek.BLL/DTOs/Category/CreateCategoryRequest.cs` | 🆕 |
-| 7 | BLL | `src/RenTrek.BLL/DTOs/Category/UpdateCategoryRequest.cs` | 🆕 |
-| 8 | BLL | `src/RenTrek.BLL/DTOs/Category/CategoryQueryRequest.cs` | 🆕 |
-| 9 | BLL | `src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs` | 🆕 |
+| 5 | DAL | `src/RenTrek.DAL/Models/CategoryFilter.cs` + `ICategoryRepository` / `CategoryRepository` (method truy vấn) | 🆕 / ✏️ |
+| 6 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/CreateCategoryRequest.cs` | 🆕 |
+| 7 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/UpdateCategoryRequest.cs` | 🆕 |
+| 8 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/CategoryQueryRequest.cs` | 🆕 |
+| 9 | BLL | `src/RenTrek.BLL/DTOs/Category/Responses/CategoryResponse.cs` | 🆕 |
 | 10 | BLL | `src/RenTrek.BLL/Validators/Category/CreateCategoryRequestValidator.cs` | 🆕 |
 | 11 | BLL | `src/RenTrek.BLL/Validators/Category/UpdateCategoryRequestValidator.cs` | 🆕 |
 | 12 | BLL | `src/RenTrek.BLL/Mappings/CategoryProfile.cs` | 🆕 |
@@ -567,8 +569,9 @@ Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵ
 **Quy tắc tạo file / folder:**
 
 - DTO và Validator gom theo **thư mục module**: `DTOs/Category/`, `Validators/Category/`.
-- Service, Repository chia theo `Interfaces/` và `Implementations/`.
-- Namespace **khớp đường dẫn thư mục**: file `src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs` → `namespace RenTrek.BLL.DTOs.Category;`.
+- Trong mỗi module, DTO chia tiếp theo vai trò: `Requests/` (hậu tố `Request`), `Responses/` (hậu tố `Response`), `Internal/` (hậu tố `Input` / `Result` / `Item` / `Option` / `Kind`). Không đặt DTO trực tiếp trong `DTOs/{Module}/`. Test `DtoNamingConventionTests` kiểm tra quy tắc này.
+- Service, Repository, Helper (có interface, đăng ký DI) chia theo `Interfaces/` và `Implementations/` — không để interface chung thư mục với class.
+- Namespace **khớp đường dẫn thư mục**: file `src/RenTrek.BLL/DTOs/Category/Responses/CategoryResponse.cs` → `namespace RenTrek.BLL.DTOs.Category.Responses;`.
 - Dùng **file-scoped namespace** (`namespace X;`), mỗi file 1 class.
 - Thư mục chỉ có `.gitkeep`: thêm file thật vào rồi thì xoá `.gitkeep`.
 
@@ -695,8 +698,8 @@ Commit gợi ý: `chore(db): scaffold category table`
 **DTO** — class đơn giản, chỉ chứa field FE cần gửi / nhận.
 
 ```csharp
-// src/RenTrek.BLL/DTOs/Category/CreateCategoryRequest.cs
-namespace RenTrek.BLL.DTOs.Category;
+// src/RenTrek.BLL/DTOs/Category/Requests/CreateCategoryRequest.cs
+namespace RenTrek.BLL.DTOs.Category.Requests;
 
 public class CreateCategoryRequest
 {
@@ -706,10 +709,10 @@ public class CreateCategoryRequest
 ```
 
 ```csharp
-// src/RenTrek.BLL/DTOs/Category/UpdateCategoryRequest.cs
+// src/RenTrek.BLL/DTOs/Category/Requests/UpdateCategoryRequest.cs
 using RenTrek.DAL.Entities.Enums;
 
-namespace RenTrek.BLL.DTOs.Category;
+namespace RenTrek.BLL.DTOs.Category.Requests;
 
 public class UpdateCategoryRequest
 {
@@ -720,11 +723,11 @@ public class UpdateCategoryRequest
 ```
 
 ```csharp
-// src/RenTrek.BLL/DTOs/Category/CategoryQueryRequest.cs
-using RenTrek.BLL.DTOs.Common;
+// src/RenTrek.BLL/DTOs/Category/Requests/CategoryQueryRequest.cs
+using RenTrek.BLL.DTOs.Common.Requests;
 using RenTrek.DAL.Entities.Enums;
 
-namespace RenTrek.BLL.DTOs.Category;
+namespace RenTrek.BLL.DTOs.Category.Requests;
 
 public class CategoryQueryRequest : PagingRequest
 {
@@ -733,10 +736,10 @@ public class CategoryQueryRequest : PagingRequest
 ```
 
 ```csharp
-// src/RenTrek.BLL/DTOs/Category/CategoryResponse.cs
+// src/RenTrek.BLL/DTOs/Category/Responses/CategoryResponse.cs
 using RenTrek.DAL.Entities.Enums;
 
-namespace RenTrek.BLL.DTOs.Category;
+namespace RenTrek.BLL.DTOs.Category.Responses;
 
 public class CategoryResponse
 {
@@ -752,7 +755,7 @@ public class CategoryResponse
 ```csharp
 // src/RenTrek.BLL/Validators/Category/CreateCategoryRequestValidator.cs
 using FluentValidation;
-using RenTrek.BLL.DTOs.Category;
+using RenTrek.BLL.DTOs.Category.Requests;
 
 namespace RenTrek.BLL.Validators.Category;
 
@@ -777,7 +780,8 @@ public class CreateCategoryRequestValidator : AbstractValidator<CreateCategoryRe
 ```csharp
 // src/RenTrek.BLL/Mappings/CategoryProfile.cs
 using AutoMapper;
-using RenTrek.BLL.DTOs.Category;
+using RenTrek.BLL.DTOs.Category.Requests;
+using RenTrek.BLL.DTOs.Category.Responses;
 using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Mappings;
@@ -799,14 +803,15 @@ public class CategoryProfile : Profile
 
 ```csharp
 // src/RenTrek.BLL/Services/Interfaces/ICategoryService.cs
-using RenTrek.BLL.DTOs.Category;
-using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.DTOs.Category.Requests;
+using RenTrek.BLL.DTOs.Category.Responses;
+using RenTrek.BLL.DTOs.Common.Responses;
 
 namespace RenTrek.BLL.Services.Interfaces;
 
 public interface ICategoryService
 {
-    Task<PagedResult<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResponse<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default);
     Task<CategoryResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     Task<CategoryResponse> CreateAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default);
     Task<CategoryResponse> UpdateAsync(long id, UpdateCategoryRequest request, CancellationToken cancellationToken = default);
@@ -814,18 +819,46 @@ public interface ICategoryService
 }
 ```
 
+**Truy vấn nằm ở DAL** — BLL không dùng EF Core (`Microsoft.EntityFrameworkCore`, `IQueryable`, `ProjectTo`); test `BllDoesNotDependOnPresentationOrDirectDataAccess` chặn việc này. Mỗi truy vấn là một method có tên trong repository:
+
+- Tham số lọc / phân trang gom vào `DAL/Models/{Tên}Filter.cs` (`public class`, `{ get; set; }`, có `PageNumber` / `PageSize`).
+- Danh sách cần projection trả `DAL/Models/{Tên}Row.cs`; còn lại trả entity (`AsNoTracking` khi chỉ đọc).
+- Phân trang dùng `RenTrek.DAL.Extensions.QueryPaging.ToPageAsync(...)` → `(Items, TotalCount)`.
+- BLL không truyền `Expression` xuống repository; cần kiểm tra trùng thì thêm method như `NameExistsAsync`.
+
+```csharp
+// src/RenTrek.DAL/Repositories/Implementations/CategoryRepository.cs (trích)
+public Task<(IReadOnlyList<Category> Items, int TotalCount)> GetPagedAsync(
+    CategoryFilter filter, CancellationToken cancellationToken = default)
+{
+    var query = _dbSet.AsNoTracking();
+    if (!string.IsNullOrWhiteSpace(filter.Search))
+        query = query.Where(c => c.Name.Contains(filter.Search));
+    if (filter.Status.HasValue)
+        query = query.Where(c => c.Status == filter.Status.Value);
+
+    var sorted = filter.SortBy?.ToLowerInvariant() == "name"
+        ? (filter.IsDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name))
+        : (filter.IsDescending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id));
+    return sorted.ToPageAsync(filter.PageNumber, filter.PageSize, c => c, cancellationToken);
+}
+
+public Task<bool> NameExistsAsync(string name, long? excludeId, CancellationToken cancellationToken = default)
+    => _dbSet.AnyAsync(c => c.Name == name && c.Id != excludeId, cancellationToken);
+```
+
 **Implementation** — nơi duy nhất chứa business logic. Vi phạm nghiệp vụ thì **throw** exception trong `RenTrek.BLL.Exceptions`.
 
 ```csharp
 // src/RenTrek.BLL/Services/Implementations/CategoryService.cs
 using AutoMapper;
-using AutoMapper.QueryableExtensions;
-using RenTrek.BLL.DTOs.Category;
-using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.DTOs.Category.Requests;
+using RenTrek.BLL.DTOs.Category.Responses;
+using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -844,25 +877,25 @@ public class CategoryService : ICategoryService
 
     private ICategoryRepository Categories => _unitOfWork.Categories;
 
-    public async Task<PagedResult<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default)
     {
-        var query = Categories.Query(); // AsNoTracking — chỉ đọc
-
-        if (!string.IsNullOrWhiteSpace(request.Search))
-            query = query.Where(c => c.Name.Contains(request.Search));
-
-        if (request.Status.HasValue)
-            query = query.Where(c => c.Status == request.Status.Value);
-
-        query = request.SortBy.ToLowerInvariant() switch
+        var (items, total) = await Categories.GetPagedAsync(new CategoryFilter
         {
-            "name" => request.IsDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name),
-            _ => request.IsDescending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id)
-        };
+            Search = request.Search,
+            Status = request.Status,
+            SortBy = request.SortBy,
+            IsDescending = request.IsDescending,
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize
+        }, cancellationToken);
 
-        return await query
-            .ProjectTo<CategoryResponse>(_mapper.ConfigurationProvider) // chỉ SELECT các cột cần
-            .ToPagedResultAsync(request, cancellationToken);
+        return new PagedResponse<CategoryResponse>
+        {
+            Items = _mapper.Map<List<CategoryResponse>>(items),
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalItems = total
+        };
     }
 
     public async Task<CategoryResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default)
@@ -873,7 +906,7 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryResponse> CreateAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
     {
-        if (await Categories.AnyAsync(c => c.Name == request.Name, cancellationToken))
+        if (await Categories.NameExistsAsync(request.Name, null, cancellationToken))
             throw new ConflictException("Tên danh mục đã tồn tại");
 
         var category = _mapper.Map<Category>(request);
@@ -887,7 +920,7 @@ public class CategoryService : ICategoryService
     {
         var category = await FindOrThrowAsync(id, cancellationToken);
 
-        if (await Categories.AnyAsync(c => c.Id != id && c.Name == request.Name, cancellationToken))
+        if (await Categories.NameExistsAsync(request.Name, id, cancellationToken))
             throw new ConflictException("Tên danh mục đã tồn tại");
 
         _mapper.Map(request, category); // entity đang được track → chỉ cần SaveChanges
@@ -935,8 +968,9 @@ Controller **mỏng**: nhận request → gọi service → bọc `ApiResponse` 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
-using RenTrek.BLL.DTOs.Category;
-using RenTrek.BLL.DTOs.Common;
+using RenTrek.BLL.DTOs.Category.Requests;
+using RenTrek.BLL.DTOs.Category.Responses;
+using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -958,7 +992,7 @@ public class CategoriesController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] CategoryQueryRequest request, CancellationToken cancellationToken)
     {
         var result = await _categoryService.GetAllAsync(request, cancellationToken);
-        return Ok(ApiResponse<PagedResult<CategoryResponse>>.Ok(result, "Lấy danh sách danh mục thành công"));
+        return Ok(ApiResponse<PagedResponse<CategoryResponse>>.Ok(result, "Lấy danh sách danh mục thành công"));
     }
 
     [HttpGet("{id:long}")]
@@ -1032,7 +1066,8 @@ Mở `https://localhost:7000/swagger` và test **đủ các case**:
 | `Unable to resolve service for type 'ICategoryService'` | Quên đăng ký DI | Thêm `AddScoped` trong `RenTrek.BLL/DependencyInjection.cs` |
 | Validator không chạy | Validator đặt ngoài `RenTrek.BLL` hoặc sai generic type | Đặt trong `RenTrek.BLL/Validators/...`, kế thừa `AbstractValidator<TênRequest>` |
 | `AutoMapperMappingException: Missing type map` | Chưa `CreateMap` cho cặp type đó | Thêm vào `{Module}Profile` |
-| Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ `Query()` (AsNoTracking) | Lấy bằng `GetByIdAsync` hoặc `QueryTracking()` khi cần sửa |
+| Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ method đọc `AsNoTracking` của repository | Lấy bằng `GetByIdAsync` (có tracking) hoặc thêm method có tracking trong repository |
+| Test kiến trúc báo BLL phụ thuộc `Microsoft.EntityFrameworkCore` | Viết LINQ / `ToListAsync` trong service | Chuyển truy vấn vào method của repository, trả entity hoặc `Row` |
 | Scaffold báo `named connection string ... was not found` | Chưa đặt connection string | Điền `ConnectionStrings:DefaultConnection` trong `appsettings.Development.json` hoặc user-secrets |
 | Gõ thẳng lệnh `dotnet ef dbcontext scaffold Name=...` báo lỗi `Jwt:SecretKey` | EF chạy `Program.cs` để đọc cấu hình, thiếu JWT secret thì `Program.cs` dừng | Dùng `scripts/scaffold-db.ps1` (tự cấp key tạm), hoặc đặt `Jwt:SecretKey` bằng user-secrets |
 | Thiếu bảng sau khi scaffold | Bảng không nằm trong schema `public` | `./scripts/scaffold-db.ps1 -Schema public,<schema-khác>` |

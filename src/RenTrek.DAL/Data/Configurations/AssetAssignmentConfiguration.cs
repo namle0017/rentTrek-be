@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class AssetAssignmentConfiguration : IEntityTypeConfiguration<AssetAssign
     {
         builder.HasKey(e => e.AssetAssignmentId).HasName("asset_assignments_pkey");
 
-        builder.ToTable("asset_assignments");
+        builder.ToTable("asset_assignments", table =>
+        {
+            table.HasCheckConstraint("asset_assignments_check", "(reserved_until > reserved_from)");
+        });
 
         builder.HasIndex(e => e.AppliedPromotionId, "ix_asset_assignments_applied_promotion_id");
         builder.HasIndex(e => e.EquipmentAssetId, "ix_asset_assignments_equipment_asset_id");

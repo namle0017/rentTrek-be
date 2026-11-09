@@ -25,6 +25,37 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
     public Task<Account?> GetAccountAsync(Guid userId, CancellationToken cancellationToken = default)
         => context.Accounts.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId, cancellationToken);
 
+    public async Task<IReadOnlyList<Account>> GetConfirmedAccountsByEmailsAsync(
+        IReadOnlyCollection<string> normalizedEmails,
+        CancellationToken cancellationToken = default)
+    {
+        if (normalizedEmails.Count == 0)
+            return [];
+
+        return await context.Accounts
+            .AsNoTracking()
+            .Where(a => a.EmailConfirmedAt != null
+                        && a.Status.ToLower() == "active"
+                        && normalizedEmails.Contains(a.Email.ToLower()))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BookingParticipant>> GetUnlinkedPaidParticipantsByEmailAsync(
+        string normalizedEmail,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken = default)
+        => await context.BookingParticipants
+            .Include(p => p.BookingOrder).ThenInclude(b => b.Order)
+            .Include(p => p.Trip)
+            .Where(p => p.LinkedUserId == null
+                        && p.Email != null
+                        && p.Email.ToLower() == normalizedEmail
+                        && !p.BookingOrder.Order.IsDeleted
+                        && p.BookingOrder.Order.Status == "Confirmed"
+                        && p.BookingOrder.Order.PaymentStatus == "Paid"
+                        && p.Trip.StartAt > utcNow)
+            .ToListAsync(cancellationToken);
+
     public Task<Trip?> GetTripForUpdateAsync(Guid tripId, CancellationToken cancellationToken = default)
         => context.Trips.FromSqlInterpolated($"SELECT * FROM trips WHERE trip_id = {tripId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
@@ -54,7 +85,12 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
     public Task<Order?> GetForAccessAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default)
         => BookingGraph().AsNoTracking().SingleOrDefaultAsync(
             x => x.OrderId == orderId &&
-                 (x.CustomerUserId == userId || x.TripBookingOrder.Participants.Any(p => p.LinkedUserId == userId)),
+                 (x.CustomerUserId == userId ||
+                  x.TripBookingOrder.Participants.Any(p =>
+                      p.LinkedUserId == userId &&
+                      p.LinkedUser != null &&
+                      p.LinkedUser.Status.ToLower() == "active" &&
+                      p.LinkedUser.EmailConfirmedAt != null)),
             cancellationToken);
 
     public Task<Order?> GetOwnedBookingAsync(Guid orderId, Guid ownerUserId, CancellationToken cancellationToken = default)
@@ -67,43 +103,20 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
             .Where(x => x.OrderId == orderId && x.Status == "Succeeded" && x.PaymentType != "Refund")
             .SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
 
-    public async Task<IReadOnlyList<ParticipantInvitation>> GetOutstandingInvitationsAsync(
-        Guid orderId,
-        CancellationToken cancellationToken = default)
-        => await context.ParticipantInvitations
-            .Where(x => x.BookingOrderId == orderId && x.RedeemedAt == null && x.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-
-    public Task<Guid?> GetInvitationBookingOrderIdAsync(
-        string tokenHash,
-        CancellationToken cancellationToken = default)
-        => context.ParticipantInvitations
-            .AsNoTracking()
-            .Where(x => x.TokenHash == tokenHash)
-            .Select(x => (Guid?)x.BookingOrderId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-    public Task<ParticipantInvitation?> GetInvitationByTokenHashAsync(
-        string tokenHash,
-        CancellationToken cancellationToken = default)
-        => context.ParticipantInvitations
-            .FromSqlInterpolated($"SELECT * FROM participant_invitations WHERE token_hash = {tokenHash} FOR UPDATE")
-            .Include(x => x.Participant)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Order)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Trip)
-            .Include(x => x.BookingOrder).ThenInclude(x => x.Participants)
-            .SingleOrDefaultAsync(cancellationToken);
+    // Có tracking: dùng cho cả trang xem chuyến và webhook gán tài khoản
+    public Task<Order?> GetBookingAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => BookingGraph().SingleOrDefaultAsync(x => x.OrderId == orderId, cancellationToken);
 
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => context.Orders.AddAsync(order, cancellationToken).AsTask();
 
-    public Task AddInvitationAsync(ParticipantInvitation invitation, CancellationToken cancellationToken = default)
-        => context.ParticipantInvitations.AddAsync(invitation, cancellationToken).AsTask();
-
     private IQueryable<Order> BookingGraph()
         => context.Orders
-            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Trip)
-            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Participants);
+            .AsSplitQuery()
+            .Include(x => x.CustomerUser)
+            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Trip).ThenInclude(x => x.Tour).ThenInclude(x => x.Activities)
+            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Participants).ThenInclude(x => x.LinkedUser)
+            .Include(x => x.TripBookingOrder).ThenInclude(x => x.Participants).ThenInclude(x => x.TripGroup).ThenInclude(x => x!.GuideUser);
 
     private async Task AcquireTransactionLockAsync(string lockKey, CancellationToken cancellationToken)
     {

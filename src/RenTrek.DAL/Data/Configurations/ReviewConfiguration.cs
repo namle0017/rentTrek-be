@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
     {
         builder.HasKey(e => e.ReviewId).HasName("reviews_pkey");
 
-        builder.ToTable("reviews");
+        builder.ToTable("reviews", table =>
+        {
+            table.HasCheckConstraint("reviews_rating_check", "((rating >= 1) AND (rating <= 5))");
+        });
 
         builder.HasIndex(e => e.ParticipantId, "reviews_participant_id_key").IsUnique();
 
@@ -18,6 +21,8 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .HasDefaultValueSql("gen_random_uuid()")
             .HasColumnName("review_id");
         builder.Property(e => e.Comment).HasColumnName("comment");
+        builder.Property(e => e.IsHidden).HasDefaultValue(false).HasColumnName("is_hidden");
+        builder.Property(e => e.HiddenReason).HasColumnName("hidden_reason");
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()")
             .HasColumnName("created_at");

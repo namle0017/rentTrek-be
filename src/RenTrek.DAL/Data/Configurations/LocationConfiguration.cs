@@ -13,12 +13,11 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
     {
         builder.ToTable("locations");
 
-        builder.HasKey(l => l.Id);
-        builder.Property(l => l.Id).HasColumnName("location_id");
+        builder.HasKey(l => l.Id).HasName("locations_pkey");
+        builder.Property(l => l.Id).HasColumnName("location_id").HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(l => l.Name)
-            .IsRequired()
-            .HasMaxLength(200);
+            .IsRequired().HasMaxLength(255);
 
         builder.Property(l => l.Address)
             .IsRequired()
@@ -29,5 +28,9 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
 
         builder.Property(l => l.Longitude)
             .HasPrecision(9, 6);
+
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
     }
 }

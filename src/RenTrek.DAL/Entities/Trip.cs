@@ -17,6 +17,7 @@ public sealed class Trip
     public decimal PricePerPerson { get; set; }
     public int MinParticipants { get; set; }
     public int RowVersion { get; set; }
+    public bool ProvidedItemsNeedsRecalc { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

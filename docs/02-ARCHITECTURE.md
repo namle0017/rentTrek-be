@@ -121,15 +121,16 @@ BE/
 │   │   │   │   └── IProductService.cs
 │   │   │   └── Implementations/
 │   │   │       └── ProductService.cs
-│   │   ├── DTOs/
+│   │   ├── DTOs/                             # {Module}/Requests | Responses | Internal
 │   │   │   ├── Common/
-│   │   │   │   ├── PagingRequest.cs
-│   │   │   │   └── PagedResult.cs
-│   │   │   └── Product/
-│   │   │       ├── CreateProductRequest.cs
-│   │   │       ├── UpdateProductRequest.cs
-│   │   │       ├── ProductQueryRequest.cs
-│   │   │       └── ProductResponse.cs
+│   │   │   │   ├── Requests/PagingRequest.cs
+│   │   │   │   └── Responses/PagedResponse.cs
+│   │   │   ├── Product/
+│   │   │   │   ├── Requests/                 # hậu tố Request: CreateProductRequest, ProductQueryRequest, ...
+│   │   │   │   └── Responses/                # hậu tố Response: ProductResponse, ProductDetailResponse, ...
+│   │   │   └── Rental/
+│   │   │       ├── Requests/                 # RentalItemRequest
+│   │   │       └── Internal/                 # chỉ dùng trong BLL — hậu tố Input/Result/Item/Option/Kind
 │   │   ├── Validators/
 │   │   │   └── Product/CreateProductRequestValidator.cs
 │   │   ├── Mappings/
@@ -142,7 +143,10 @@ BE/
 │   │   │   ├── ConflictException.cs
 │   │   │   ├── UnauthorizedException.cs
 │   │   │   └── ForbiddenException.cs
-│   │   ├── Helpers/                          # QueryableExtensions, JwtHelper, PasswordHasher, ...
+│   │   ├── Helpers/
+│   │   │   ├── Interfaces/                   # IJwtHelper, IPasswordHasher, IInviteTokenHelper
+│   │   │   ├── Implementations/              # JwtHelper, PasswordHasher, InviteTokenHelper
+│   │   │   └── QueryableExtensions.cs
 │   │   └── DependencyInjection.cs
 │   │
 │   └── RenTrek.DAL/                          # ── Data Access Layer
@@ -207,7 +211,7 @@ public class ProductsController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] ProductQueryRequest request)
     {
         var result = await _productService.GetAllAsync(request);
-        return Ok(ApiResponse<PagedResult<ProductResponse>>.Ok(result, "Lấy danh sách sản phẩm thành công"));
+        return Ok(ApiResponse<PagedResponse<ProductResponse>>.Ok(result, "Lấy danh sách sản phẩm thành công"));
     }
 
     [HttpGet("{id:guid}")]
@@ -286,7 +290,7 @@ public class ExceptionHandlingMiddleware
 ```csharp
 public interface IProductService
 {
-    Task<PagedResult<ProductResponse>> GetAllAsync(ProductQueryRequest request);
+    Task<PagedResponse<ProductResponse>> GetAllAsync(ProductQueryRequest request);
     Task<ProductResponse> GetByIdAsync(Guid id);
     Task<ProductResponse> CreateAsync(CreateProductRequest request);
     Task<ProductResponse> UpdateAsync(Guid id, UpdateProductRequest request);
@@ -549,7 +553,7 @@ Ví dụ thêm module **Booking**:
    - [ ] Thêm `Bookings` vào `IUnitOfWork` / `UnitOfWork`, đăng ký DI.
    - [ ] `dotnet ef migrations add AddBookingTable -p src/RenTrek.DAL -s src/RenTrek.API`
 2. **BLL**
-   - [ ] Tạo DTO trong `DTOs/Booking/`: `CreateBookingRequest`, `BookingResponse`, ...
+   - [ ] Tạo DTO trong `DTOs/Booking/Requests/` (`CreateBookingRequest`, ...) và `DTOs/Booking/Responses/` (`BookingResponse`, ...).
    - [ ] Validator trong `Validators/Booking/`.
    - [ ] Mapping profile `Mappings/BookingProfile.cs`.
    - [ ] `IBookingService` / `BookingService`, đăng ký trong `AddBusinessLayer`.

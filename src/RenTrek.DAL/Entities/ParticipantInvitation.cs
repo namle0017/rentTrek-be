@@ -1,7 +1,7 @@
 namespace RenTrek.DAL.Entities;
 
 /// <summary>
-/// Biểu diễn thực thể participant invitation trong mô hình dữ liệu RenTrek.
+/// Lời mời hành khách, đồng bộ từ bảng public.participant_invitations.
 /// </summary>
 public sealed class ParticipantInvitation
 {
@@ -15,7 +15,5 @@ public sealed class ParticipantInvitation
     public Guid? RedeemedByUserId { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
-
-    public BookingParticipant Participant { get; set; } = null!;
-    public TripBookingOrder BookingOrder { get; set; } = null!;
+    public int FailedAttempts { get; set; }
 }

@@ -1,8 +1,13 @@
 using AutoMapper;
-using RenTrek.BLL.DTOs.Common;
-using RenTrek.BLL.DTOs.Tour;
+using RenTrek.BLL.DTOs.AdminCatalog.Requests;
+using RenTrek.BLL.DTOs.AdminCatalog.Responses;
+using RenTrek.BLL.DTOs.Common.Responses;
+using RenTrek.BLL.DTOs.Tour.Requests;
+using RenTrek.BLL.DTOs.Tour.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -22,7 +27,58 @@ public class TourService : ITourService
         _mapper = mapper;
     }
 
-    public async Task<PagedResult<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<AdminTourListItemResponse>> GetAdminToursAsync(
+        AdminTourQueryRequest query,
+        CancellationToken cancellationToken = default)
+    {
+        // Lọc theo trạng thái hiển thị: Active gộp vào Published, Expired gộp vào Archived; giá trị lạ → rỗng
+        IReadOnlyCollection<string>? statuses = string.IsNullOrWhiteSpace(query.Status)
+            ? null
+            : query.Status.Trim().ToLowerInvariant() switch
+            {
+                "published" => [TourStatuses.Published, TourStatuses.Active],
+                "archived" => [TourStatuses.Archived, TourStatuses.Expired],
+                "draft" => [TourStatuses.Draft],
+                _ => []
+            };
+
+        var (items, total) = await _unitOfWork.Tours.GetAdminPagedAsync(new AdminTourFilter
+        {
+            Search = query.Search,
+            CategoryId = query.CategoryId,
+            LocationId = query.LocationId,
+            Statuses = statuses,
+            Now = DateTimeOffset.UtcNow,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        }, cancellationToken);
+
+        return new PagedResponse<AdminTourListItemResponse>
+        {
+            Items = items.Select(tour => new AdminTourListItemResponse
+            {
+                TourId = tour.TourId,
+                TourFamilyId = tour.TourFamilyId,
+                Name = tour.Name,
+                CategoryName = tour.CategoryName,
+                MainLocationName = tour.MainLocationName,
+                DurationDays = tour.DurationDays,
+                DurationNights = tour.DurationNights,
+                BasePrice = tour.BasePrice,
+                Version = tour.Version,
+                IsItineraryLocked = tour.IsItineraryLocked,
+                Status = tour.Status == TourStatuses.Active ? "Published"
+                    : tour.Status == TourStatuses.Expired ? "Archived" : tour.Status,
+                PrimaryImageUrl = tour.PrimaryImageUrl,
+                UpcomingTripsCount = tour.UpcomingTripsCount
+            }).ToList(),
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalItems = total
+        };
+    }
+
+    public async Task<PagedResponse<TourResponse>> GetToursAsync(TourQueryRequest query, CancellationToken cancellationToken = default)
     {
         var filterParams = new TourFilterParams(
             Status: query.Status,
@@ -42,7 +98,7 @@ public class TourService : ITourService
 
         var mappedItems = _mapper.Map<List<TourResponse>>(items);
 
-        return new PagedResult<TourResponse>
+        return new PagedResponse<TourResponse>
         {
             Items = mappedItems,
             PageNumber = query.PageNumber,

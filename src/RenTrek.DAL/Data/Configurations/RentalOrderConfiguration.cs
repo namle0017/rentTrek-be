@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class RentalOrderConfiguration : IEntityTypeConfiguration<RentalOrder>
     {
         builder.HasKey(e => e.OrderId).HasName("rental_orders_pkey");
 
-        builder.ToTable("rental_orders");
+        builder.ToTable("rental_orders", table =>
+        {
+            table.HasCheckConstraint("rental_orders_check", "(rental_end_at > rental_start_at)");
+        });
 
         builder.HasIndex(e => e.HandledByUserId, "ix_rental_orders_handled_by_user_id");
 

@@ -4,5 +4,7 @@ namespace RenTrek.DAL.Repositories.Interfaces;
 
 public interface ITripProvidedItemRepository : IGenericRepository<TripProvidedItem>
 {
-    // Query đặc thù của TripProvidedItem khai báo tại đây
+    Task<List<TripProvidedItem>> GetByTripIdWithDetailsAsync(Guid tripId, CancellationToken cancellationToken = default);
+    Task<TripProvidedItem?> GetByIdWithDetailsAsync(Guid tripId, Guid itemId, CancellationToken cancellationToken = default);
+    Task<List<EquipmentAsset>> GetAvailableAssetsForItemAsync(Guid productVariantId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
 }

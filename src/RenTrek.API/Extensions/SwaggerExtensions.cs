@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.OpenApi.Models;
 
 namespace RenTrek.API.Extensions;
@@ -13,6 +14,7 @@ public static class SwaggerExtensions
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc("v1", new OpenApiInfo { Title = "renTrek API", Version = "v1" });
+            options.CustomSchemaIds(GetSchemaId);
 
             var bearerScheme = new OpenApiSecurityScheme
             {
@@ -30,5 +32,19 @@ public static class SwaggerExtensions
         });
 
         return services;
+    }
+
+    // Phân biệt DTO cùng tên ở các namespace, kể cả bên trong ApiResponse<T> và List<T>.
+    private static string GetSchemaId(Type type)
+    {
+        if (type.IsArray)
+            return $"{GetSchemaId(type.GetElementType()!)}Array";
+
+        if (!type.IsConstructedGenericType)
+            return (type.FullName ?? type.Name).Replace('+', '.');
+
+        var name = type.GetGenericTypeDefinition().FullName ?? type.Name;
+        name = Regex.Replace(name.Replace('+', '.'), @"`\d+", string.Empty);
+        return $"{name}_{string.Join("_", type.GetGenericArguments().Select(GetSchemaId))}";
     }
 }

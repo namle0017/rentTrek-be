@@ -4,6 +4,7 @@ namespace RenTrek.DAL.UnitOfWorks;
 
 public interface IUnitOfWork : IDisposable
 {
+    IAdminOperationRepository AdminOperations { get; }
     // Mọi thao tác DB của Service đi qua các repository dưới đây (dùng chung DbContext / transaction của UnitOfWork)
     IAccessTokenRepository AccessTokens { get; }
     IAccountRepository Accounts { get; }
@@ -32,6 +33,7 @@ public interface IUnitOfWork : IDisposable
     IPromotionRepository Promotions { get; }
     IPromotionTierRepository PromotionTiers { get; }
     IRefreshTokenRepository RefreshTokens { get; }
+    IRefundCaseRepository RefundCases { get; }
     IRefundPolicyRepository RefundPolicies { get; }
     IRefundPolicyRuleRepository RefundPolicyRules { get; }
     IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots { get; }
@@ -62,6 +64,11 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class;
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lưu thay đổi; nếu PostgreSQL báo vi phạm ràng buộc duy nhất (23505) thì gỡ các thực thể lỗi khỏi ChangeTracker và trả về false.
+    /// </summary>
+    Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default);
 
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

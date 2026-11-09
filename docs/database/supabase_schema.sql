@@ -459,6 +459,8 @@ CREATE TABLE orders (
     discount_amount     numeric(18,0) NOT NULL DEFAULT 0,
     payment_status      varchar(50)   NOT NULL,
     hold_expires_at     timestamptz,
+    reconciliation_deadline_at timestamptz,
+    idempotency_key      varchar(100),
     cancelled_at        timestamptz,
     cancel_reason       varchar(500),
     refund_policy_id    uuid          NOT NULL REFERENCES refund_policies(refund_policy_id),
@@ -530,6 +532,8 @@ CREATE TABLE activity_attendances (
 
 CREATE TABLE reviews (
     review_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    is_hidden boolean NOT NULL DEFAULT false,
+    hidden_reason text,
     rating          integer     NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment         text,
     created_at      timestamptz NOT NULL DEFAULT now(),
@@ -647,6 +651,20 @@ CREATE TABLE rental_charges (
     voided_at           timestamptz
 );
 
+CREATE TABLE rental_order_adjustments (
+    rental_order_adjustment_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    rental_order_id             uuid          NOT NULL REFERENCES rental_orders(order_id),
+    adjustment_type             varchar(30)   NOT NULL,
+    old_end_at                  timestamptz   NOT NULL,
+    new_end_at                  timestamptz   NOT NULL,
+    extra_amount                numeric(12,2) NOT NULL CHECK (extra_amount >= 0),
+    requested_by_user_id        uuid          NOT NULL REFERENCES accounts(user_id),
+    created_at                  timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ix_rental_order_adjustments_rental_order_id ON rental_order_adjustments(rental_order_id);
+CREATE INDEX ix_rental_order_adjustments_requested_by_user_id ON rental_order_adjustments(requested_by_user_id);
+
 -- =====================================================================
 -- PAYMENTS (formerly "transactions")
 -- =====================================================================
@@ -679,8 +697,12 @@ CREATE TABLE notifications (
     read_at             timestamptz,
     created_at          timestamptz   NOT NULL DEFAULT now(),
     related_entity_type varchar(50),
-    related_entity_id   uuid
+    related_entity_id   uuid,
+    event_key           varchar(200)
 );
+
+CREATE UNIQUE INDEX ux_notifications_recipient_event_key
+    ON public.notifications (recipient_user_id, event_key) WHERE event_key IS NOT NULL;
 
 CREATE TABLE audit_logs (
     audit_log_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),

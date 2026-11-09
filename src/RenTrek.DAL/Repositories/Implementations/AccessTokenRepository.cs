@@ -28,4 +28,10 @@ public class AccessTokenRepository : GenericRepository<AccessToken>, IAccessToke
             .AsNoTracking()
             .AnyAsync(at => at.Jti == jti && at.RevokedAt != null, cancellationToken);
     }
+
+    public Task<bool> IsSessionActiveAsync(Guid userId, string jti, string role, DateTime nowUtc, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking().AnyAsync(x => x.UserId == userId && x.Jti == jti && x.RevokedAt == null
+            && x.ExpiresAt > nowUtc && !x.Account.IsDeleted && x.Account.Status.ToLower() == "active"
+            && x.Account.Role.RoleName == role && !x.Account.Role.IsDeleted && x.RefreshToken.RevokedAt == null,
+            cancellationToken);
 }

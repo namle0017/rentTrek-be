@@ -13,11 +13,22 @@ public class TourImageConfiguration : IEntityTypeConfiguration<TourImage>
     {
         builder.ToTable("tour_images");
 
-        builder.HasKey(i => i.Id);
-        builder.Property(i => i.Id).HasColumnName("tour_image_id");
+        builder.HasKey(i => i.Id).HasName("tour_images_pkey");
+        builder.Property(i => i.Id).HasColumnName("tour_image_id").HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(i => i.ImageUrl)
-            .IsRequired()
-            .HasMaxLength(2000);
+            .IsRequired().HasColumnType("text");
+
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.DisplayOrder).HasDefaultValue(0);
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.IsPrimary).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        builder.HasIndex(x => x.TourId, "ix_tour_images_tour_id");
+        builder.HasOne(x => x.Tour)
+            .WithMany(x => x.Images)
+            .HasForeignKey(x => x.TourId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("tour_images_tour_id_fkey");
     }
 }

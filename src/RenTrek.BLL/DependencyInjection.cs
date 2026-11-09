@@ -2,6 +2,8 @@ using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Helpers.Implementations;
+using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
@@ -18,23 +20,83 @@ public static class DependencyInjection
         var assembly = typeof(DependencyInjection).Assembly;
 
         // AutoMapper
-        services.AddAutoMapper(cfg => cfg.LicenseKey = configuration["AutoMapper:LicenseKey"], assembly);
+        services.AddAutoMapper(cfg =>
+        {
+            var licenseKey = configuration["AutoMapper:LicenseKey"];
+            if (!string.IsNullOrWhiteSpace(licenseKey))
+            {
+                cfg.LicenseKey = licenseKey;
+            }
+        }, assembly);
         services.AddValidatorsFromAssembly(assembly);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.Configure<SePaySettings>(configuration.GetSection(SePaySettings.SectionName));
+        services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
+        services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
+        services.Configure<SupabaseStorageSettings>(configuration.GetSection(SupabaseStorageSettings.SectionName));
+        services.Configure<GoogleAuthSettings>(configuration.GetSection(GoogleAuthSettings.SectionName));
+        services.AddOptions<RefundSettings>()
+            .Bind(configuration.GetSection("Refund"))
+            .Configure(options => options.DataEncryptionKey = configuration["RefundDataEncryptionKey"] ?? string.Empty)
+            .Validate(options => options.HasValidEncryptionKey(), "RefundDataEncryptionKey phải là chuỗi Base64 của 32 byte")
+            .Validate(options => options.PayoutRetentionDays is >= 1 and <= 3650, "Refund:PayoutRetentionDays phải từ 1 đến 3650")
+            .ValidateOnStart();
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
-        services.AddScoped<ITokenService, TokenService>();
-        services.AddSingleton<IParticipantInviteTokenService, ParticipantInviteTokenService>();
+        services.AddScoped<IJwtHelper, JwtHelper>();
+        services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IRefundDataProtector, RefundDataProtector>();
+        services.AddScoped<IAuthAttemptLimiter, AuthAttemptLimiter>();
 
         // Services
-        services.AddScoped<IAuthService, AuthService>();
+        // Phiên đăng nhập luôn theo giờ thật: tua đồng hồ giả lập không làm hết hạn token
+        services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IFileStorageService, FileStorageService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
+        services.AddScoped<IAdminMasterDataService, AdminMasterDataService>();
+        services.AddScoped<IAdminOrderService, AdminOrderService>();
+        services.AddScoped<IAdminPromotionService, AdminPromotionService>();
+        services.AddScoped<IAdminRefundPolicyService, AdminRefundPolicyService>();
+        services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+        services.AddScoped<IAdminProductCatalogService, AdminProductCatalogService>();
+        services.AddScoped<IAdminTourService, AdminTourService>();
+        services.AddScoped<IAdminGovernanceService, AdminGovernanceService>();
+        services.AddScoped<IAdminReportService, AdminReportService>();
+        services.AddScoped<IAdminSessionService, AdminSessionService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
+        services.AddScoped<IRefundCaseService, RefundCaseService>();
+        services.AddScoped<IRefundVerificationService, RefundVerificationService>();
+        services.AddScoped<ITripRecurrenceService, TripRecurrenceService>();
+        services.AddScoped<ITripService, TripService>();
+        services.AddScoped<ITripGroupingService, TripGroupingService>();
+        services.AddScoped<ITripGroupPublishService, TripGroupPublishService>();
+        services.AddScoped<ITripGroupViewService, TripGroupViewService>();
+        services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
+        services.AddScoped<IProductBundleService, ProductBundleService>();
+        services.AddScoped<IPromotionService, PromotionService>();
+        services.AddScoped<IRentalOrderService, RentalOrderService>();
+        services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IParticipationService, ParticipationService>();
+        services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IRentalFulfillmentService, RentalFulfillmentService>();
+        services.AddScoped<IAssetService, AssetService>();
+        services.AddScoped<ITripProvidedItemService, TripProvidedItemService>();
+        services.AddScoped<IAdminRecurrenceRuleService, AdminRecurrenceRuleService>();
+        services.AddScoped<IAdminTripService, AdminTripService>();
+        services.AddScoped<IAdminTripGroupService, AdminTripGroupService>();
+        services.AddScoped<IAdminTripAttendanceService, AdminTripAttendanceService>();
+        services.AddScoped<IGuidePortalService, GuidePortalService>();
 
         return services;
     }

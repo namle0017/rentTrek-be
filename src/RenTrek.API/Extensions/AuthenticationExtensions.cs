@@ -3,7 +3,8 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.API.Common;
-using RenTrek.DAL.UnitOfWorks;
+using RenTrek.BLL.Services.Interfaces;
+using System.Security.Claims;
 
 namespace RenTrek.API.Extensions;
 
@@ -43,16 +44,12 @@ public static class AuthenticationExtensions
                         var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
                                   ?? context.Principal?.FindFirst("jti")?.Value;
 
-                        if (!string.IsNullOrEmpty(jti))
-                        {
-                            var unitOfWork = context.HttpContext.RequestServices.GetRequiredService<IUnitOfWork>();
-                            var isRevoked = await unitOfWork.AccessTokens.IsJtiRevokedAsync(jti);
-
-                            if (isRevoked)
-                            {
-                                context.Fail("Phiên đăng nhập đã bị thu hồi hoặc đã đăng xuất.");
-                            }
-                        }
+                        var subject = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                        var role = context.Principal?.FindFirst(ClaimTypes.Role)?.Value;
+                        var sessions = context.HttpContext.RequestServices.GetRequiredService<IAdminSessionService>();
+                        if (!Guid.TryParse(subject, out var userId) || string.IsNullOrEmpty(jti) || string.IsNullOrEmpty(role)
+                            || !await sessions.IsSessionValidAsync(userId, jti, role, context.HttpContext.RequestAborted))
+                            context.Fail("Phiên đăng nhập đã bị thu hồi hoặc quyền tài khoản đã thay đổi.");
                     },
                     OnChallenge = async context =>
                     {

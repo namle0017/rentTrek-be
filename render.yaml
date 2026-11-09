@@ -12,6 +12,34 @@ services:
         sync: false
       - key: SePay__Api__Key
         sync: false
+      - key: SePay__BankName
+        sync: false
+      - key: SePay__AccountNumber
+        sync: false
+      - key: SePay__AccountName
+        sync: false
+      - key: RefundDataEncryptionKey
+        sync: false
+      - key: GoogleAuth__ClientId
+        sync: false
+      - key: Email__Username
+        sync: false
+      - key: Email__Password
+        sync: false
+      - key: Supabase__Url
+        sync: false
+      - key: Supabase__ServiceKey
+        sync: false
+      - key: Supabase__Bucket
+        value: uploads
+      - key: Email__FromAddress
+        sync: false
+      - key: Email__FrontendBaseUrl
+        sync: false
+      - key: Invite__SigningKey
+        generateValue: true
+      - key: RefundDataEncryptionKey
+        sync: false
       - key: Jwt__SecretKey
         generateValue: true
       - key: Jwt__Issuer

@@ -517,3 +517,11 @@ logs/
 *.log
 uploads/
 
+
+# Understand-Anything tool output
+.ua/
+docs/ADMIN-WORK-PLAN.md
+
+# Bản thiết kế dùng chung, không thuộc repo BE (khớp ở mọi cấp thư mục)
+RenTrekk Design System*/
+

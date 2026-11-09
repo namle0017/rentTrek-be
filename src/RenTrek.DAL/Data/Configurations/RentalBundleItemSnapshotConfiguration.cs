@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class RentalBundleItemSnapshotConfiguration : IEntityTypeConfiguration<Re
     {
         builder.HasKey(e => e.RentalBundleItemSnapshotId).HasName("rental_bundle_item_snapshots_pkey");
 
-        builder.ToTable("rental_bundle_item_snapshots");
+        builder.ToTable("rental_bundle_item_snapshots", table =>
+        {
+            table.HasCheckConstraint("rental_bundle_item_snapshots_quantity_per_bundle_check", "(quantity_per_bundle > 0)");
+        });
 
         builder.HasIndex(e => e.ProductVariantId, "ix_rental_bundle_item_snapshots_product_variant_id");
         builder.HasIndex(e => e.RentalOrderItemId, "ix_rental_bundle_item_snapshots_rental_order_item_id");

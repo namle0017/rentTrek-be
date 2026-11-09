@@ -13,9 +13,14 @@ public class RoleConfiguration : IEntityTypeConfiguration<Role>
     public void Configure(EntityTypeBuilder<Role> builder)
     {
         builder.ToTable("roles");
-        builder.HasKey(r => r.RoleId);
+        builder.HasKey(r => r.RoleId).HasName("roles_pkey");
         builder.Property(r => r.RoleName).IsRequired().HasMaxLength(50);
-        builder.HasIndex(r => r.RoleName).IsUnique();
         builder.HasQueryFilter(r => !r.IsDeleted);
+
+        builder.Property(x => x.RoleId).HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        builder.HasIndex(x => x.RoleName, "roles_role_name_key").IsUnique();
     }
 }

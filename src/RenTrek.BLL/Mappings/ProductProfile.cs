@@ -1,5 +1,4 @@
-using AutoMapper;
-using RenTrek.BLL.DTOs.Product;
+using RenTrek.BLL.DTOs.Product.Responses;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Entities.Enums;
 

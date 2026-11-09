@@ -12,6 +12,7 @@ public sealed class Payment
     public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
     public string? ProviderTransactionId { get; set; }
+    public string? ProviderOrderId { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ProcessedAt { get; set; }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using RenTrek.DAL.Entities;
 
@@ -10,7 +10,10 @@ public class TourRecurrenceRuleConfiguration : IEntityTypeConfiguration<TourRecu
     {
         builder.HasKey(e => e.RecurrenceRuleId).HasName("tour_recurrence_rules_pkey");
 
-        builder.ToTable("tour_recurrence_rules");
+        builder.ToTable("tour_recurrence_rules", table =>
+        {
+            table.HasCheckConstraint("tour_recurrence_rules_default_group_count_check", "((default_group_count IS NULL) OR (default_group_count > 0))");
+        });
 
         builder.HasIndex(e => e.TourId, "ix_tour_recurrence_rules_tour_id");
 
@@ -27,6 +30,7 @@ public class TourRecurrenceRuleConfiguration : IEntityTypeConfiguration<TourRecu
             .HasPrecision(18)
             .HasColumnName("default_price");
         builder.Property(e => e.DefaultTotalSlots).HasColumnName("default_total_slots");
+        builder.Property(e => e.DefaultGroupCount).HasColumnName("default_group_count");
         builder.Property(e => e.EndDate).HasColumnName("end_date");
         builder.Property(e => e.Frequency)
             .HasMaxLength(50)
@@ -53,5 +57,6 @@ public class TourRecurrenceRuleConfiguration : IEntityTypeConfiguration<TourRecu
             .HasForeignKey(d => d.TourId)
             .OnDelete(DeleteBehavior.ClientSetNull)
             .HasConstraintName("tour_recurrence_rules_tour_id_fkey");
+        builder.HasQueryFilter(e => !e.IsDeleted);
     }
 }

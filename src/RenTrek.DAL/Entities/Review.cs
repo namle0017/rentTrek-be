@@ -1,4 +1,4 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
 public class Review
 {
@@ -9,6 +9,8 @@ public class Review
     public Guid ParticipantId { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
+    public bool IsHidden { get; set; }
+    public string? HiddenReason { get; set; }
 
     public BookingParticipant Participant { get; set; } = null!;
 }
