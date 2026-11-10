@@ -1,7 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Options;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
@@ -17,7 +16,9 @@ public sealed class ProductImageUploadServiceTests
         using var http = new HttpClient(handler);
         var service = new ProductImageUploadService(Microsoft.Extensions.Options.Options.Create(new CloudinarySettings
         {
-            CloudName = "test-cloud", ApiKey = "test-key", ApiSecret = "test-secret"
+            CloudName = "test-cloud",
+            ApiKey = "<test-key>",
+            ApiSecret = "test-secret"
         }), http);
         using var stream = new MemoryStream([1, 2, 3]);
         var url = await service.UploadAsync(stream, "photo.png", "image/png", 3);
