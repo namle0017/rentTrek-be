@@ -35,6 +35,8 @@ public static class DependencyInjection
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.Configure<InviteSettings>(configuration.GetSection(InviteSettings.SectionName));
         services.Configure<SupabaseStorageSettings>(configuration.GetSection(SupabaseStorageSettings.SectionName));
+        services.Configure<CloudinarySettings>(configuration.GetSection(CloudinarySettings.SectionName));
+        services.AddScoped<IProductImageUploadService, ProductImageUploadService>();
         services.Configure<GoogleAuthSettings>(configuration.GetSection(GoogleAuthSettings.SectionName));
         services.AddOptions<RefundSettings>()
             .Bind(configuration.GetSection("Refund"))

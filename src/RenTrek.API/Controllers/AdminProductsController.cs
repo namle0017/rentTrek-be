@@ -6,15 +6,33 @@ using RenTrek.BLL.DTOs.AdminCatalog.Requests;
 using RenTrek.BLL.DTOs.AdminCatalog.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Exceptions;
 
 namespace RenTrek.API.Controllers;
 
 [ApiController]
 [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
 [Route("api/v1/admin/products")]
-public sealed class AdminProductsController(IProductService productService, IAdminProductCatalogService catalogService)
+public sealed class AdminProductsController(IProductService productService, IAdminProductCatalogService catalogService,
+    IProductImageUploadService imageUpload)
     : ControllerBase
 {
+    /// <summary>Upload ảnh sản phẩm lên Cloudinary, sau đó gắn URL vào biến thể.</summary>
+    [HttpPost("images/upload")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(IProductImageUploadService.MaxBytes + 64 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> UploadImageAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            throw new ValidationException("Vui lòng chọn ảnh sản phẩm");
+        await using var stream = file.OpenReadStream();
+        var url = await imageUpload.UploadAsync(stream, file.FileName, file.ContentType, file.Length, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponse<object>.Ok(new { imageUrl = url }, "Tải ảnh lên thành công", StatusCodes.Status201Created));
+    }
+
     /// <summary>13.3. Tạo sản phẩm cha; trả id.</summary>
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
