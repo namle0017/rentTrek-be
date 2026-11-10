@@ -109,11 +109,9 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseForwardedHeaders();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Bật cả trên Render để team thử API tại /swagger
+app.UseSwagger();
+app.UseSwaggerUI(options => options.DocumentTitle = "renTrek API");
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
