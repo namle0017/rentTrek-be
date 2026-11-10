@@ -86,6 +86,7 @@ public class ProductService : IProductService
         return new AdminProductDetailResponse
         {
             ProductId = product.Id,
+            CategoryId = product.CategoryId,
             Name = product.Name,
             Description = product.Description,
             CategoryName = product.Category.Name,

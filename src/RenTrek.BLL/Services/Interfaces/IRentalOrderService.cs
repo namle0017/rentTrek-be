@@ -49,4 +49,7 @@ public interface IRentalOrderService
         Guid userId,
         Guid orderId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Hủy đơn thuê chưa thanh toán của khách: trả thiết bị Reserved, hoàn khuyến mãi, hủy payment Pending. 409 ORDER_NOT_CANCELLABLE nếu không đủ điều kiện.</summary>
+    Task<RentalOrderDetailResponse> CancelUnpaidAsync(Guid userId, Guid orderId, CancelRentalOrderRequest request, CancellationToken cancellationToken = default);
 }

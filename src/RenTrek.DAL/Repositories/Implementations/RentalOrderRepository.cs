@@ -59,16 +59,23 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
     public Task AcquireFulfillmentLockAsync(Guid orderId, CancellationToken cancellationToken = default)
         => PostgresAdvisoryLock.AcquireAsync(_context, $"rental-order:fulfillment:{orderId:N}", cancellationToken);
 
-    public Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
-        => _context.Orders
+    public async Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        // Khóa dòng orders giống AdminOperationRepository ("order:" lock) để khách hủy / nhận-trả không ghi đè thao tác admin đang chạy
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT order_id FROM orders WHERE order_id = {orderId} FOR UPDATE", cancellationToken);
+        return await _context.Orders
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalOrderItems.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.AssetAssignments).ThenInclude(a => a.EquipmentAsset)
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalCharges)
+            .Include(o => o.AppliedPromotions).ThenInclude(p => p.AssetAssignments)
+            .Include(o => o.Payments)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.OrderId == orderId
                                       && !o.IsDeleted
                                       && o.OrderType == RentalOrderType
                                       && o.RentalOrder != null, cancellationToken);
+    }
 
     // customerUserId null = màn vận hành (Staff/Admin) đọc mọi đơn
     private async Task<RentalOrderDetailRow?> LoadDetailAsync(

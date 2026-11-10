@@ -265,6 +265,7 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
         var windowStart = filter.WindowStart;
         var windowEnd = filter.WindowEnd;
         var now = filter.NowUtc;
+        var nowOffset = new DateTimeOffset(DateTime.SpecifyKind(now, DateTimeKind.Utc));
 
         return _dbSet
             .AsNoTracking()
@@ -272,6 +273,15 @@ public class EquipmentAssetRepository : GenericRepository<EquipmentAsset>, IEqui
                         && rentableStatuses.Contains(a.AssetStatus)
                         && !a.AssetAssignments.Any(x =>
                             blockingStatuses.Contains(x.Status)
+                            // An unpaid rental hold no longer blocks inventory after its deadline.
+                            && !(x.Status == "Reserved" && x.RentalOrderItem != null
+                                && x.RentalOrderItem.RentalOrder.Order.Status == "PendingPayment"
+                                && x.RentalOrderItem.RentalOrder.Order.PaymentStatus == "Unpaid"
+                                && x.RentalOrderItem.RentalOrder.Order.HoldExpiresAt <= nowOffset)
+                            && !(x.Status == "Reserved" && x.AppliedPromotion != null
+                                && x.AppliedPromotion.Order.Status == "PendingPayment"
+                                && x.AppliedPromotion.Order.PaymentStatus == "Unpaid"
+                                && x.AppliedPromotion.Order.HoldExpiresAt <= nowOffset)
                             && x.ReservedFrom < windowEnd
                             && (x.ReservedUntil > windowStart
                                 || (x.Status == issuedStatus && x.ReturnedAt == null && x.ReservedUntil <= now))));

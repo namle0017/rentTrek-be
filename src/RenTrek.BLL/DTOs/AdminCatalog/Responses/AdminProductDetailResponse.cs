@@ -6,6 +6,7 @@ namespace RenTrek.BLL.DTOs.AdminCatalog.Responses;
 public sealed class AdminProductDetailResponse
 {
     public Guid ProductId { get; set; }
+    public Guid CategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string CategoryName { get; set; } = string.Empty;
