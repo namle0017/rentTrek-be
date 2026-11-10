@@ -47,6 +47,7 @@ public static class DependencyInjection
 
         // Helpers
         services.AddSingleton(TimeProvider.System);
+        services.AddMemoryCache();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtHelper, JwtHelper>();
         services.AddSingleton<IInviteTokenHelper, InviteTokenHelper>();

@@ -1,8 +1,8 @@
 using System.Globalization;
 using RenTrek.BLL.Constants;
-using System.Net;
-using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RenTrek.BLL.DTOs.Auth.Requests;
 using RenTrek.BLL.DTOs.Auth.Responses;
@@ -18,6 +18,7 @@ namespace RenTrek.BLL.Services.Implementations;
 
 /// <summary>
 /// Thực hiện nghiệp vụ auth, xác thực email và tự gán các chuyến đi đã thanh toán theo email.
+/// Hỗ trợ kiểm soát Brute-force và gửi email OTP qua MailKit SMTP.
 /// </summary>
 public class AuthService : IAuthService
 {
@@ -30,11 +31,13 @@ public class AuthService : IAuthService
     private readonly JwtSettings _jwt;
     private readonly TimeProvider _timeProvider;
     private readonly IInviteTokenHelper _inviteTokenHelper;
-    private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<AuthService> _logger;
     private readonly IAuthAttemptLimiter _attemptLimiter;
     private readonly GoogleAuthSettings _google;
+
+    // ponytail: OTP xác thực email nằm trong RAM, mất khi restart và không chia sẻ giữa nhiều instance; chuyển sang bảng DB nếu scale ngang
+    private readonly IMemoryCache _cache;
 
     public AuthService(
         IUnitOfWork unitOfWork,
@@ -43,12 +46,12 @@ public class AuthService : IAuthService
         IOptions<JwtSettings> jwtOptions,
         TimeProvider timeProvider,
         IInviteTokenHelper inviteTokenHelper,
-        IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
         ILogger<AuthService> logger,
         IEmailService emailService,
         IAuthAttemptLimiter attemptLimiter,
-        IOptions<GoogleAuthSettings> googleOptions)
+        IOptions<GoogleAuthSettings> googleOptions,
+        IMemoryCache cache)
     {
         _attemptLimiter = attemptLimiter;
         _google = googleOptions.Value;
@@ -59,9 +62,9 @@ public class AuthService : IAuthService
         _jwt = jwtOptions.Value;
         _timeProvider = timeProvider;
         _inviteTokenHelper = inviteTokenHelper;
-        _emailSender = emailSender;
         _emailSettings = emailOptions.Value;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -196,18 +199,56 @@ public class AuthService : IAuthService
     public async Task VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default)
     {
         var utcNow = _timeProvider.GetUtcNow();
-        if (!_inviteTokenHelper.TryParseEmailVerificationToken(request.Token, out var userId, out _))
-            throw new BadRequestException("Mã xác thực email không hợp lệ");
+        Account account;
+        string normalizedEmail;
 
-        var account = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken)
-            ?? throw new BadRequestException("Mã xác thực email không hợp lệ");
+        // Trường hợp 1: Xác thực qua đường Link Token (/verify-email#t=...)
+        if (!string.IsNullOrWhiteSpace(request.Token))
+        {
+            if (!_inviteTokenHelper.TryParseEmailVerificationToken(request.Token, out var userId, out _))
+                throw new BadRequestException("Mã xác thực email không hợp lệ");
+
+            account = await _unitOfWork.Accounts.GetByIdWithRoleAsync(userId, tracking: true, cancellationToken)
+                ?? throw new BadRequestException("Mã xác thực email không hợp lệ");
+
+            normalizedEmail = account.Email.Trim().ToLowerInvariant();
+            if (!_inviteTokenHelper.VerifyEmailVerificationToken(request.Token, account.UserId, normalizedEmail, utcNow))
+                throw new BadRequestException("Mã xác thực email không hợp lệ hoặc đã hết hạn");
+        }
+        // Trường hợp 2: Xác thực qua Modal OTP 6 số khi vừa đăng ký xong
+        else if (!string.IsNullOrWhiteSpace(request.Otp) && !string.IsNullOrWhiteSpace(request.Email))
+        {
+            normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            var otpKey = $"email_verify_otp:{normalizedEmail}";
+            var attemptKey = "verify:" + normalizedEmail;
+            await EnsureNotLockedAsync(attemptKey, cancellationToken);
+
+            if (!_cache.TryGetValue(otpKey, out (string CachedOtp, Guid UserId) cachedData) ||
+                !CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.ASCII.GetBytes(cachedData.CachedOtp),
+                    System.Text.Encoding.ASCII.GetBytes(request.Otp.Trim())))
+            {
+                // Sai quá nhiều: hủy OTP để chặn đoán mò 6 chữ số, buộc xin mã mới
+                if (await _attemptLimiter.RecordFailureAsync(attemptKey, cancellationToken))
+                    _cache.Remove(otpKey);
+
+                throw new BadRequestException("Mã xác thực OTP không chính xác hoặc đã hết hạn (15 phút)");
+            }
+
+            await _attemptLimiter.ResetAsync(attemptKey, cancellationToken);
+
+            account = await _unitOfWork.Accounts.GetByIdWithRoleAsync(cachedData.UserId, tracking: true, cancellationToken)
+                ?? throw new BadRequestException("Không tìm thấy tài khoản để xác thực");
+
+            _cache.Remove(otpKey);
+        }
+        else
+        {
+            throw new BadRequestException("Vui lòng cung cấp mã OTP hoặc link xác thực email");
+        }
 
         if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("Tài khoản của bạn đã bị khóa hoặc chưa kích hoạt");
-
-        var normalizedEmail = account.Email.Trim().ToLowerInvariant();
-        if (!_inviteTokenHelper.VerifyEmailVerificationToken(request.Token, account.UserId, normalizedEmail, utcNow))
-            throw new BadRequestException("Mã xác thực email không hợp lệ hoặc đã hết hạn");
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -262,37 +303,45 @@ public class AuthService : IAuthService
         await TrySendVerificationEmailAsync(account, cancellationToken);
     }
 
+    public async Task ResendVerificationEmailByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var account = await _unitOfWork.Accounts.GetByEmailWithRoleAsync(normalizedEmail, tracking: false, cancellationToken);
+
+        // Chống Email Enumeration: không tiết lộ email có tồn tại, bị khóa hay đã xác thực
+        if (account is null ||
+            account.EmailConfirmedAt is not null ||
+            !string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        await TrySendVerificationEmailAsync(account, cancellationToken);
+    }
+
     private async Task TrySendVerificationEmailAsync(Account account, CancellationToken cancellationToken)
     {
-        if (!_emailSettings.IsConfigured)
-        {
-            _logger.LogWarning("Chưa cấu hình Email SMTP, chưa gửi được link xác thực email cho user {UserId}", account.UserId);
-            return;
-        }
-
         var normalizedEmail = account.Email.Trim().ToLowerInvariant();
         var expiresAt = _timeProvider.GetUtcNow().Add(VerificationTokenLifetime);
-        var token = _inviteTokenHelper.CreateEmailVerificationToken(account.UserId, normalizedEmail, expiresAt);
-        var verifyUrl = $"{_emailSettings.FrontendBaseUrl.TrimEnd('/')}/verify-email#t={token}";
 
-        var body = $"""
-            <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2937">
-              <h2 style="color:#1f4d3a">Xác thực địa chỉ email</h2>
-              <p>Xin chào <b>{WebUtility.HtmlEncode(account.FullName)}</b>,</p>
-              <p>Vui lòng xác thực email để kích hoạt tính năng xem lịch các chuyến đi của bạn trên RenTrek.</p>
-              <p><a href="{WebUtility.HtmlEncode(verifyUrl)}" style="display:inline-block;background:#1f4d3a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Xác thực email</a></p>
-              <p style="font-size:13px;color:#6b7280">Link có hiệu lực trong 24 giờ.</p>
-            </div>
-            """;
-
+        // Sinh link token HMAC (hạn 24 giờ)
+        string? verifyUrl = null;
         try
         {
-            await _emailSender.SendAsync(
-                account.Email,
-                account.FullName,
-                "Xác thực email tài khoản RenTrek",
-                body,
-                cancellationToken);
+            var token = _inviteTokenHelper.CreateEmailVerificationToken(account.UserId, normalizedEmail, expiresAt);
+            verifyUrl = $"{_emailSettings.FrontendBaseUrl.TrimEnd('/')}/verify-email#t={token}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Chưa tạo được InviteToken verification link cho user {UserId}", account.UserId);
+        }
+
+        // Sinh mã OTP 6 số ngẫu nhiên cryptographically secure (hạn 15 phút) lưu vào MemoryCache
+        var otp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString(CultureInfo.InvariantCulture);
+        _cache.Set($"email_verify_otp:{normalizedEmail}", (otp, account.UserId), TimeSpan.FromMinutes(15));
+
+        // Một email duy nhất chứa cả OTP lẫn link (EmailService gửi qua MailKit, chưa cấu hình SMTP thì in console)
+        try
+        {
+            await _emailService.SendEmailVerificationOtpAsync(account.Email, account.FullName, otp, verifyUrl, cancellationToken);
         }
         catch (Exception ex)
         {
