@@ -258,6 +258,7 @@ public sealed class AuthServiceTests
 
         public Task<(IReadOnlyList<AdminUserRow> Items, int TotalCount)> GetAdminPagedAsync(AdminUserFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AdminUserRow?> GetAdminRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AdminUserRow>> GetByRolesAsync(IReadOnlyCollection<string> roleNames, string status, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AccountActivityRow> GetActivityAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Account?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Account> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -287,6 +288,7 @@ public sealed class AuthServiceTests
         public Task<List<RefreshToken>> GetOtherActiveTokensAsync(Guid userId, Guid? excludeFamilyId, bool tracking = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RevokeFamilyTokensAsync(Guid familyId, string reason, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<RefreshToken>> GetActiveByUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Dictionary<Guid, DateTime>> GetFamilyStartTimesAsync(Guid userId, IReadOnlyCollection<Guid> familyIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<RefreshToken>> GetByUserWithAccessTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<RefreshToken?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();

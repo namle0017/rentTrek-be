@@ -318,6 +318,9 @@ HTTP 500 Internal Server Error
 | 2.7 | Notifications | `GET` | `/users/me/notifications/unread-count` | User | Đếm số lượng thông báo chưa đọc của người dùng hiện tại | ✅ Done |
 | 2.8 | Notifications | `POST` | `/users/me/notifications/{notificationId}/read` | User | Đánh dấu đã đọc một thông báo thuộc người dùng hiện tại (idempotent, giữ `readAt` gốc) | ✅ Done |
 | 2.9 | Notifications | `POST` | `/users/me/notifications/read-all` | User | Đánh dấu đã đọc toàn bộ thông báo chưa đọc của người dùng hiện tại | ✅ Done |
+| 2.10 | Users | `GET` | `/users/me/sessions` | User | Danh sách phiên đăng nhập đang hoạt động của tôi | ✅ Done |
+| 2.11 | Users | `DELETE` | `/users/me/sessions/{familyId}` | User | Đăng xuất một phiên khác | ✅ Done |
+| 2.12 | Users | `POST` | `/users/me/sessions/revoke-others` | User | Đăng xuất mọi phiên trừ phiên hiện tại | ✅ Done |
 | 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking nhóm và giữ chỗ (hỗ trợ đặt giùm, gán theo email) | 🔁 Changed |
 | 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | 🔁 Changed |
 | 3.3 | Trip Bookings | `PUT` | `/trip-bookings/{orderId}/participants/{participantId}` | User | Buyer sửa họ tên, email, số điện thoại người đi trước khởi hành | ✅ Done |
@@ -378,6 +381,7 @@ HTTP 500 Internal Server Error
 | **4.9** | Users | `DELETE` | `/admin/users/{userId}/sessions/{sessionId}` | Admin | Thu hồi 1 phiên đăng nhập | Cưỡng chế ngắt kết nối thiết bị đáng ngờ | ✅ Done |
 | **4.10**| Users | `DELETE` | `/admin/users/{userId}/sessions` | Admin | Thu hồi tất cả phiên đăng nhập | Đăng xuất toàn bộ khi phát hiện rủi ro | ✅ Done |
 | **4.11**| Users | `GET` | `/admin/users/{userId}/activities` | Admin | Lịch sử hoạt động của user | Lazy-load tab Audit log theo user | ✅ Done |
+| **4.12**| Users | `GET` | `/admin/users/guides` | Staff/Admin | Danh sách hướng dẫn viên đang hoạt động | Dropdown phân công HDV khi chia nhóm chuyến | ✅ Done |
 | **5.1** | Catalog | `GET` | `/admin/categories` | Staff/Admin | Danh sách danh mục | Lọc theo loại (Tour/Equipment/Bundle) | ✅ Done |
 | **5.2** | Catalog | `POST` | `/admin/categories` | Admin | Tạo danh mục mới | Master data phân loại hệ thống | ✅ Done |
 | **5.3** | Catalog | `PUT` | `/admin/categories/{categoryId}` | Admin | Sửa danh mục | Cập nhật tên, mô tả danh mục | ✅ Done |
@@ -501,6 +505,7 @@ HTTP 500 Internal Server Error
 | **16.3**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/void` | Staff/Admin | Hủy phí | Xem mục 16.3 | ✅ Done |
 | **16.4**| Charges | `POST` | `/admin/rental-orders/{orderId}/complete` | Staff/Admin | Đóng đơn và quyết toán cọc | Xem mục 16.4 | ✅ Done |
 | **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ✅ Done |
+| **17.1b**| Payments | `GET` | `/admin/payments/stats` | Staff/Admin | Thống kê giao dịch theo bộ lọc | Thẻ tổng thu, tổng hoàn, dòng tiền ròng, đang chờ ở màn O27 | ✅ Done |
 | **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Chờ chuyển, Thất bại, Cần đối soát | ✅ Done |
 | **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền | Chuyển kế toán chuyển khoản thủ công (không gọi SePay) | ✅ Done |
 | **17.4**| Payments | `POST` | `/admin/refunds/{paymentId}/retry` | Admin | Thử lại giao dịch hoàn tiền lỗi | Đưa khoản Failed về Pending, tối đa 3 lần | ✅ Done |
@@ -843,6 +848,70 @@ Liệt kê mọi suất tham gia (`booking_participants`) đã liên kết tài 
 **Lỗi:** `401 UNAUTHORIZED` khi chưa đăng nhập hoặc token hết hạn.
 
 **FE note:** Dùng `participantId` từ endpoint này để gọi danh sách bài viết hướng dẫn của chuyến (`GET /participants/{participantId}/posts`), hiển thị badge số bài chưa đọc (`unreadPostCount`) và ẩn/hiện nút đánh giá theo `canReview` / `hasReview`. Đọc hay chưa đọc bài viết không chặn check-in hay tham gia chuyến.
+
+---
+
+### 2.10. Danh sách phiên đăng nhập của tôi
+
+`GET /users/me/sessions` · **Auth:** User
+
+Mỗi phiên là một chuỗi refresh token (`familyId`) còn hiệu lực: chưa thu hồi và chưa hết hạn. Phiên hiện tại đứng đầu, các phiên còn lại xếp theo `lastActiveAt` mới nhất trước.
+
+- `createdAt`: lúc đăng nhập (token đầu tiên của chuỗi).
+- `lastActiveAt`: lần làm mới token gần nhất.
+- `expiresAt`: hạn của refresh token đang dùng.
+- `isCurrent`: `true` với phiên gắn access token của request này.
+- Không có thông tin thiết bị / IP (DB không lưu).
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách phiên đăng nhập thành công",
+  "data": [
+    {
+      "familyId": "5f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+      "createdAt": "2026-11-09T02:15:00Z",
+      "lastActiveAt": "2026-11-10T07:40:00Z",
+      "expiresAt": "2026-11-17T07:40:00Z",
+      "isCurrent": true
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED` khi chưa đăng nhập.
+
+---
+
+### 2.11. Đăng xuất một phiên khác
+
+`DELETE /users/me/sessions/{familyId}` · **Auth:** User
+
+Thu hồi mọi refresh token và access token của chuỗi `familyId`. Thiết bị đó phải đăng nhập lại.
+
+**Response `200 OK`:** `data: null`, `message: "Đã đăng xuất phiên đăng nhập"`.
+
+**Lỗi:**
+
+- `400 VALIDATION_ERROR` khi `familyId` là phiên hiện tại ("Không thể thu hồi phiên hiện tại, hãy dùng đăng xuất"). Dùng `POST /auth/logout` thay thế.
+- `404 NOT_FOUND` khi phiên không thuộc user này hoặc đã hết hiệu lực.
+
+---
+
+### 2.12. Đăng xuất mọi phiên khác
+
+`POST /users/me/sessions/revoke-others` · **Auth:** User
+
+Thu hồi mọi phiên của user, trừ phiên hiện tại. Không có request body.
+
+**Response `200 OK`:** `data: null`, `message: "Đã đăng xuất {n} phiên khác"` (`n` = số phiên đã thu hồi, có thể là 0).
+
+**Lỗi:** `401 UNAUTHORIZED` khi không xác định được phiên hiện tại (access token không còn trong DB). Khi đó BE không thu hồi gì, để tránh tự đăng xuất chính mình.
 
 ---
 
@@ -1427,6 +1496,42 @@ Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ 
 `GET /admin/users/{userId}/activities` · **Auth:** Admin
 
 - **Mục đích:** Tab Hoạt động màn O03 — hiển thị toàn bộ thao tác do user này thực hiện hoặc tác động lên user này.
+
+---
+
+### 4.12. Danh sách hướng dẫn viên (cho dropdown phân công)
+`GET /admin/users/guides` · **Auth:** Staff / Admin
+
+- **Mục đích:** Staff không gọi được `GET /admin/users` (chỉ Admin). Endpoint này trả gọn danh sách HDV để chọn khi chia nhóm chuyến (màn O12).
+- **Phạm vi:** tài khoản vai trò `Guide` hoặc `TourGuide`, trạng thái `Active`, chưa xóa. Xếp theo họ tên. Không phân trang, không query param.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách hướng dẫn viên thành công",
+  "data": [
+    {
+      "userId": "11111111-2222-3333-4444-555555555555",
+      "userCode": "GD-0007",
+      "email": "toan.dinh@renttrek.vn",
+      "fullName": "Đinh Văn Toàn",
+      "phone": "0901234567",
+      "role": "Guide",
+      "status": "Active",
+      "avatarUrl": null,
+      "lastLoginAt": "2026-11-09T01:00:00Z",
+      "createdAt": "2026-10-01T03:00:00Z"
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED`; `403 FORBIDDEN` khi không phải Staff/Admin.
 
 ---
 
@@ -2756,6 +2861,38 @@ HTTP 400 Bad Request
 `GET /admin/bundles` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O19 — danh sách các gói combo (như Combo Lều Trại Cơ Bản, Combo Leo Núi Mùa Đông).
+- **Query params:** `pageNumber`, `pageSize` (tối đa 100), `search` (theo tên), `status` (`Active` | `Inactive`), `categoryId`.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách combo thành công",
+  "data": {
+    "items": [
+      {
+        "bundleId": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+        "name": "Combo Trekking Đầy Đủ 2 Người",
+        "categoryId": "22222222-3333-4444-5555-666666666666",
+        "categoryName": "Combo cắm trại",
+        "status": "Active",
+        "itemsCount": 4,
+        "createdAt": "2026-11-01T03:00:00Z"
+      }
+    ],
+    "pageNumber": 1,
+    "pageSize": 10,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasPrevious": false,
+    "hasNext": false
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
 
 ---
 
@@ -2773,29 +2910,89 @@ HTTP 400 Bad Request
 }
 ```
 
+- `name` bắt buộc, tối đa 255 ký tự. `description` tối đa 4000 ký tự.
+- `categoryId` phải tồn tại và không phải danh mục loại `TOUR`.
+- `status` mặc định `Draft`. Combo mới chưa có thành phần nên **không được tạo ở `Active`** (400: "Combo mới chưa có thành phần; tạo ở trạng thái Draft rồi thêm thành phần trước khi bán"). Mọi giá trị khác `Active` được lưu thành `Inactive`.
+
+**Response `201 Created`:** `data` là `bundleId` (Guid), `message: "Tạo combo thành công"`.
+
 ---
 
 ### 13.16. Chi tiết combo (Thành phần + Bảng giá)
 `GET /admin/bundles/{bundleId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Lấy toàn bộ cấu hình gói combo: thông tin, danh sách các biến thể thành phần (`product_bundle_items`) và các bậc giá thuê của combo.
+- `items[].isActive`: biến thể thành phần còn bán hay không. Combo có thành phần ngừng bán thì nên thay trước khi bật bán.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy chi tiết combo thành công",
+  "data": {
+    "bundleId": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+    "name": "Combo Trekking Đầy Đủ 2 Người",
+    "categoryId": "22222222-3333-4444-5555-666666666666",
+    "categoryName": "Combo cắm trại",
+    "description": "Gồm 1 lều 2P, 2 túi ngủ, 2 đệm hơi và 2 đèn đội đầu",
+    "status": "Active",
+    "createdAt": "2026-11-01T03:00:00Z",
+    "updatedAt": "2026-11-05T09:30:00Z",
+    "items": [
+      {
+        "bundleItemId": "aaaa1111-2222-3333-4444-555566667777",
+        "productVariantId": "77777777-8888-9999-0000-111111111111",
+        "sku": "TENT-2P-GRN",
+        "productName": "Lều Naturehike Cloud Up 2",
+        "variantName": "2 người - Xanh lá",
+        "quantity": 1,
+        "isActive": true
+      }
+    ],
+    "priceTiers": [
+      { "priceTierId": "bbbb1111-2222-3333-4444-555566667777", "minDays": 1, "maxDays": 3, "dailyPrice": 250000 },
+      { "priceTierId": "bbbb1111-2222-3333-4444-555566668888", "minDays": 4, "maxDays": null, "dailyPrice": 200000 }
+    ]
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `404 NOT_FOUND` khi combo không tồn tại hoặc đã xóa.
 
 ---
 
 ### 13.17. Sửa thông tin combo
 `PUT /admin/bundles/{bundleId}` · **Auth:** Admin
 
+- **Request body:** giống 13.15 (`name`, `categoryId`, `description`, `status`).
+- Chuyển sang `Active` yêu cầu combo đã có ít nhất 1 thành phần (400: "Combo cần ít nhất 1 thành phần trước khi bán"). Giá trị khác `Active` lưu thành `Inactive` (ngừng bán).
+
+**Response `200 OK`:** `data: null`, `message: "Cập nhật combo thành công"`.
+
 ---
 
 ### 13.18. Xóa combo
 `DELETE /admin/bundles/{bundleId}` · **Auth:** Admin
+
+- Xóa mềm (`is_deleted = true`). Combo biến mất khỏi danh sách admin và trang khách.
+
+**Response `200 OK`:** `data: null`, `message: "Xoá combo thành công"`.
 
 ---
 
 ### 13.19. Cập nhật danh sách thành phần của combo
 `PUT /admin/bundles/{bundleId}/items` · **Auth:** Admin
 
-- **Ràng buộc:** Số lượng mỗi món phải `> 0`. Không được chọn trùng một biến thể 2 lần trong cùng 1 combo.
+- **Thay thế toàn bộ** thành phần: thành phần cũ bị xóa mềm, danh sách gửi lên là danh sách mới.
+- **Ràng buộc:**
+  - 1–50 thành phần.
+  - `productVariantId` bắt buộc, không trùng nhau trong cùng request.
+  - `quantity` phải `> 0`.
+  - Biến thể phải tồn tại và đang bán (400: "Biến thể không tồn tại hoặc ngừng bán: …").
 
 **Request body**
 
@@ -2814,11 +3011,35 @@ HTTP 400 Bad Request
 }
 ```
 
+**Response `200 OK`:** `data: null`, `message: "Cập nhật thành phần combo thành công"`.
+
 ---
 
 ### 13.20 – 13.21. Quản lý Bảng giá thuê Combo
-- `GET /admin/bundles/{bundleId}/price-tiers` · Lấy danh sách bậc giá thuê của combo.
-- `PUT /admin/bundles/{bundleId}/price-tiers` · Cập nhật bậc giá thuê combo (validate tương tự bậc giá variant).
+
+`GET /admin/bundles/{bundleId}/price-tiers` · **Auth:** Staff / Admin
+
+- Trả mảng `[{ priceTierId, minDays, maxDays, dailyPrice }]` theo `minDays` tăng dần, `message: "Lấy bảng giá combo thành công"`.
+
+`PUT /admin/bundles/{bundleId}/price-tiers` · **Auth:** Admin
+
+- **Thay thế toàn bộ** bậc giá. Validate giống bậc giá biến thể (13.12):
+  - 1–20 bậc, `minDays ≥ 1`, `maxDays ≥ minDays`, `dailyPrice ≥ 0`.
+  - Bậc đầu bắt đầu từ ngày 1, các bậc liền nhau, không chồng lấn.
+  - Chỉ bậc cuối được để `maxDays: null` (không giới hạn).
+
+**Request body**
+
+```json
+{
+  "tiers": [
+    { "minDays": 1, "maxDays": 3, "dailyPrice": 250000 },
+    { "minDays": 4, "maxDays": null, "dailyPrice": 200000 }
+  ]
+}
+```
+
+**Response `200 OK`:** `data: null`, `message: "Cập nhật bảng giá combo thành công"`.
 
 ---
 
@@ -3090,6 +3311,41 @@ Quy tắc chung 15.4–15.5: đơn `Confirmed` / `InFulfillment`, `paymentStatus
   "timestamp": "2026-11-01T08:30:00Z"
 }
 ```
+
+---
+
+### 17.1b. Thống kê giao dịch theo bộ lọc
+`GET /admin/payments/stats` · **Auth:** Staff (phụ trách) / Admin
+
+- **Mục đích:** Thẻ số liệu đầu màn O27. Tính trên **toàn bộ** giao dịch khớp bộ lọc, không bị giới hạn bởi trang hiện tại.
+- **Query params:** giống 17.1 (`paymentType`, `purpose`, `status`, `fromDate`, `toDate`, `search`). `pageNumber`, `pageSize`, `sortBy`, `sortOrder` bị bỏ qua.
+- **Phạm vi:** giống 17.1. Staff chỉ thấy số liệu đơn mình phụ trách.
+- **Trường dữ liệu:**
+  - `totalCollectionSucceeded`: tổng `Collection` ở trạng thái `Succeeded`.
+  - `totalRefundSucceeded`: tổng `Refund` ở trạng thái `Succeeded` (số dương).
+  - `netInflow` = `totalCollectionSucceeded` − `totalRefundSucceeded`.
+  - `pendingCount`, `pendingAmount`: số dòng và tổng tiền ở trạng thái `Pending` hoặc `PendingApproval` (cả thu và hoàn).
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thống kê giao dịch thành công",
+  "data": {
+    "totalCollectionSucceeded": 185400000,
+    "totalRefundSucceeded": 12800000,
+    "netInflow": 172600000,
+    "pendingCount": 7,
+    "pendingAmount": 9350000
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `400 VALIDATION_ERROR` khi `status` sai giá trị; `403 FORBIDDEN` khi không phải Staff/Admin.
 
 ---
 
@@ -5268,6 +5524,7 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-10 | Tri Tin | `/users/me/sessions*`, `/admin/users/guides`, `/admin/payments/stats`, `/admin/bundles*` | Thêm 2.10–2.12 (khách tự xem và đăng xuất phiên đăng nhập, phiên = chuỗi refresh token, không có thiết bị/IP); 4.12 danh sách HDV cho Staff/Admin để dropdown phân công không còn gọi `/admin/users` (chỉ Admin, Staff bị 403); 17.1b thống kê giao dịch tính trên toàn bộ dữ liệu khớp bộ lọc thay cho việc FE cộng 100 dòng gần nhất. Bổ sung đầy đủ query, response và ràng buộc cho 13.14–13.21 (combo) theo code hiện tại. |
 | 2026-11-08 | Antigravity | `/rental-orders/{orderId}/extensions/quote`, `/rental-orders/{orderId}/extensions`, `/rental-orders/{orderId}/adjustments`, `/admin/rental-orders/{orderId}/adjustments` | Triển khai T5 (FR-R09, UAT-19): tính năng gia hạn đơn thuê cho khách hàng (báo giá tính lại theo bậc giá mới, gia hạn nguyên tử kèm khóa advisory lock & variant lock, kiểm tra thiết bị không xung đột, ghi nhận điều chỉnh `rental_order_adjustments`, lập phụ phí `Extension` trạng thái `Assessed` và gửi thông báo in-app `RentalExtended`), kèm API xem lịch sử điều chỉnh cho khách và màn vận hành Staff/Admin. |
 | 2026-11-08 | Antigravity | `/admin/rental-orders/handover-list`, `/admin/rental-orders/return-list`, `/admin/reports/revenue`, `/admin/reports/refunds-and-charges` | Triển khai T4 (FR-O06, UAT-36): thêm danh sách thiết bị cần giao và nhận lại theo ngày giờ VN (JSON + `?format=csv` có UTF-8 BOM) cho Staff/Admin, và thêm `?format=csv` cho 2 báo cáo Admin-only (tái dùng dữ liệu JSON, giữ nguyên quyền `[Authorize(Roles = Admin)]`). Chuẩn hóa `CsvHelper` dùng chung với manifest chuyến đi. |
 | 2026-11-08 | Tri Tin | `/admin/payments`, `/admin/refunds*`, `/admin/orders/{orderId}/reconcile-*` | Triển khai 17.1–17.7 theo luồng hoàn tiền thủ công: duyệt chỉ chuyển `PendingApproval` → `Pending` (không gọi SePay, bỏ lỗi `502 PAYMENT_PROVIDER_ERROR`), thử lại tối đa 3 lần, `mark-manual` ghi `Succeeded` + cập nhật `Refunded` / `PartiallyRefunded` (mã lỗi mới `REFUND_NOT_COMPLETABLE`). Dòng hoàn đã có hồ sơ hoàn tiền trả `409` và xử lý ở `/admin/refund-cases`. Item danh sách thêm `orderId`, `orderPaymentStatus`, `hasRefundCase`. |

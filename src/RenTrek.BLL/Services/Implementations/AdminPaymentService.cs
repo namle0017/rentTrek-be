@@ -38,6 +38,14 @@ public sealed class AdminPaymentService(IUnitOfWork unitOfWork, ICurrentUserServ
         return ToPaged(page, request, ToResponse);
     }
 
+    public async Task<AdminPaymentStatsResponse> GetPaymentStatsAsync(AdminQueryRequest request, CancellationToken cancellationToken)
+    {
+        Check(request.Status == null || Statuses.Contains(request.Status), "status", "Trạng thái phải là một trong: " + string.Join(", ", Statuses));
+        var row = await UnitOfWork.Payments.GetAdminStatsAsync(ToFilter(request, OrderScope, tab: null), cancellationToken);
+        return new(row.TotalCollectionSucceeded, row.TotalRefundSucceeded,
+            row.TotalCollectionSucceeded - row.TotalRefundSucceeded, row.PendingCount, row.PendingAmount);
+    }
+
     public async Task<PagedResponse<AdminPaymentListItemResponse>> GetRefundsAsync(AdminQueryRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin();

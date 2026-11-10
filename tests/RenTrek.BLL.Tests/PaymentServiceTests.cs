@@ -369,6 +369,7 @@ public sealed class PaymentServiceTests
         public Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.Any(p => p.ProviderTransactionId == providerTransactionId));
 
+        public Task<RenTrek.DAL.Models.AdminPaymentStatsRow> GetAdminStatsAsync(RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<(IReadOnlyList<RenTrek.DAL.Models.AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
             RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

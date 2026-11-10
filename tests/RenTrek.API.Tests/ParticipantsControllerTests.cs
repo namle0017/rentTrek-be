@@ -153,6 +153,9 @@ public sealed class ParticipantsControllerTests
         public Task<UserDetailResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<string> UploadAvatarAsync(Guid userId, Stream stream, string fileName, string contentType, long length, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, string? currentJti, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<MySessionResponse>> GetSessionsAsync(Guid userId, string? currentJti, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RevokeSessionAsync(Guid userId, Guid familyId, string? currentJti, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> RevokeOtherSessionsAsync(Guid userId, string? currentJti, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class UnusedOrderService : IOrderService

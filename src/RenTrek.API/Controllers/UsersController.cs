@@ -89,6 +89,33 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<object?>.Ok(null, "Đổi mật khẩu thành công"));
     }
 
+    [HttpGet("me/sessions")]
+    [ProducesResponseType(typeof(ApiResponse<List<MySessionResponse>>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> GetSessionsAsync(CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetSessionsAsync(_currentUserService.RequiredUserId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<List<MySessionResponse>>.Ok(result, "Lấy danh sách phiên đăng nhập thành công"));
+    }
+
+    [HttpDelete("me/sessions/{familyId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> RevokeSessionAsync(Guid familyId, CancellationToken cancellationToken)
+    {
+        await _userService.RevokeSessionAsync(_currentUserService.RequiredUserId, familyId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã đăng xuất phiên đăng nhập"));
+    }
+
+    [HttpPost("me/sessions/revoke-others")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> RevokeOtherSessionsAsync(CancellationToken cancellationToken)
+    {
+        var count = await _userService.RevokeOtherSessionsAsync(_currentUserService.RequiredUserId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, $"Đã đăng xuất {count} phiên khác"));
+    }
+
     [HttpGet("me/orders")]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<MyOrderResponse>>), StatusCodes.Status200OK)]
     [Authorize]

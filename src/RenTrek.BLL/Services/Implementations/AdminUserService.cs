@@ -39,6 +39,13 @@ public sealed class AdminUserService(
         return ToPaged(page, request, ToResponse);
     }
 
+    public async Task<List<AdminUserResponse>> GetGuidesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await UnitOfWork.Accounts.GetByRolesAsync(
+            [RoleNames.Guide, RoleNames.TourGuide], AccountStatuses.Active, cancellationToken);
+        return rows.Select(ToResponse).ToList();
+    }
+
     public async Task<AdminUserDetailResponse> GetUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         RequireAdmin();
