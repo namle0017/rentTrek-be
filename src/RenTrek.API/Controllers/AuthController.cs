@@ -75,11 +75,23 @@ public class AuthController : ControllerBase
 
     [HttpPost("resend-verification-email")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-    [Authorize]
-    public async Task<IActionResult> ResendVerificationEmailAsync(CancellationToken cancellationToken)
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthSensitive)]
+    public async Task<IActionResult> ResendVerificationEmailAsync([FromBody] ResendVerificationEmailRequest? request, CancellationToken cancellationToken)
     {
-        await _authService.ResendVerificationEmailAsync(_currentUserService.RequiredUserId, cancellationToken);
-        return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        if (!string.IsNullOrWhiteSpace(request?.Email))
+        {
+            await _authService.ResendVerificationEmailByEmailAsync(request.Email, cancellationToken);
+            return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        }
+
+        if (_currentUserService.UserId.HasValue)
+        {
+            await _authService.ResendVerificationEmailAsync(_currentUserService.UserId.Value, cancellationToken);
+            return Ok(ApiResponse<object?>.Ok(null, "Đã gửi lại email xác thực"));
+        }
+
+        return BadRequest(ApiResponse<object?>.Fail("Vui lòng cung cấp email cần gửi lại mã xác thực", StatusCodes.Status400BadRequest));
     }
 
     [HttpPost("forgot-password")]

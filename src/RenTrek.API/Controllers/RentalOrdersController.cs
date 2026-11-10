@@ -103,4 +103,19 @@ public class RentalOrdersController : ControllerBase
         var result = await _rentalOrderService.GetAdjustmentsAsync(userId, orderId, cancellationToken);
         return Ok(ApiResponse<List<RentalOrderAdjustmentResponse>>.Ok(result, "Lấy lịch sử điều chỉnh đơn thuê thành công"));
     }
+
+    /// <summary>Khách hủy đơn thuê chưa thanh toán (PendingPayment + Unpaid) và giải phóng thiết bị đang giữ.</summary>
+    [HttpPost("{orderId:guid}/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<RentalOrderDetailResponse>), StatusCodes.Status200OK)]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> CancelUnpaidAsync(
+        Guid orderId,
+        [FromBody] CancelRentalOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.RequiredUserId;
+
+        var result = await _rentalOrderService.CancelUnpaidAsync(userId, orderId, request, cancellationToken);
+        return Ok(ApiResponse<RentalOrderDetailResponse>.Ok(result, "Đã hủy đơn thuê chưa thanh toán và giải phóng thiết bị."));
+    }
 }
