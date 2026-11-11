@@ -32,9 +32,49 @@ public sealed class RoutingTests
             && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminPostsController));
         Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/rental-orders"
             && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminRentalOrdersController));
-        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/management/posts"
-            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RenTrek.API.Controllers.Admin.AdminPostsController));
-        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/management/rental-orders"
-            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RenTrek.API.Controllers.Admin.AdminRentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/rental-orders/handover-list"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminRentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/rental-orders/return-list"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminRentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/users/me/participations"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(UsersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/participants/{participantId}/posts"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(ParticipantsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/participants/{participantId}/posts/{postId}/read"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(ParticipantsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/participants/{participantId}/review"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(ParticipantsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "PUT" && description.RelativePath == "api/v1/participants/{participantId}/review"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(ParticipantsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/tours/{tourId}/reviews"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(ToursController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/users/me/notifications"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(NotificationsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/users/me/notifications/unread-count"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(NotificationsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/users/me/notifications/{notificationId}/read"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(NotificationsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/users/me/notifications/read-all"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(NotificationsController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/rental-orders/{orderId}/extensions/quote"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "POST" && description.RelativePath == "api/v1/rental-orders/{orderId}/extensions"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/rental-orders/{orderId}/adjustments"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(RentalOrdersController));
+        Assert.Contains(descriptions, description => description.HttpMethod == "GET" && description.RelativePath == "api/v1/admin/rental-orders/{orderId}/adjustments"
+            && ((ControllerActionDescriptor)description.ActionDescriptor).ControllerTypeInfo == typeof(AdminRentalOrdersController));
+    }
+
+    [Theory]
+    [InlineData(nameof(RentalOrdersController.QuoteExtensionAsync))]
+    [InlineData(nameof(RentalOrdersController.ExtendAsync))]
+    [InlineData(nameof(RentalOrdersController.GetAdjustmentsAsync))]
+    public void RentalExtensionEndpoints_RequireCustomerOwner(string actionName)
+    {
+        var authorize = Assert.Single(typeof(RentalOrdersController).GetMethod(actionName)!
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>());
+        Assert.Equal(RenTrek.BLL.Constants.RoleNames.Customer, authorize.Roles);
     }
 }

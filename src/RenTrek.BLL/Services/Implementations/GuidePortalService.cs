@@ -1,3 +1,5 @@
+using System.Globalization;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Guide.Requests;
 using RenTrek.BLL.DTOs.Guide.Responses;
 using RenTrek.BLL.Exceptions;
@@ -37,13 +39,13 @@ public sealed class GuidePortalService(
 
             return normalizedTab switch
             {
-                "today" => string.Equals(trip.Status, "InProgress", StringComparison.OrdinalIgnoreCase)
-                           || (startDate <= todayDate && endDate >= todayDate && !string.Equals(trip.Status, "Completed", StringComparison.OrdinalIgnoreCase)),
+                "today" => string.Equals(trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase)
+                           || (startDate <= todayDate && endDate >= todayDate && !string.Equals(trip.Status, TripStatuses.Completed, StringComparison.OrdinalIgnoreCase)),
                 "upcoming" => startDate > todayDate
-                              && !string.Equals(trip.Status, "Completed", StringComparison.OrdinalIgnoreCase)
-                              && !string.Equals(trip.Status, "InProgress", StringComparison.OrdinalIgnoreCase),
-                "completed" => string.Equals(trip.Status, "Completed", StringComparison.OrdinalIgnoreCase)
-                               || (endDate < todayDate && !string.Equals(trip.Status, "InProgress", StringComparison.OrdinalIgnoreCase)),
+                              && !string.Equals(trip.Status, TripStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+                              && !string.Equals(trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase),
+                "completed" => string.Equals(trip.Status, TripStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+                               || (endDate < todayDate && !string.Equals(trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
                 "all" => true,
                 _ => true
             };
@@ -52,7 +54,7 @@ public sealed class GuidePortalService(
         return filtered.Select(g =>
         {
             var location = g.Trip.Tour?.MainLocation;
-            var activeCount = g.BookingParticipants.Count(p => !p.IsDeleted && p.Status != "Cancelled");
+            var activeCount = g.BookingParticipants.Count(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled);
 
             return new GuideTripCardResponse
             {
@@ -102,7 +104,7 @@ public sealed class GuidePortalService(
                 .ToDictionary(a => a.ParticipantId, a => a.AttendanceStatus);
 
         var participantsQuery = group.BookingParticipants
-            .Where(p => !p.IsDeleted && p.Status != "Cancelled");
+            .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -137,7 +139,7 @@ public sealed class GuidePortalService(
                     ActivityId = currentActivity.Id,
                     Name = currentActivity.Name,
                     DayNumber = currentActivity.DayNumber,
-                    StartTime = currentActivity.StartTime.ToString(@"hh\:mm\:ss")
+                    StartTime = currentActivity.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
                 },
             Participants = roster
         };
@@ -164,7 +166,7 @@ public sealed class GuidePortalService(
 
         var assignedAssets = (participant.Trip?.TripProvidedItems ?? [])
             .SelectMany(item => item.AssetAssignments
-                .Where(a => a.Status == "Issued" || a.Status == "Reserved")
+                .Where(a => a.Status == AssignmentStatuses.Issued || a.Status == AssignmentStatuses.Reserved)
                 .Select(a => new GuideAssignedAssetItemResponse
                 {
                     AssetId = a.EquipmentAssetId,
@@ -195,7 +197,7 @@ public sealed class GuidePortalService(
             DateOfBirth = participant.DateOfBirth,
             Age = CalculateAge(participant.DateOfBirth, today),
             Phone = participant.Phone,
-            Email = participant.Email,
+            Email = participant.Email ?? string.Empty,
             EmergencyContact = new GuideEmergencyContactResponse
             {
                 Name = participant.EmergencyContactName,
@@ -219,7 +221,7 @@ public sealed class GuidePortalService(
             ?? throw new NotFoundException("Không tìm thấy hoạt động trong lịch trình chuyến đi");
 
         var groupParticipants = group.BookingParticipants
-            .Where(p => !p.IsDeleted && p.Status != "Cancelled")
+            .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled)
             .ToDictionary(p => p.ParticipantId);
 
         var totalCount = groupParticipants.Count;
@@ -239,7 +241,7 @@ public sealed class GuidePortalService(
                     groupParticipants.Keys.ToArray(),
                     cancellationToken);
                 var existingPresentCount = currentRecords.Count(r =>
-                    r.AttendanceStatus is "Present" or "Late");
+                    r.AttendanceStatus is AttendanceStatuses.Present or AttendanceStatuses.Late);
 
                 return new GuideBatchAttendanceResponse
                 {
@@ -258,7 +260,7 @@ public sealed class GuidePortalService(
             recordsToApply.AddRange(groupParticipants.Keys.Select(pid => new GuideAttendanceRecordItemRequest
             {
                 ParticipantId = pid,
-                Status = "Present",
+                Status = AttendanceStatuses.Present,
                 Reason = "Điểm danh nhanh: Tất cả có mặt"
             }));
         }
@@ -360,7 +362,7 @@ public sealed class GuidePortalService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var presentCount = existingByParticipant.Values.Count(a =>
-            a.AttendanceStatus is "Present" or "Late");
+            a.AttendanceStatus is AttendanceStatuses.Present or AttendanceStatuses.Late);
 
         return new GuideBatchAttendanceResponse
         {
@@ -378,7 +380,7 @@ public sealed class GuidePortalService(
     {
         var group = await GetRequiredGuideGroupAsync(tripId, cancellationToken);
         var groupParticipantIds = group.BookingParticipants
-            .Where(p => !p.IsDeleted && p.Status != "Cancelled")
+            .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled)
             .Select(p => p.ParticipantId)
             .ToHashSet();
         var totalGroupCount = groupParticipantIds.Count;
@@ -394,7 +396,7 @@ public sealed class GuidePortalService(
         var attendances = await unitOfWork.ActivityAttendances.GetAttendancesByTripAsync(tripId, cancellationToken);
 
         var attendedByActivity = attendances
-            .Where(a => groupParticipantIds.Contains(a.ParticipantId) && a.AttendanceStatus is "Present" or "Late")
+            .Where(a => groupParticipantIds.Contains(a.ParticipantId) && a.AttendanceStatus is AttendanceStatuses.Present or AttendanceStatuses.Late)
             .GroupBy(a => a.TourActivityId)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -419,7 +421,7 @@ public sealed class GuidePortalService(
                         {
                             ActivityId = a.Id,
                             Name = a.Name,
-                            StartTime = a.StartTime.ToString(@"hh\:mm\:ss"),
+                            StartTime = a.StartTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture),
                             DurationMinutes = a.DurationMinutes,
                             Description = a.Description,
                             IsCurrent = currentActivity?.Id == a.Id,
@@ -449,7 +451,7 @@ public sealed class GuidePortalService(
         var mappedItems = items.Select(item =>
         {
             var allocatedAssets = item.AssetAssignments
-                .Where(a => a.Status != "Cancelled")
+                .Where(a => a.Status != AssignmentStatuses.Cancelled)
                 .OrderBy(a => a.EquipmentAsset?.AssetCode)
                 .Select(a => new GuideAllocatedAssetItemResponse
                 {

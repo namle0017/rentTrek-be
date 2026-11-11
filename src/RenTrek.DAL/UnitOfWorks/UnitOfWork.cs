@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using RenTrek.DAL.Data;
 using RenTrek.DAL.Repositories.Implementations;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -142,6 +144,23 @@ public class UnitOfWork : IUnitOfWork
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);
+
+    public async Task<bool> TrySaveChangesIgnoringUniqueViolationAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Gỡ các thực thể gây lỗi để ChangeTracker không giữ bản ghi trùng cho lần lưu sau
+            foreach (var entry in ex.Entries)
+                entry.State = EntityState.Detached;
+
+            return false;
+        }
+    }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {

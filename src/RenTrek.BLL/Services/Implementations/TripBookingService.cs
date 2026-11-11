@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using System.Text;
@@ -25,6 +26,7 @@ public sealed class TripBookingService(
     TimeProvider timeProvider,
     IInviteTokenHelper inviteTokenHelper,
     IOptions<EmailSettings> emailOptions,
+    INotificationService notificationService,
     IRefundCaseService? refundCaseService = null,
     IEmailService? emailService = null) : ITripBookingService
 {
@@ -43,7 +45,7 @@ public sealed class TripBookingService(
             var account = await unitOfWork.TripBookings.GetAccountAsync(userId, cancellationToken);
             if (account is null ||
                 account.EmailConfirmedAt is null ||
-                !string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase) ||
                 !order.TripBookingOrder.Participants.Any(p => p.LinkedUserId == userId))
             {
                 throw new NotFoundException("Không tìm thấy booking");
@@ -65,7 +67,7 @@ public sealed class TripBookingService(
             ?? throw new NotFoundException("Không tìm thấy booking", ErrorCodes.OrderNotFound);
 
         var utcNow = timeProvider.GetUtcNow();
-        var quote = await refunds.QuoteAsync(order, utcNow, cancellationToken);
+        var quote = await refunds.QuoteAsync(RefundOrderInput.From(order), utcNow, cancellationToken);
         var blockedReason = GetCancelBlockedReason(order, utcNow);
 
         return new CancellationPreviewResponse
@@ -108,7 +110,7 @@ public sealed class TripBookingService(
         var userId = currentUser.RequiredUserId;
         var account = await unitOfWork.TripBookings.GetAccountAsync(userId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy tài khoản người đặt");
-        if (!string.Equals(account.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("Tài khoản không ở trạng thái hoạt động");
 
         var drafts = BuildParticipantDrafts(request, account, contactPhone);
@@ -139,8 +141,13 @@ public sealed class TripBookingService(
 
             var trip = await unitOfWork.TripBookings.GetTripForUpdateAsync(request.TripId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy chuyến đi");
-            if (!string.Equals(trip.Status, "Open", StringComparison.OrdinalIgnoreCase) || trip.StartAt <= utcNow)
+            if (!string.Equals(trip.Status, TripStatuses.Open, StringComparison.OrdinalIgnoreCase) || trip.StartAt <= utcNow)
                 throw new ConflictException("Chuyến đi không mở nhận booking");
+
+            // Tour Archived/Expired chỉ còn để xem lại; trip Open của nó không nhận booking mới. Tour xoá mềm → null.
+            var tour = await unitOfWork.Tours.GetByIdAsync(trip.TourId, cancellationToken);
+            if (tour is null || tour.Status is not (TourStatuses.Active or TourStatuses.Published))
+                throw new ConflictException("Tour đã ngừng nhận booking");
 
             var participantCount = drafts.Count;
             var reserved = await unitOfWork.TripBookings.GetReservedParticipantCountAsync(
@@ -170,7 +177,7 @@ public sealed class TripBookingService(
                     DateOfBirth = draft.DateOfBirth,
                     EmergencyContactName = draft.EmergencyContactName,
                     EmergencyContactPhone = draft.EmergencyContactPhone,
-                    Status = "Pending",
+                    Status = BookingParticipantStatuses.Pending,
                     TripId = trip.TripId,
                     CreatedAt = utcNow.AddTicks(idx),
                     UpdatedAt = utcNow
@@ -181,12 +188,12 @@ public sealed class TripBookingService(
             {
                 OrderId = orderId,
                 CustomerUserId = account.UserId,
-                OrderType = "TripBooking",
+                OrderType = OrderTypes.TripBooking,
                 TotalAmount = subtotal,
                 SubtotalAmount = subtotal,
                 DiscountAmount = 0m,
-                Status = "PendingPayment",
-                PaymentStatus = "Unpaid",
+                Status = OrderStatuses.PendingPayment,
+                PaymentStatus = OrderPaymentStatuses.Unpaid,
                 CreatedAt = utcNow,
                 UpdatedAt = utcNow,
                 OrderCode = $"RT-{utcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..32].ToUpperInvariant(),
@@ -199,6 +206,20 @@ public sealed class TripBookingService(
             booking.Order = order;
 
             await unitOfWork.TripBookings.AddOrderAsync(order, cancellationToken);
+            var placedTourName = string.IsNullOrWhiteSpace(tour.Name) ? trip.Tour?.Name : tour.Name;
+            var placedContent = string.IsNullOrWhiteSpace(placedTourName)
+                ? $"Đơn {order.OrderCode} cho chuyến đi đã được tạo và đang chờ thanh toán."
+                : $"Đơn {order.OrderCode} cho chuyến đi {placedTourName.Trim()} đang chờ thanh toán.";
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderPlaced,
+                "Đặt chuyến thành công",
+                placedContent,
+                "Order",
+                order.OrderId,
+                $"OrderPlaced:{order.OrderId}",
+                cancellationToken);
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
 
@@ -260,7 +281,7 @@ public sealed class TripBookingService(
                 cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy booking");
 
-            if (string.Equals(order.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(order.Status, OrderStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
                 throw new ConflictException("Đơn đã hủy, không thể chỉnh sửa");
             if (order.TripBookingOrder.Trip.StartAt <= utcNow)
                 throw new ConflictException("Chuyến đi đã bắt đầu");
@@ -298,7 +319,7 @@ public sealed class TripBookingService(
                     var confirmed = await unitOfWork.TripBookings.GetConfirmedAccountsByEmailsAsync([newEmail], cancellationToken);
                     var matched = confirmed.FirstOrDefault(a =>
                         a.EmailConfirmedAt is not null &&
-                        string.Equals(a.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(a.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase) &&
                         string.Equals(a.Email.Trim().ToLowerInvariant(), newEmail, StringComparison.Ordinal));
                     if (matched is not null)
                         participant.LinkedUserId = matched.UserId;
@@ -349,7 +370,7 @@ public sealed class TripBookingService(
             await unitOfWork.TripGroups.AcquireTripLockAsync(trip.TripId, cancellationToken);
 
             var wasPaid = IsPaid(order);
-            var quote = wasPaid ? await refunds.QuoteAsync(order, utcNow, cancellationToken) : null;
+            var quote = wasPaid ? await refunds.QuoteAsync(RefundOrderInput.From(order), utcNow, cancellationToken) : null;
             if (quote is not null)
                 EnsureRefundRequestValid(quote, request, isStaffOrAdmin);
 
@@ -374,7 +395,7 @@ public sealed class TripBookingService(
             foreach (var participant in order.TripBookingOrder.Participants.Where(p => !p.IsDeleted))
             {
                 // Giữ nguyên participant.TripGroupId để truy vết lịch sử, chỉ chuyển Status sang Cancelled
-                participant.Status = "Cancelled";
+                participant.Status = BookingParticipantStatuses.Cancelled;
                 participant.UpdatedAt = utcNow;
             }
 
@@ -406,13 +427,27 @@ public sealed class TripBookingService(
             // Giữ orders.payment_status = Paid: chỉ đổi khi tiền hoàn thực sự thành công (§4.2)
             var refundCase = quote?.RefundAmount > 0
                 ? await refunds.OpenForCancellationAsync(
-                    order,
+                    RefundOrderInput.From(order),
                     quote,
                     request!.BankAccount!,
                     request.ConsentVersion!,
                     utcNow,
                     cancellationToken)
                 : null;
+
+            var cancelledTourName = trip.Tour?.Name;
+            var cancelledContent = string.IsNullOrWhiteSpace(cancelledTourName)
+                ? $"Đơn {order.OrderCode} đã được hủy."
+                : $"Đơn {order.OrderCode} cho chuyến đi {cancelledTourName.Trim()} đã được hủy.";
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.OrderCancelled,
+                "Đơn hàng đã hủy",
+                cancelledContent,
+                "Order",
+                order.OrderId,
+                $"OrderCancelled:{order.OrderId}",
+                cancellationToken);
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
@@ -570,7 +605,7 @@ public sealed class TripBookingService(
             throw new ConflictException(
                 "Số tiền hoàn đã thay đổi, vui lòng xem lại",
                 ErrorCodes.RefundAmountChanged,
-                new Dictionary<string, string[]> { ["estimatedRefundAmount"] = [quote.RefundAmount.ToString("0")] });
+                new Dictionary<string, string[]> { ["estimatedRefundAmount"] = [quote.RefundAmount.ToString("0", CultureInfo.InvariantCulture)] });
         }
 
         if (quote.RefundAmount <= 0)
@@ -586,7 +621,7 @@ public sealed class TripBookingService(
     }
 
     private static bool IsPaid(Order order)
-        => string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+        => string.Equals(order.Status, OrderStatuses.Confirmed, StringComparison.OrdinalIgnoreCase) &&
            string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase);
 
     private static string BuyerName(Order order)
@@ -748,7 +783,7 @@ public sealed class TripBookingService(
         var activeParticipants = string.Equals(order.Status, OrderStatuses.Cancelled, StringComparison.OrdinalIgnoreCase)
             ? []
             : order.TripBookingOrder.Participants
-                .Where(x => !x.IsDeleted && !string.Equals(x.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                .Where(x => !x.IsDeleted && !string.Equals(x.Status, BookingParticipantStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         var participants = canManage
             ? activeParticipants

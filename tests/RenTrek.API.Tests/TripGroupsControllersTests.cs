@@ -10,7 +10,7 @@ public sealed class TripGroupsControllersTests
     public void TripGroupsController_EnforcesRoleScopesForSnapshotAndMutations()
     {
         var snapshotAuth = Assert.Single(
-            typeof(TripGroupsController).GetMethod(nameof(TripGroupsController.GetGroupingSnapshot))!
+            typeof(TripGroupsController).GetMethod(nameof(TripGroupsController.GetGroupingSnapshotAsync))!
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
         Assert.Equal(
             $"{RoleNames.Staff},{RoleNames.Admin},{RoleNames.Guide},{RoleNames.TourGuide}",
@@ -18,11 +18,11 @@ public sealed class TripGroupsControllersTests
 
         foreach (var mutationName in new[]
         {
-            nameof(TripGroupsController.AssignGuide),
-            nameof(TripGroupsController.MoveBooking),
-            nameof(TripGroupsController.SplitBooking),
-            nameof(TripGroupsController.RecalculateProvidedItems),
-            nameof(TripGroupsController.Publish)
+            nameof(TripGroupsController.AssignGuideAsync),
+            nameof(TripGroupsController.MoveBookingAsync),
+            nameof(TripGroupsController.SplitBookingAsync),
+            nameof(TripGroupsController.RecalculateProvidedItemsAsync),
+            nameof(TripGroupsController.PublishAsync)
         })
         {
             var auth = Assert.Single(
@@ -46,10 +46,10 @@ public sealed class TripGroupsControllersTests
     public void TripsController_CreateAndUpdate_RequireAdminRole()
     {
         var createAuth = Assert.Single(
-            typeof(TripsController).GetMethod(nameof(TripsController.Create))!
+            typeof(TripsController).GetMethod(nameof(TripsController.CreateAsync))!
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
         var updateAuth = Assert.Single(
-            typeof(TripsController).GetMethod(nameof(TripsController.Update))!
+            typeof(TripsController).GetMethod(nameof(TripsController.UpdateAsync))!
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
 
         Assert.Equal(RoleNames.Admin, Assert.IsType<AuthorizeAttribute>(createAuth).Roles);

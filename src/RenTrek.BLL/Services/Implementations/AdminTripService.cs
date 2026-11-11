@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.Text;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.AdminTrip.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
@@ -15,7 +18,8 @@ namespace RenTrek.BLL.Services.Implementations;
 public sealed class AdminTripService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
-    TimeProvider timeProvider) : IAdminTripService
+    TimeProvider timeProvider,
+    INotificationService notificationService) : IAdminTripService
 {
     public async Task<PagedResponse<AdminTripItemResponse>> GetPagedAsync(
         AdminTripQueryRequest request,
@@ -91,6 +95,7 @@ public sealed class AdminTripService(
         var refundPolicy = await unitOfWork.Trips.GetActiveRefundPolicyAsync(request.RefundPolicyId, cancellationToken)
             ?? throw new ConflictException("Chính sách hoàn tiền không tồn tại hoặc không hoạt động", "REFUND_POLICY_INACTIVE");
 
+        EnsureStaffAssignsSelf(request.ManagedByUserId);
         var managerUserId = request.ManagedByUserId
                             ?? currentUser.UserId
                             ?? tour.CreatedByUserId
@@ -116,7 +121,7 @@ public sealed class AdminTripService(
             TotalSlots = request.TotalSlots,
             MinParticipants = request.MinParticipants,
             PricePerPerson = request.PricePerPerson,
-            Status = "Draft",
+            Status = TripStatuses.Draft,
             RowVersion = 1,
             CreatedAt = utcNow,
             UpdatedAt = utcNow
@@ -137,7 +142,7 @@ public sealed class AdminTripService(
                     string.Equals(p.QuantityBasis, "PerPerson", StringComparison.OrdinalIgnoreCase)
                         ? p.Quantity * request.TotalSlots
                         : p.Quantity),
-                Status = "Missing",
+                Status = TripProvidedItemStatuses.Missing,
                 CreatedAt = utcNow.UtcDateTime
             })
             .ToList();
@@ -185,6 +190,7 @@ public sealed class AdminTripService(
 
         var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
         if (request.RowVersion > 0 && trip.RowVersion != request.RowVersion)
         {
@@ -210,6 +216,7 @@ public sealed class AdminTripService(
             trip.RefundPolicy = refundPolicy;
         }
 
+        EnsureStaffAssignsSelf(request.ManagedByUserId);
         if (request.ManagedByUserId.HasValue && request.ManagedByUserId.Value != Guid.Empty)
         {
             var manager = await unitOfWork.Trips.GetAccountByIdAsync(request.ManagedByUserId.Value, cancellationToken)
@@ -218,6 +225,7 @@ public sealed class AdminTripService(
             trip.ManagedByUser = manager;
         }
 
+        var scheduleChanged = trip.StartAt != request.StartAt || trip.EndAt != request.EndAt;
         trip.StartAt = request.StartAt;
         trip.EndAt = request.EndAt;
         trip.TotalSlots = request.TotalSlots;
@@ -225,6 +233,37 @@ public sealed class AdminTripService(
         trip.PricePerPerson = request.PricePerPerson;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
+
+        if (scheduleChanged)
+        {
+            var bookings = await unitOfWork.Trips.GetTripBookingsWithDetailsAsync(tripId, cancellationToken);
+            var activeBookings = bookings
+                .Where(b => b.Order.Status != OrderStatuses.Cancelled && b.Order.Status != OrderStatuses.Expired)
+                .ToList();
+
+            if (activeBookings.Count > 0)
+            {
+                var vnOffset = TimeSpan.FromHours(7);
+                var newStartText = request.StartAt.ToOffset(vnOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+                var tourLabel = string.IsNullOrWhiteSpace(trip.Tour?.Name)
+                    ? "chuyến đi"
+                    : $"chuyến đi {trip.Tour.Name.Trim()}";
+                var eventKey = $"TripScheduleChanged:{trip.TripId}:{request.StartAt.UtcDateTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture)}";
+
+                foreach (var (recipientUserId, orderCode) in CollectTripNotificationRecipients(activeBookings))
+                {
+                    await notificationService.QueueAsync(
+                        recipientUserId,
+                        NotificationTypes.TripScheduleChanged,
+                        "Lịch chuyến đi đã thay đổi",
+                        $"Lịch khởi hành {tourLabel} (đơn {orderCode}) đã đổi sang {newStartText}.",
+                        "Trip",
+                        trip.TripId,
+                        eventKey,
+                        cancellationToken);
+                }
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -246,7 +285,7 @@ public sealed class AdminTripService(
         var bookings = await unitOfWork.Trips.GetTripBookingsWithDetailsAsync(tripId, cancellationToken);
 
         var activeParticipants = participants
-            .Where(p => p.BookingOrder.Order.Status != "Cancelled" && p.BookingOrder.Order.Status != "Expired")
+            .Where(p => p.BookingOrder.Order.Status != OrderStatuses.Cancelled && p.BookingOrder.Order.Status != OrderStatuses.Expired)
             .ToList();
 
         var unassignedCount = activeParticipants.Count(p => p.TripGroupId is null);
@@ -256,14 +295,14 @@ public sealed class AdminTripService(
         var missingItemsCount = providedItems.Count(item =>
         {
             var allocatedCount = item.AssetAssignments.Count(a =>
-                a.Status == "Reserved" || a.Status == "Issued" || a.Status == "Returned");
-            return !string.Equals(item.Status, "Ready", StringComparison.OrdinalIgnoreCase) &&
-                   !string.Equals(item.Status, "Recovered", StringComparison.OrdinalIgnoreCase) &&
+                a.Status == AssignmentStatuses.Reserved || a.Status == AssignmentStatuses.Issued || a.Status == AssignmentStatuses.Returned);
+            return !string.Equals(item.Status, TripProvidedItemStatuses.Ready, StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(item.Status, TripProvidedItemStatuses.Recovered, StringComparison.OrdinalIgnoreCase) &&
                    allocatedCount < item.RequiredQuantity;
         });
 
         var activeOrders = bookings
-            .Where(b => b.Order.Status != "Cancelled" && b.Order.Status != "Expired")
+            .Where(b => b.Order.Status != OrderStatuses.Cancelled && b.Order.Status != OrderStatuses.Expired)
             .ToList();
         var unpaidOrdersCount = activeOrders.Count(b =>
             !string.Equals(b.Order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase));
@@ -322,9 +361,10 @@ public sealed class AdminTripService(
     {
         var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
-        if (!string.Equals(trip.Status, "Draft", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(trip.Status, "ClosedForBooking", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(trip.Status, TripStatuses.Draft, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(trip.Status, TripStatuses.ClosedForBooking, StringComparison.OrdinalIgnoreCase))
         {
             throw new ConflictException(
                 $"Không thể mở nhận khách cho chuyến đi đang ở trạng thái {trip.Status}",
@@ -332,7 +372,7 @@ public sealed class AdminTripService(
         }
 
         var utcNow = timeProvider.GetUtcNow();
-        trip.Status = "Open";
+        trip.Status = TripStatuses.Open;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
 
@@ -348,8 +388,9 @@ public sealed class AdminTripService(
     {
         var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
-        if (!string.Equals(trip.Status, "Open", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(trip.Status, TripStatuses.Open, StringComparison.OrdinalIgnoreCase))
         {
             throw new ConflictException(
                 $"Chỉ chuyến đi đang ở trạng thái Open mới có thể đóng nhận khách (hiện tại: {trip.Status})",
@@ -357,7 +398,7 @@ public sealed class AdminTripService(
         }
 
         var utcNow = timeProvider.GetUtcNow();
-        trip.Status = "ClosedForBooking";
+        trip.Status = TripStatuses.ClosedForBooking;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
 
@@ -373,8 +414,9 @@ public sealed class AdminTripService(
     {
         var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
-        if (!string.Equals(trip.Status, "ClosedForBooking", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(trip.Status, TripStatuses.ClosedForBooking, StringComparison.OrdinalIgnoreCase))
         {
             throw new ConflictException(
                 $"Chỉ chuyến đi ở trạng thái ClosedForBooking mới có thể xuất phát (hiện tại: {trip.Status})",
@@ -390,14 +432,14 @@ public sealed class AdminTripService(
         }
 
         var utcNow = timeProvider.GetUtcNow();
-        trip.Status = "InProgress";
+        trip.Status = TripStatuses.InProgress;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
 
         var groups = await unitOfWork.Trips.GetActiveTripGroupsForUpdateAsync(tripId, cancellationToken);
         foreach (var group in groups)
         {
-            group.Status = "InProgress";
+            group.Status = TripGroupStatuses.InProgress;
             group.UpdatedAt = utcNow.UtcDateTime;
         }
 
@@ -413,8 +455,9 @@ public sealed class AdminTripService(
     {
         var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
+        TripGroupRules.EnsureManagesTrip(currentUser, trip);
 
-        if (!string.Equals(trip.Status, "InProgress", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
         {
             throw new ConflictException(
                 $"Chỉ chuyến đi đang InProgress mới có thể hoàn tất (hiện tại: {trip.Status})",
@@ -422,25 +465,25 @@ public sealed class AdminTripService(
         }
 
         var utcNow = timeProvider.GetUtcNow();
-        trip.Status = "Completed";
+        trip.Status = TripStatuses.Completed;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
 
         var groups = await unitOfWork.Trips.GetActiveTripGroupsForUpdateAsync(tripId, cancellationToken);
         foreach (var group in groups)
         {
-            group.Status = "Completed";
+            group.Status = TripGroupStatuses.Completed;
             group.UpdatedAt = utcNow.UtcDateTime;
         }
 
         var bookings = await unitOfWork.Trips.GetTripBookingsForUpdateAsync(tripId, cancellationToken);
-        foreach (var booking in bookings.Where(b => b.Order.Status == "Confirmed"))
+        foreach (var booking in bookings.Where(b => b.Order.Status == OrderStatuses.Confirmed))
         {
-            booking.Order.Status = "Completed";
+            booking.Order.Status = OrderStatuses.Completed;
             booking.Order.UpdatedAt = utcNow;
-            foreach (var participant in booking.Participants.Where(p => p.Status != "Cancelled"))
+            foreach (var participant in booking.Participants.Where(p => p.Status != BookingParticipantStatuses.Cancelled))
             {
-                participant.Status = "Completed";
+                participant.Status = BookingParticipantStatuses.Completed;
                 participant.UpdatedAt = utcNow;
             }
         }
@@ -468,19 +511,19 @@ public sealed class AdminTripService(
             var trip = await unitOfWork.Trips.GetTripForUpdateAsync(tripId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy chuyến đi", "NOT_FOUND");
 
-            if (string.Equals(trip.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(trip.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(trip.Status, TripStatuses.Completed, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(trip.Status, TripStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException("Chuyến đi đã kết thúc hoặc đã bị hủy trước đó.", "TRIP_NOT_CANCELLABLE");
             }
 
-            trip.Status = "Cancelled";
+            trip.Status = TripStatuses.Cancelled;
             trip.RowVersion++;
             trip.UpdatedAt = utcNow;
 
             var bookings = await unitOfWork.Trips.GetTripBookingsForUpdateAsync(tripId, cancellationToken);
             var activeBookings = bookings
-                .Where(b => b.Order.Status != "Cancelled" && b.Order.Status != "Expired")
+                .Where(b => b.Order.Status != OrderStatuses.Cancelled && b.Order.Status != OrderStatuses.Expired)
                 .ToList();
 
             var orderIds = activeBookings.Select(b => b.OrderId).ToArray();
@@ -492,17 +535,18 @@ public sealed class AdminTripService(
             var refundPayments = new List<Payment>();
             var affectedParticipantsCount = 0;
             var totalRefundAmount = 0m;
+            var cancelRecipients = CollectTripNotificationRecipients(activeBookings);
 
             foreach (var booking in activeBookings)
             {
-                booking.Order.Status = "Cancelled";
+                booking.Order.Status = OrderStatuses.Cancelled;
                 booking.Order.CancelledAt = utcNow;
                 booking.Order.CancelReason = reason;
                 booking.Order.UpdatedAt = utcNow;
 
-                foreach (var participant in booking.Participants.Where(p => p.Status != "Cancelled"))
+                foreach (var participant in booking.Participants.Where(p => p.Status != BookingParticipantStatuses.Cancelled))
                 {
-                    participant.Status = "Cancelled";
+                    participant.Status = BookingParticipantStatuses.Cancelled;
                     participant.UpdatedAt = utcNow;
                     affectedParticipantsCount++;
                 }
@@ -525,7 +569,7 @@ public sealed class AdminTripService(
                         PaymentType = "Refund",
                         Amount = paidAmount,
                         PaymentMethod = originalPayment?.PaymentMethod ?? "BankTransfer",
-                        Status = "PendingApproval",
+                        Status = PaymentStatuses.PendingApproval,
                         Purpose = $"Hoàn tiền 100% do hủy chuyến: {reason}",
                         CreatedAt = utcNow
                     });
@@ -539,7 +583,7 @@ public sealed class AdminTripService(
             var groups = await unitOfWork.Trips.GetActiveTripGroupsForUpdateAsync(tripId, cancellationToken);
             foreach (var group in groups)
             {
-                group.Status = "Cancelled";
+                group.Status = TripGroupStatuses.Cancelled;
                 group.UpdatedAt = utcNow.UtcDateTime;
             }
 
@@ -547,10 +591,10 @@ public sealed class AdminTripService(
             var releasedAssetsCount = 0;
             foreach (var item in providedItems)
             {
-                item.Status = "Cancelled";
-                foreach (var assignment in item.AssetAssignments.Where(a => a.Status == "Reserved"))
+                item.Status = TripProvidedItemStatuses.Cancelled;
+                foreach (var assignment in item.AssetAssignments.Where(a => a.Status == AssignmentStatuses.Reserved))
                 {
-                    assignment.Status = "Cancelled";
+                    assignment.Status = AssignmentStatuses.Cancelled;
                     releasedAssetsCount++;
                 }
             }
@@ -565,6 +609,21 @@ public sealed class AdminTripService(
                 Details = $"Hủy chuyến đi {trip.TripId}. Lý do: {reason}. Đơn bị ảnh hưởng: {activeBookings.Count}, khách: {affectedParticipantsCount}, tổng hoàn tiền: {totalRefundAmount:N0}, thiết bị giải phóng: {releasedAssetsCount}.",
                 CreatedAt = utcNow.UtcDateTime
             }, cancellationToken);
+
+            var tourSuffix = string.IsNullOrWhiteSpace(trip.Tour?.Name) ? string.Empty : $" {trip.Tour.Name.Trim()}";
+            var cancelEventKey = $"TripCancelled:{trip.TripId}";
+            foreach (var (recipientUserId, orderCode) in cancelRecipients)
+            {
+                await notificationService.QueueAsync(
+                    recipientUserId,
+                    NotificationTypes.TripCancelled,
+                    "Chuyến đi đã bị hủy",
+                    $"Chuyến đi{tourSuffix} (đơn {orderCode}) đã bị hủy. Lý do: {reason}.",
+                    "Trip",
+                    trip.TripId,
+                    cancelEventKey,
+                    cancellationToken);
+            }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
@@ -617,7 +676,7 @@ public sealed class AdminTripService(
                 {
                     ParticipantId = p.ParticipantId,
                     FullName = p.FullName,
-                    Email = p.Email,
+                    Email = p.Email ?? string.Empty,
                     Phone = p.Phone,
                     DateOfBirth = p.DateOfBirth,
                     EmergencyContactName = p.EmergencyContactName,
@@ -638,14 +697,14 @@ public sealed class AdminTripService(
 
         var participants = await unitOfWork.Trips.GetActiveParticipantsByTripAsync(tripId, cancellationToken);
         var manifestItems = participants
-            .Where(p => p.BookingOrder.Order.Status != "Cancelled" && p.BookingOrder.Order.Status != "Expired")
+            .Where(p => p.BookingOrder.Order.Status != OrderStatuses.Cancelled && p.BookingOrder.Order.Status != OrderStatuses.Expired)
             .OrderBy(p => p.TripGroup?.GroupName ?? "ZZZZ")
             .ThenBy(p => p.FullName)
             .Select(p => new TripManifestParticipantItemResponse
             {
                 ParticipantId = p.ParticipantId,
                 FullName = p.FullName,
-                Email = p.Email,
+                Email = p.Email ?? string.Empty,
                 Phone = p.Phone,
                 DateOfBirth = p.DateOfBirth,
                 EmergencyContactName = p.EmergencyContactName,
@@ -679,33 +738,19 @@ public sealed class AdminTripService(
         {
             var p = manifest.Participants[i];
             sb.AppendLine(string.Join(",",
-                i + 1,
-                EscapeCsv(p.FullName),
-                EscapeCsv(p.Email),
-                EscapeCsv(p.Phone),
-                EscapeCsv(p.DateOfBirth?.ToString("yyyy-MM-dd")),
-                EscapeCsv(p.OrderCode),
-                EscapeCsv(p.GroupName),
-                EscapeCsv(p.GuideName),
-                EscapeCsv(p.EmergencyContactName),
-                EscapeCsv(p.EmergencyContactPhone)));
+                (i + 1).ToString(CultureInfo.InvariantCulture),
+                CsvHelper.EscapeCsv(p.FullName),
+                CsvHelper.EscapeCsv(p.Email),
+                CsvHelper.EscapeCsv(p.Phone),
+                CsvHelper.EscapeCsv(p.DateOfBirth?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                CsvHelper.EscapeCsv(p.OrderCode),
+                CsvHelper.EscapeCsv(p.GroupName),
+                CsvHelper.EscapeCsv(p.GuideName),
+                CsvHelper.EscapeCsv(p.EmergencyContactName),
+                CsvHelper.EscapeCsv(p.EmergencyContactPhone)));
         }
 
-        var preamble = Encoding.UTF8.GetPreamble();
-        var body = Encoding.UTF8.GetBytes(sb.ToString());
-        var bytes = new byte[preamble.Length + body.Length];
-        Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
-        Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
-
-        return (bytes, $"manifest-{tripId:N}.csv");
-    }
-
-    private static string EscapeCsv(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return string.Empty;
-        var escaped = value.Replace("\"", "\"\"");
-        return $"\"{escaped}\"";
+        return (CsvHelper.ToUtf8WithBom(sb.ToString()), $"manifest-{tripId:N}.csv");
     }
 
     private static string FormatGroupingPreference(string? raw)
@@ -742,4 +787,40 @@ public sealed class AdminTripService(
             CreatedAt = trip.CreatedAt,
             UpdatedAt = trip.UpdatedAt
         };
+
+    /// <summary>PRD §3.2 "G": Staff chỉ được để chính mình phụ trách chuyến; giao cho người khác là việc của Admin.</summary>
+    private void EnsureStaffAssignsSelf(Guid? managedByUserId)
+    {
+        if (currentUser.Role == RoleNames.Staff && managedByUserId is { } id && id != Guid.Empty && id != currentUser.UserId)
+            throw new ForbiddenException("Staff không được giao chuyến cho người khác phụ trách", ErrorCodes.TripNotAssigned);
+    }
+
+    private static List<(Guid RecipientUserId, string OrderCode)> CollectTripNotificationRecipients(
+        IEnumerable<TripBookingOrder> activeBookings)
+    {
+        var seen = new HashSet<Guid>();
+        var recipients = new List<(Guid RecipientUserId, string OrderCode)>();
+
+        foreach (var booking in activeBookings)
+        {
+            var orderCode = booking.Order.OrderCode;
+            if (booking.Order.CustomerUserId != Guid.Empty && seen.Add(booking.Order.CustomerUserId))
+                recipients.Add((booking.Order.CustomerUserId, orderCode));
+
+            foreach (var participant in booking.Participants)
+            {
+                if (participant.IsDeleted || participant.Status == BookingParticipantStatuses.Cancelled)
+                    continue;
+
+                if (participant.LinkedUserId is { } linkedUserId &&
+                    linkedUserId != Guid.Empty &&
+                    seen.Add(linkedUserId))
+                {
+                    recipients.Add((linkedUserId, orderCode));
+                }
+            }
+        }
+
+        return recipients;
+    }
 }

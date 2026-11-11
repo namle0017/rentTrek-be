@@ -1,3 +1,4 @@
+using System.Net;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
@@ -51,7 +52,7 @@ public class EmailService : IEmailService
         var subject = "[renTrek] Xác thực và kích hoạt tài khoản renTrek";
         var verifyButtonHtml = string.IsNullOrWhiteSpace(verifyUrl) ? "" : $"""
             <div style="text-align: center; margin: 20px 0;">
-              <a href="{verifyUrl}" style="display: inline-block; background-color: #1B4332; color: #ffffff; padding: 12px 28px; font-weight: 600; text-decoration: none; border-radius: 8px;">
+              <a href="{WebUtility.HtmlEncode(verifyUrl)}" style="display: inline-block; background-color: #1B4332; color: #ffffff; padding: 12px 28px; font-weight: 600; text-decoration: none; border-radius: 8px;">
                 Bấm vào đây để xác thực ngay
               </a>
             </div>
@@ -182,7 +183,7 @@ public class EmailService : IEmailService
         // 2. Chế độ Production: Gửi email thực tế qua MailKit SMTP
         try
         {
-            var message = new MimeMessage();
+            using var message = new MimeMessage();
             var fromAddr = string.IsNullOrWhiteSpace(_settings.FromAddress) ? _settings.Username : _settings.FromAddress;
             var fromName = string.IsNullOrWhiteSpace(_settings.FromName) ? "renTrek Outdoor" : _settings.FromName;
 
@@ -213,10 +214,8 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
+            // Không ghi OTP vào log production
             _logger.LogError(ex, "Gửi email qua MailKit thất bại tới {ToEmail}. Thẻ: {DevTag}", toEmail, devTag);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[renTrek SMTP Error Fallback] Gửi mail tới {toEmail} thất bại: {ex.Message}. Thẻ: {devTag}");
-            Console.ResetColor();
         }
     }
 
@@ -340,7 +339,7 @@ public class EmailService : IEmailService
                         <td style="padding: 36px 32px;">
                           <h2 style="margin: 0 0 16px 0; color: #1a202c; font-size: 20px; font-weight: 700;">{title}</h2>
                           <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #4a5568;">
-                            Xin chào <strong>{recipientName}</strong>,
+                            Xin chào <strong>{WebUtility.HtmlEncode(recipientName)}</strong>,
                           </p>
                           <div style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6; color: #4a5568;">
                             {description}

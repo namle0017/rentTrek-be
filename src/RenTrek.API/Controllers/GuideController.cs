@@ -17,35 +17,39 @@ namespace RenTrek.API.Controllers;
 public sealed class GuideController(IGuidePortalService guidePortalService) : ControllerBase
 {
     [HttpGet("trips")]
-    public async Task<IActionResult> GetMyTrips(
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<GuideTripCardResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyTripsAsync(
         [FromQuery] string? tab,
         CancellationToken cancellationToken)
     {
         var result = await guidePortalService.GetMyTripsAsync(tab, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<GuideTripCardResponse>>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<IReadOnlyList<GuideTripCardResponse>>.Ok(result, "Lấy danh sách chuyến được phân công thành công"));
     }
 
     [HttpGet("trips/{tripId:guid}/group")]
-    public async Task<IActionResult> GetGroupRoster(
+    [ProducesResponseType(typeof(ApiResponse<GuideGroupRosterResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetGroupRosterAsync(
         Guid tripId,
         [FromQuery] string? search,
         CancellationToken cancellationToken)
     {
         var result = await guidePortalService.GetGroupRosterAsync(tripId, search, cancellationToken);
-        return Ok(ApiResponse<GuideGroupRosterResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<GuideGroupRosterResponse>.Ok(result, "Lấy danh sách thành viên nhóm thành công"));
     }
 
     [HttpGet("participants/{participantId:guid}")]
-    public async Task<IActionResult> GetParticipantDetail(
+    [ProducesResponseType(typeof(ApiResponse<GuideParticipantDetailResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetParticipantDetailAsync(
         Guid participantId,
         CancellationToken cancellationToken)
     {
         var result = await guidePortalService.GetParticipantDetailAsync(participantId, cancellationToken);
-        return Ok(ApiResponse<GuideParticipantDetailResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<GuideParticipantDetailResponse>.Ok(result, "Lấy thông tin thành viên thành công"));
     }
 
     [HttpPost("trips/{tripId:guid}/attendances/batch")]
-    public async Task<IActionResult> SubmitBatchAttendance(
+    [ProducesResponseType(typeof(ApiResponse<GuideBatchAttendanceResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SubmitBatchAttendanceAsync(
         Guid tripId,
         [FromBody] GuideBatchAttendanceRequest request,
         CancellationToken cancellationToken)
@@ -55,20 +59,22 @@ public sealed class GuideController(IGuidePortalService guidePortalService) : Co
     }
 
     [HttpGet("trips/{tripId:guid}/itinerary")]
-    public async Task<IActionResult> GetTripItinerary(
+    [ProducesResponseType(typeof(ApiResponse<GuideTripItineraryResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTripItineraryAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await guidePortalService.GetTripItineraryAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<GuideTripItineraryResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<GuideTripItineraryResponse>.Ok(result, "Lấy lịch trình chuyến thành công"));
     }
 
     [HttpGet("trips/{tripId:guid}/provided-items")]
-    public async Task<IActionResult> GetProvidedItems(
+    [ProducesResponseType(typeof(ApiResponse<GuideTripProvidedItemsResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetProvidedItemsAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var result = await guidePortalService.GetProvidedItemsAsync(tripId, cancellationToken);
-        return Ok(ApiResponse<GuideTripProvidedItemsResponse>.Ok(result, "Thành công"));
+        return Ok(ApiResponse<GuideTripProvidedItemsResponse>.Ok(result, "Lấy danh sách đồ cấp phát thành công"));
     }
 }

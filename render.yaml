@@ -20,10 +20,18 @@ services:
         sync: false
       - key: RefundDataEncryptionKey
         sync: false
+      - key: GoogleAuth__ClientId
+        sync: false
       - key: Email__Username
         sync: false
       - key: Email__Password
         sync: false
+      - key: Supabase__Url
+        sync: false
+      - key: Supabase__ServiceKey
+        sync: false
+      - key: Supabase__Bucket
+        value: uploads
       - key: Email__FromAddress
         sync: false
       - key: Email__FrontendBaseUrl

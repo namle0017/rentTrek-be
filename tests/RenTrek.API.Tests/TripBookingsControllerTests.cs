@@ -5,7 +5,6 @@ using RenTrek.API.Common;
 using RenTrek.API.Controllers;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
-using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
@@ -30,7 +29,7 @@ public sealed class TripBookingsControllerTests
         var controller = new TripBookingsController(service, groupService);
         var request = new CreateTripBookingRequest { TripId = Guid.NewGuid(), ContactPhone = "0901234567" };
 
-        var action = await controller.Create(request, "request-key", CancellationToken.None);
+        var action = await controller.CreateAsync(request, "request-key", CancellationToken.None);
 
         var result = Assert.IsType<ObjectResult>(action);
         Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
@@ -51,7 +50,7 @@ public sealed class TripBookingsControllerTests
         var participantId = Guid.NewGuid();
         var request = new UpdateBookingParticipantRequest { FullName = "Nguyễn Văn B", Email = "b@example.com" };
 
-        var action = await controller.UpdateParticipant(orderId, participantId, request, CancellationToken.None);
+        var action = await controller.UpdateParticipantAsync(orderId, participantId, request, CancellationToken.None);
 
         var result = Assert.IsType<OkObjectResult>(action);
         var response = Assert.IsType<ApiResponse<TripBookingResponse>>(result.Value);
@@ -69,7 +68,7 @@ public sealed class TripBookingsControllerTests
         var controller = new TripBookingsController(service, groupService);
         var orderId = Guid.NewGuid();
 
-        var action = await controller.GetInviteLink(orderId, CancellationToken.None);
+        var action = await controller.GetInviteLinkAsync(orderId, CancellationToken.None);
 
         var result = Assert.IsType<OkObjectResult>(action);
         var response = Assert.IsType<ApiResponse<InviteLinkResponse>>(result.Value);
@@ -86,12 +85,12 @@ public sealed class TripBookingsControllerTests
         var controller = new TripBookingsController(service, groupService);
         var request = new InvitationPreviewRequest { OrderId = Guid.NewGuid(), Token = "token" };
 
-        var action = await controller.GetInvitationPreview(request, CancellationToken.None);
+        var action = await controller.GetInvitationPreviewAsync(request, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(action);
         Assert.Equal("token", service.ReceivedToken);
         Assert.NotEmpty(typeof(TripBookingsController)
-            .GetMethod(nameof(TripBookingsController.GetInvitationPreview))!
+            .GetMethod(nameof(TripBookingsController.GetInvitationPreviewAsync))!
             .GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true));
     }
 
@@ -103,8 +102,8 @@ public sealed class TripBookingsControllerTests
         var controller = new TripBookingsController(service, groupService);
         var orderId = Guid.NewGuid();
 
-        var groupingAction = await controller.GetGrouping(orderId, CancellationToken.None);
-        var cancelAction = await controller.Cancel(orderId, new CancelTripBookingRequest { Reason = "Bận đột xuất" }, CancellationToken.None);
+        var groupingAction = await controller.GetGroupingAsync(orderId, CancellationToken.None);
+        var cancelAction = await controller.CancelAsync(orderId, new CancelTripBookingRequest { Reason = "Bận đột xuất" }, CancellationToken.None);
 
         var groupingResult = Assert.IsType<OkObjectResult>(groupingAction);
         var groupingResponse = Assert.IsType<ApiResponse<CustomerTripGroupingResponse>>(groupingResult.Value);
@@ -187,7 +186,7 @@ public sealed class TripBookingsControllerTests
             => Task.FromResult(BookingResult);
     }
 
-    private sealed class FakeTripGroupService : ITripGroupService
+    private sealed class FakeTripGroupService : ITripGroupViewService
     {
         public Guid ReceivedOrderId { get; private set; }
 
@@ -199,21 +198,6 @@ public sealed class TripBookingsControllerTests
             return Task.FromResult(new CustomerTripGroupingResponse { GroupingStatus = "Pending" });
         }
 
-        public Task<TourGroupSettingsResponse> UpdateTourGroupSettingsAsync(Guid tourId, UpdateTourGroupSettingsRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TourRecurrenceRuleResponse> CreateRecurrenceRuleAsync(Guid tourId, CreateTourRecurrenceRuleRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<TourRecurrenceRuleResponse>> GetRecurrenceRulesAsync(Guid tourId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<GenerateRecurringTripsResponse> GenerateRecurringTripsAsync(GenerateRecurringTripsRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> GetAdminTripAsync(Guid tripId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> CreateTripAsync(CreateTripRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> UpdateTripAsync(Guid tripId, UpdateTripRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AdminTripResponse> UpdateTripStatusAsync(Guid tripId, UpdateTripStatusRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task AutoAssignPaidBookingInTransactionAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> GetGroupingSnapshotAsync(Guid tripId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> AssignGuideAsync(Guid tripId, Guid groupId, AssignTripGroupGuideRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> MoveBookingAsync(Guid tripId, Guid bookingOrderId, MoveBookingGroupRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> SplitBookingAsync(Guid tripId, Guid bookingOrderId, SplitTripBookingRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<RecalculateTripProvidedItemsResponse> RecalculateProvidedItemsAsync(Guid tripId, PublishTripGroupingRequest? request = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<TripGroupingSnapshotResponse> PublishGroupsAsync(Guid tripId, PublishTripGroupingRequest? request = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<GuideTripGroupResponse>> GetGuideGroupsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<GuideTripGroupResponse> GetGuideGroupByIdAsync(Guid groupId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }

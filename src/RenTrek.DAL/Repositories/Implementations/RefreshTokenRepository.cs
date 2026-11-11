@@ -40,6 +40,25 @@ public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshT
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<RefreshToken>> GetActiveByUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking().Where(x => x.UserId == userId && x.RevokedAt == null && x.ExpiresAt > now)
+            .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+
+    public Task<Dictionary<Guid, DateTime>> GetFamilyStartTimesAsync(
+        Guid userId, IReadOnlyCollection<Guid> familyIds, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking()
+            .Where(x => x.UserId == userId && familyIds.Contains(x.FamilyId))
+            .GroupBy(x => x.FamilyId)
+            .Select(g => new { g.Key, StartedAt = g.Min(x => x.CreatedAt) })
+            .ToDictionaryAsync(x => x.Key, x => x.StartedAt, cancellationToken);
+
+    public Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId && x.RefreshTokenId == refreshTokenId, cancellationToken);
+
+    public Task<List<RefreshToken>> GetByUserWithAccessTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken = default)
+        => _dbSet.Include(x => x.AccessTokens)
+            .Where(x => x.UserId == userId && (!familyId.HasValue || x.FamilyId == familyId)).ToListAsync(cancellationToken);
+
     public async Task RevokeFamilyTokensAsync(Guid familyId, string reason, CancellationToken cancellationToken = default)
     {
         var tokens = await _dbSet

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Options;
 

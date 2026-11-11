@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
     public DbSet<RentalCharge> RentalCharges => Set<RentalCharge>();
     public DbSet<RentalOrder> RentalOrders => Set<RentalOrder>();
     public DbSet<RentalOrderItem> RentalOrderItems => Set<RentalOrderItem>();
+    public DbSet<RentalOrderAdjustment> RentalOrderAdjustments => Set<RentalOrderAdjustment>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<SoftSkill> SoftSkills => Set<SoftSkill>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();

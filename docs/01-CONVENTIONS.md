@@ -552,6 +552,7 @@ Ví dụ cho module **Category** (🆕 tạo mới · ✏️ sửa file có sẵ
 | 2 | DAL | `src/RenTrek.DAL/Entities/Enums/CategoryStatus.cs` | 🆕 |
 | 3 | DAL | `src/RenTrek.DAL/Data/Configurations/CategoryConfiguration.cs` — do scaffold sinh | 🆕 |
 | 4 | DAL | `src/RenTrek.DAL/Data/AppDbContext.cs` — scaffold tự thêm `DbSet` | ✏️ |
+| 5 | DAL | `src/RenTrek.DAL/Models/CategoryFilter.cs` + `ICategoryRepository` / `CategoryRepository` (method truy vấn) | 🆕 / ✏️ |
 | 6 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/CreateCategoryRequest.cs` | 🆕 |
 | 7 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/UpdateCategoryRequest.cs` | 🆕 |
 | 8 | BLL | `src/RenTrek.BLL/DTOs/Category/Requests/CategoryQueryRequest.cs` | 🆕 |
@@ -818,19 +819,46 @@ public interface ICategoryService
 }
 ```
 
+**Truy vấn nằm ở DAL** — BLL không dùng EF Core (`Microsoft.EntityFrameworkCore`, `IQueryable`, `ProjectTo`); test `BllDoesNotDependOnPresentationOrDirectDataAccess` chặn việc này. Mỗi truy vấn là một method có tên trong repository:
+
+- Tham số lọc / phân trang gom vào `DAL/Models/{Tên}Filter.cs` (`public class`, `{ get; set; }`, có `PageNumber` / `PageSize`).
+- Danh sách cần projection trả `DAL/Models/{Tên}Row.cs`; còn lại trả entity (`AsNoTracking` khi chỉ đọc).
+- Phân trang dùng `RenTrek.DAL.Extensions.QueryPaging.ToPageAsync(...)` → `(Items, TotalCount)`.
+- BLL không truyền `Expression` xuống repository; cần kiểm tra trùng thì thêm method như `NameExistsAsync`.
+
+```csharp
+// src/RenTrek.DAL/Repositories/Implementations/CategoryRepository.cs (trích)
+public Task<(IReadOnlyList<Category> Items, int TotalCount)> GetPagedAsync(
+    CategoryFilter filter, CancellationToken cancellationToken = default)
+{
+    var query = _dbSet.AsNoTracking();
+    if (!string.IsNullOrWhiteSpace(filter.Search))
+        query = query.Where(c => c.Name.Contains(filter.Search));
+    if (filter.Status.HasValue)
+        query = query.Where(c => c.Status == filter.Status.Value);
+
+    var sorted = filter.SortBy?.ToLowerInvariant() == "name"
+        ? (filter.IsDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name))
+        : (filter.IsDescending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id));
+    return sorted.ToPageAsync(filter.PageNumber, filter.PageSize, c => c, cancellationToken);
+}
+
+public Task<bool> NameExistsAsync(string name, long? excludeId, CancellationToken cancellationToken = default)
+    => _dbSet.AnyAsync(c => c.Name == name && c.Id != excludeId, cancellationToken);
+```
+
 **Implementation** — nơi duy nhất chứa business logic. Vi phạm nghiệp vụ thì **throw** exception trong `RenTrek.BLL.Exceptions`.
 
 ```csharp
 // src/RenTrek.BLL/Services/Implementations/CategoryService.cs
 using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using RenTrek.BLL.DTOs.Category.Requests;
 using RenTrek.BLL.DTOs.Category.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.Exceptions;
-using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
+using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -851,23 +879,23 @@ public class CategoryService : ICategoryService
 
     public async Task<PagedResponse<CategoryResponse>> GetAllAsync(CategoryQueryRequest request, CancellationToken cancellationToken = default)
     {
-        var query = Categories.Query(); // AsNoTracking — chỉ đọc
-
-        if (!string.IsNullOrWhiteSpace(request.Search))
-            query = query.Where(c => c.Name.Contains(request.Search));
-
-        if (request.Status.HasValue)
-            query = query.Where(c => c.Status == request.Status.Value);
-
-        query = request.SortBy.ToLowerInvariant() switch
+        var (items, total) = await Categories.GetPagedAsync(new CategoryFilter
         {
-            "name" => request.IsDescending ? query.OrderByDescending(c => c.Name) : query.OrderBy(c => c.Name),
-            _ => request.IsDescending ? query.OrderByDescending(c => c.Id) : query.OrderBy(c => c.Id)
-        };
+            Search = request.Search,
+            Status = request.Status,
+            SortBy = request.SortBy,
+            IsDescending = request.IsDescending,
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize
+        }, cancellationToken);
 
-        return await query
-            .ProjectTo<CategoryResponse>(_mapper.ConfigurationProvider) // chỉ SELECT các cột cần
-            .ToPagedResponseAsync(request, cancellationToken);
+        return new PagedResponse<CategoryResponse>
+        {
+            Items = _mapper.Map<List<CategoryResponse>>(items),
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalItems = total
+        };
     }
 
     public async Task<CategoryResponse> GetByIdAsync(long id, CancellationToken cancellationToken = default)
@@ -878,7 +906,7 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryResponse> CreateAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
     {
-        if (await Categories.AnyAsync(c => c.Name == request.Name, cancellationToken))
+        if (await Categories.NameExistsAsync(request.Name, null, cancellationToken))
             throw new ConflictException("Tên danh mục đã tồn tại");
 
         var category = _mapper.Map<Category>(request);
@@ -892,7 +920,7 @@ public class CategoryService : ICategoryService
     {
         var category = await FindOrThrowAsync(id, cancellationToken);
 
-        if (await Categories.AnyAsync(c => c.Id != id && c.Name == request.Name, cancellationToken))
+        if (await Categories.NameExistsAsync(request.Name, id, cancellationToken))
             throw new ConflictException("Tên danh mục đã tồn tại");
 
         _mapper.Map(request, category); // entity đang được track → chỉ cần SaveChanges
@@ -1038,7 +1066,8 @@ Mở `https://localhost:7000/swagger` và test **đủ các case**:
 | `Unable to resolve service for type 'ICategoryService'` | Quên đăng ký DI | Thêm `AddScoped` trong `RenTrek.BLL/DependencyInjection.cs` |
 | Validator không chạy | Validator đặt ngoài `RenTrek.BLL` hoặc sai generic type | Đặt trong `RenTrek.BLL/Validators/...`, kế thừa `AbstractValidator<TênRequest>` |
 | `AutoMapperMappingException: Missing type map` | Chưa `CreateMap` cho cặp type đó | Thêm vào `{Module}Profile` |
-| Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ `Query()` (AsNoTracking) | Lấy bằng `GetByIdAsync` hoặc `QueryTracking()` khi cần sửa |
+| Sửa entity rồi `SaveChanges` nhưng DB không đổi | Entity lấy từ method đọc `AsNoTracking` của repository | Lấy bằng `GetByIdAsync` (có tracking) hoặc thêm method có tracking trong repository |
+| Test kiến trúc báo BLL phụ thuộc `Microsoft.EntityFrameworkCore` | Viết LINQ / `ToListAsync` trong service | Chuyển truy vấn vào method của repository, trả entity hoặc `Row` |
 | Scaffold báo `named connection string ... was not found` | Chưa đặt connection string | Điền `ConnectionStrings:DefaultConnection` trong `appsettings.Development.json` hoặc user-secrets |
 | Gõ thẳng lệnh `dotnet ef dbcontext scaffold Name=...` báo lỗi `Jwt:SecretKey` | EF chạy `Program.cs` để đọc cấu hình, thiếu JWT secret thì `Program.cs` dừng | Dùng `scripts/scaffold-db.ps1` (tự cấp key tạm), hoặc đặt `Jwt:SecretKey` bằng user-secrets |
 | Thiếu bảng sau khi scaffold | Bảng không nằm trong schema `public` | `./scripts/scaffold-db.ps1 -Schema public,<schema-khác>` |

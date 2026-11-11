@@ -16,5 +16,8 @@ public interface IPostService
     Task<AdminPostDetailResponse> GetAdminPostByIdAsync(Guid postId, CancellationToken cancellationToken = default);
     Task<AdminPostDetailResponse> CreateAsync(UpsertPostRequest request, CancellationToken cancellationToken = default);
     Task<AdminPostDetailResponse> UpdateAsync(Guid postId, UpsertPostRequest request, CancellationToken cancellationToken = default);
+    Task<AdminPostDetailResponse> PublishAsync(Guid postId, CancellationToken cancellationToken = default);
+    Task<AdminPostDetailResponse> ArchiveAsync(Guid postId, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid postId, CancellationToken cancellationToken = default);
+    Task<PostReadAnalyticsResponse> GetReadAnalyticsAsync(Guid postId, CancellationToken cancellationToken = default);
 }

@@ -1,10 +1,11 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.RentalOps.Requests;
 using RenTrek.BLL.DTOs.RentalOps.Responses;
+using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -19,6 +20,11 @@ namespace RenTrek.BLL.Services.Implementations;
 /// Mọi mốc thời gian lấy từ TimeProvider nên test được bằng đồng hồ giả lập ở Development.
 /// Quyết toán cọc chỉ tính số (PRD §8.7); việc chuyển tiền hoàn / thu thêm chưa có luồng tự động.
 /// </summary>
+/// <remarks>
+/// Gộp luồng trùng (2026-11-05, Tri Tin refactor, commit 89892ac): bỏ /admin/management/rental-orders*
+/// (AdminRentalOrdersController trong Controllers/Admin + AdminService.Orders, do TIGER.ER viết, commit 6cf600b) và
+/// FulfillmentService / RentalHandoverController / RentalChargesController theo orderCode (do vietbach17 viết, commit 88a8961).
+/// </remarks>
 public sealed class RentalFulfillmentService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
@@ -31,56 +37,42 @@ public sealed class RentalFulfillmentService(
 
     // ---------- Đọc ----------
 
-    public Task<PagedResponse<AdminRentalOrderListItemResponse>> GetListAsync(
+    public async Task<PagedResponse<AdminRentalOrderListItemResponse>> GetListAsync(
         AdminRentalOrderQueryRequest query,
         CancellationToken cancellationToken = default)
     {
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        var orders = unitOfWork.Orders.Query()
-            .Where(o => !o.IsDeleted && o.OrderType == OrderTypes.Rental && o.RentalOrder != null);
-
-        if (!string.IsNullOrWhiteSpace(query.Status))
-            orders = orders.Where(o => o.Status == query.Status);
-
-        if (query.OverdueOnly)
-            orders = orders.Where(o => o.RentalOrder!.RentalEndAt < now
-                                       && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
-                                           && i.AssetAssignments.Any(a => a.Status == AssignmentStatuses.Issued)));
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        var (items, total) = await unitOfWork.RentalOrders.GetAdminPagedAsync(new AdminRentalOrderFilter
         {
-            var search = query.Search.Trim().ToLower();
-            orders = orders.Where(o => o.OrderCode.ToLower().Contains(search)
-                                       || o.CustomerUser.FullName.ToLower().Contains(search)
-                                       || o.CustomerUser.Email.ToLower().Contains(search));
-        }
+            Status = query.Status,
+            OverdueOnly = query.OverdueOnly,
+            Search = query.Search,
+            Now = timeProvider.GetUtcNow().UtcDateTime,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        }, cancellationToken);
 
-        return orders
-            .OrderByDescending(o => o.RentalOrder!.RentalStartAt)
-            .ThenBy(o => o.OrderId)
-            .Select(o => new AdminRentalOrderListItemResponse
+        return new PagedResponse<AdminRentalOrderListItemResponse>
+        {
+            Items = items.Select(o => new AdminRentalOrderListItemResponse
             {
                 OrderId = o.OrderId,
                 OrderCode = o.OrderCode,
-                CustomerName = o.CustomerUser.FullName,
+                CustomerName = o.CustomerName,
                 Status = o.Status,
                 PaymentStatus = o.PaymentStatus,
-                RentalStartAt = o.RentalOrder!.RentalStartAt,
-                RentalEndAt = o.RentalOrder.RentalEndAt,
+                RentalStartAt = o.RentalStartAt,
+                RentalEndAt = o.RentalEndAt,
                 TotalAmount = o.TotalAmount,
-                AssetsCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status != AssignmentStatuses.Cancelled),
-                IssuedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == AssignmentStatuses.Issued),
-                ReturnedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
-                    .SelectMany(i => i.AssetAssignments)
-                    .Count(a => a.Status == AssignmentStatuses.Returned || a.Status == AssignmentStatuses.LostOrException),
-                DraftChargesCount = o.RentalOrder.RentalCharges.Count(c => c.Status == RentalChargeStatuses.Draft),
-                IsOverdue = o.RentalOrder.RentalEndAt < now
-                            && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
-                                && i.AssetAssignments.Any(a => a.Status == AssignmentStatuses.Issued))
-            })
-            .ToPagedResponseAsync(query, cancellationToken);
+                AssetsCount = o.AssetsCount,
+                IssuedCount = o.IssuedCount,
+                ReturnedCount = o.ReturnedCount,
+                DraftChargesCount = o.DraftChargesCount,
+                IsOverdue = o.IsOverdue
+            }).ToList(),
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalItems = total
+        };
     }
 
     public async Task<AdminRentalOrderDetailResponse> GetDetailAsync(Guid orderId, CancellationToken cancellationToken = default)
@@ -92,13 +84,165 @@ public sealed class RentalFulfillmentService(
         return MapDetail(detail, timeProvider.GetUtcNow().UtcDateTime, graceHours);
     }
 
+    /// <summary>Lấy danh sách thiết bị cần giao theo ngày giờ Việt Nam (mặc định hôm nay UTC+7).</summary>
+    public async Task<AdminRentalScheduleResponse> GetHandoverListAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var (date, startUtc, endUtc) = ResolveVietnamDayRange(targetDate);
+        var rows = await unitOfWork.RentalOrders.GetHandoverScheduleAsync(startUtc, endUtc, cancellationToken);
+        return MapSchedule(date, rows);
+    }
+
+    /// <summary>Xuất CSV danh sách thiết bị cần giao theo ngày giờ Việt Nam, kèm UTF-8 BOM.</summary>
+    public async Task<(byte[] FileBytes, string FileName)> ExportHandoverListCsvAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var schedule = await GetHandoverListAsync(targetDate, cancellationToken);
+        var csv = BuildScheduleCsv("GioNhan", schedule.Items);
+        var fileName = $"handover-{schedule.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv";
+        return (CsvHelper.ToUtf8WithBom(csv), fileName);
+    }
+
+    /// <summary>Lấy danh sách thiết bị cần nhận lại theo ngày giờ Việt Nam (mặc định hôm nay UTC+7).</summary>
+    public async Task<AdminRentalScheduleResponse> GetReturnListAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var (date, startUtc, endUtc) = ResolveVietnamDayRange(targetDate);
+        var rows = await unitOfWork.RentalOrders.GetReturnScheduleAsync(startUtc, endUtc, cancellationToken);
+        return MapSchedule(date, rows);
+    }
+
+    /// <summary>Xuất CSV danh sách thiết bị cần nhận lại theo ngày giờ Việt Nam, kèm UTF-8 BOM.</summary>
+    public async Task<(byte[] FileBytes, string FileName)> ExportReturnListCsvAsync(
+        DateOnly? targetDate,
+        CancellationToken cancellationToken = default)
+    {
+        var schedule = await GetReturnListAsync(targetDate, cancellationToken);
+        var csv = BuildScheduleCsv("GioTra", schedule.Items);
+        var fileName = $"return-{schedule.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv";
+        return (CsvHelper.ToUtf8WithBom(csv), fileName);
+    }
+
+    /// <summary>Lịch sử điều chỉnh (gia hạn) của đơn thuê cho màn vận hành, cũ nhất trước.</summary>
+    public async Task<List<RentalOrderAdjustmentResponse>> GetAdjustmentsAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var rows = await unitOfWork.RentalOrders.GetAdjustmentsAsync(orderId, null, cancellationToken);
+        if (rows is null)
+        {
+            throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
+        }
+
+        return rows.Select(MapAdjustmentResponse).ToList();
+    }
+
+    private static RentalOrderAdjustmentResponse MapAdjustmentResponse(RentalOrderAdjustmentRow r) => new()
+    {
+        Id = r.Id,
+        AdjustmentType = r.AdjustmentType,
+        OldEndAt = RentalPeriodCalculator.ToUtc(r.OldEndAt),
+        NewEndAt = RentalPeriodCalculator.ToUtc(r.NewEndAt),
+        ExtraAmount = r.ExtraAmount,
+        RequestedByUserId = r.RequestedByUserId,
+        RequestedByName = r.RequestedByName,
+        CreatedAt = RentalPeriodCalculator.ToUtc(r.CreatedAt)
+    };
+
+    private (DateOnly Date, DateTime RangeStartUtc, DateTime RangeEndUtc) ResolveVietnamDayRange(DateOnly? targetDate)
+    {
+        var date = targetDate ?? DateOnly.FromDateTime(timeProvider.GetUtcNow().ToOffset(VietnamOffset).DateTime);
+        var startLocal = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), VietnamOffset);
+        var startUtc = startLocal.UtcDateTime;
+        return (date, startUtc, startUtc.AddDays(1));
+    }
+
+    private static AdminRentalScheduleResponse MapSchedule(DateOnly date, IReadOnlyList<AdminRentalScheduleRow> rows)
+        => new()
+        {
+            Date = date,
+            TotalItems = rows.Count,
+            Items = rows.Select(r => new AdminRentalScheduleItemResponse
+            {
+                OrderId = r.OrderId,
+                OrderCode = r.OrderCode,
+                CustomerName = r.CustomerName,
+                CustomerPhone = r.CustomerPhone,
+                ProductName = r.ProductName,
+                VariantName = r.VariantName,
+                AssetCode = r.AssetCode,
+                ScheduledAt = RentalPeriodCalculator.ToUtc(r.ScheduledAt),
+                Status = r.Status
+            }).ToList()
+        };
+
+    private static string BuildScheduleCsv(string timeColumnHeader, IReadOnlyList<AdminRentalScheduleItemResponse> items)
+    {
+        var sb = new StringBuilder();
+        sb.Append("MaDon,TenKhach,SDT,SanPham,BienThe,MaTaiSan,")
+            .Append(timeColumnHeader)
+            .Append(",TrangThai\r\n");
+
+        foreach (var item in items)
+        {
+            var scheduledVn = new DateTimeOffset(RentalPeriodCalculator.ToUtc(item.ScheduledAt), TimeSpan.Zero)
+                .ToOffset(VietnamOffset)
+                .ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+            sb.Append(CsvHelper.BuildRow(
+                    item.OrderCode,
+                    item.CustomerName,
+                    item.CustomerPhone,
+                    item.ProductName,
+                    item.VariantName,
+                    item.AssetCode,
+                    scheduledVn,
+                    item.Status))
+                .Append("\r\n");
+        }
+
+        return sb.ToString();
+    }
+
+    // ---------- Người phụ trách (FR-R05) ----------
+
+    // Staff nhận đơn chưa có ai phụ trách; Admin được nhận lại đơn của người khác. Mọi lần đổi đều ghi audit.
+    public Task<AdminRentalOrderDetailResponse> ClaimAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => MutateAsync(orderId, "RentalClaim", (order, _, actorId) =>
+        {
+            EnsureStatus(order, OrderStatuses.PendingPayment, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
+            var rental = order.RentalOrder!;
+            var previous = rental.HandledByUserId;
+            if (!RentalFulfillmentRules.CanClaim(previous, actorId, IsAdmin))
+                throw new ConflictException("Đơn thuê đã có người phụ trách");
+
+            rental.HandledByUserId = actorId;
+            return new { previousHandledByUserId = previous, handledByUserId = actorId };
+        }, cancellationToken);
+
     // ---------- Giao đồ (FR-R06) ----------
 
     public Task<AdminRentalOrderDetailResponse> HandoverAsync(
         Guid orderId,
         HandoverRentalRequest request,
         CancellationToken cancellationToken = default)
-        => MutateAsync(orderId, "RentalHandover", (order, now, actorId) =>
+        => IssueAsync(orderId, "RentalHandover",
+            reserved => RentalFulfillmentRules.PickForHandover(reserved, request.AssignmentIds), cancellationToken);
+
+    public Task<AdminRentalOrderDetailResponse> ScanHandoverAsync(
+        Guid orderId,
+        ScanHandoverRequest request,
+        CancellationToken cancellationToken = default)
+        => IssueAsync(orderId, "RentalHandoverScan",
+            reserved => RentalFulfillmentRules.PickByCode(reserved, request.AssetCode), cancellationToken);
+
+    private Task<AdminRentalOrderDetailResponse> IssueAsync(
+        Guid orderId,
+        string auditAction,
+        Func<List<AssetAssignment>, List<AssetAssignment>> pick,
+        CancellationToken cancellationToken)
+        => MutateAsync(orderId, auditAction, (order, now, actorId) =>
         {
             EnsureStatus(order, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
             if (order.PaymentStatus != OrderPaymentStatuses.Paid)
@@ -113,16 +257,9 @@ public sealed class RentalFulfillmentService(
                 throw new ConflictException("Đã quá thời gian thuê, không thể giao đồ");
 
             var reserved = Assignments(order).Where(a => a.Status == AssignmentStatuses.Reserved).ToList();
-            var targets = reserved;
-            if (request.AssignmentIds is { Count: > 0 } ids)
-            {
-                targets = reserved.Where(a => ids.Contains(a.AssetAssignmentId)).ToList();
-                if (targets.Count != ids.Distinct().Count())
-                    throw new ConflictException("Có thiết bị không ở trạng thái chờ giao");
-            }
-
-            if (targets.Count == 0)
+            if (reserved.Count == 0)
                 throw new ConflictException("Không còn thiết bị chờ giao");
+            var targets = pick(reserved);
 
             var unusable = targets
                 .Where(a => a.EquipmentAsset.AssetStatus is not (EquipmentAssetStatuses.Available or EquipmentAssetStatuses.Good))
@@ -301,6 +438,8 @@ public sealed class RentalFulfillmentService(
             var charge = FindCharge(order, chargeId);
             if (charge.Status is not (RentalChargeStatuses.Draft or RentalChargeStatuses.Assessed))
                 throw new ConflictException("Phí này không thể hủy", ErrorCodes.ChargeNotReviewable);
+            if (!RentalFulfillmentRules.CanVoid(charge.Status, IsAdmin))
+                throw new ForbiddenException("Chỉ quản trị viên được hủy phí đã xác nhận");
 
             // Không xóa: giữ dấu vết, lý do nằm trong audit log (FR-C04)
             var previousStatus = charge.Status;
@@ -342,9 +481,19 @@ public sealed class RentalFulfillmentService(
             var order = await unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
 
+            // PRD §3.2 "G": đơn đã có Staff khác nhận thì chỉ người đó hoặc Admin được thao tác (Claim tự trả Conflict riêng).
+            if (auditAction != "RentalClaim"
+                && !RentalFulfillmentRules.CanClaim(order.RentalOrder!.HandledByUserId, actorId, IsAdmin))
+                throw new ForbiddenException("Đơn thuê đang do nhân viên khác phụ trách");
+
             var now = timeProvider.GetUtcNow();
+            var existingCharges = order.RentalOrder!.RentalCharges.ToHashSet();
             var details = apply(order, now.UtcDateTime, actorId);
             order.UpdatedAt = now;
+
+            // Khóa có HasDefaultValueSql: phí mới gán sẵn Id mà chỉ add qua navigation thì EF tưởng bản ghi cũ (UPDATE 0 dòng).
+            foreach (var charge in order.RentalOrder.RentalCharges.Where(c => !existingCharges.Contains(c)))
+                await unitOfWork.RentalCharges.AddAsync(charge, cancellationToken);
 
             await unitOfWork.AuditLogs.AddAsync(new AuditLog
             {
@@ -368,6 +517,8 @@ public sealed class RentalFulfillmentService(
 
         return await GetDetailAsync(orderId, cancellationToken);
     }
+
+    private bool IsAdmin => currentUser.Role == RoleNames.Admin;
 
     private static IEnumerable<AssetAssignment> Assignments(Order order)
         => order.RentalOrder!.RentalOrderItems.SelectMany(i => i.AssetAssignments);
@@ -419,7 +570,7 @@ public sealed class RentalFulfillmentService(
             : RentalConfigKeys.DefaultLateGraceHours;
     }
 
-    private static string Format(DateTime utc) => new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm");
+    private static string Format(DateTime utc) => new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 
     private static AdminRentalOrderDetailResponse MapDetail(RentalOrderDetailRow detail, DateTime now, decimal graceHours)
     {

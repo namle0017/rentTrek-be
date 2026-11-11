@@ -44,7 +44,7 @@ public sealed class RefundCaseServiceTests
         };
         fixture.Collected = 2_000_000m;
 
-        var quote = await fixture.Service.QuoteAsync(order, Now);
+        var quote = await fixture.Service.QuoteAsync(RefundOrderInput.From(order), Now);
 
         Assert.Equal(1_600_000m, quote.RefundAmount);
         Assert.Equal(72, quote.Rule!.MinHoursBefore);
@@ -55,8 +55,10 @@ public sealed class RefundCaseServiceTests
     {
         var fixture = new Fixture();
 
+        var order = fixture.NewOrder();
+        order.TripBookingOrder = new TripBookingOrder { Trip = new Trip() };
         var summary = await fixture.Service.OpenForCancellationAsync(
-            fixture.NewOrder(),
+            RefundOrderInput.From(order),
             new RefundQuoteResult { RefundAmount = 1_600_000m },
             new RefundBankAccountRequest { BankCode = "VCB", AccountNumber = "0123456789", AccountHolder = " nguyen   van a " },
             RefundBankCodes.ConsentVersion,
@@ -478,19 +480,22 @@ public sealed class RefundCaseServiceTests
                 {
                     AuditLogs.Add((AuditLog)args[0]!);
                     return Task.CompletedTask;
-                }))),
+                }
+                ))),
                 ("get_Notifications", _ => TestProxy.Create<INotificationRepository>(("AddAsync", _ => Task.CompletedTask))),
                 ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(
                     ("AddAsync", args =>
                     {
                         Payments.Add((Payment)args[0]!);
                         return Task.CompletedTask;
-                    }),
+                    }
+                ),
                     ("AcquireOrderLockAsync", _ =>
                     {
                         PaymentOrderLockAcquired = true;
                         return Task.CompletedTask;
-                    }),
+                    }
+                ),
                     ("ProviderTransactionExistsAsync", _ => Task.FromResult(false)))),
                 ("get_Accounts", _ => TestProxy.Create<IAccountRepository>(
                     ("GetByIdWithRoleAsync", _ => Task.FromResult<Account?>(new Account
@@ -505,7 +510,8 @@ public sealed class RefundCaseServiceTests
                 {
                     Commits++;
                     return Task.CompletedTask;
-                }),
+                }
+            ),
                 ("SaveChangesAsync", _ => Task.FromResult(1)));
 
             var currentUser = TestProxy.Create<ICurrentUserService>(
@@ -518,7 +524,8 @@ public sealed class RefundCaseServiceTests
             {
                 LastCode = Regex.Match((string)args[3]!, @"\d{6}").Value;
                 return Task.CompletedTask;
-            }));
+            }
+            ));
 
             Service = new RefundCaseService(
                 unitOfWork,
@@ -527,7 +534,8 @@ public sealed class RefundCaseServiceTests
                 Protector,
                 new RefundVerificationService(unitOfWork, hasher, Time),
                 email,
-                NullLogger<RefundCaseService>.Instance);
+                NullLogger<RefundCaseService>.Instance,
+                TestProxy.Create<INotificationService>());
         }
 
         public Guid Customer { get; } = Guid.NewGuid();
@@ -616,7 +624,8 @@ public sealed class RefundCaseServiceTests
                 {
                     CaseOpened = true;
                     return Task.FromResult(new RefundCaseSummaryResponse());
-                }));
+                }
+            ));
 
             Service = new TripBookingService(
                 unitOfWork,
@@ -624,6 +633,7 @@ public sealed class RefundCaseServiceTests
                 new FixedTime(),
                 TestProxy.Create<IInviteTokenHelper>(),
                 Microsoft.Extensions.Options.Options.Create(new EmailSettings()),
+                TestProxy.Create<INotificationService>(),
                 refundCases);
         }
 

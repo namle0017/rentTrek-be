@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RenTrek.DAL.Data;
+using RenTrek.DAL.Extensions;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.Repositories.Interfaces;
@@ -58,16 +59,23 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
     public Task AcquireFulfillmentLockAsync(Guid orderId, CancellationToken cancellationToken = default)
         => PostgresAdvisoryLock.AcquireAsync(_context, $"rental-order:fulfillment:{orderId:N}", cancellationToken);
 
-    public Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
-        => _context.Orders
+    public async Task<Order?> GetForFulfillmentAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        // Khóa dòng orders giống AdminOperationRepository ("order:" lock) để khách hủy / nhận-trả không ghi đè thao tác admin đang chạy
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT order_id FROM orders WHERE order_id = {orderId} FOR UPDATE", cancellationToken);
+        return await _context.Orders
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalOrderItems.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.AssetAssignments).ThenInclude(a => a.EquipmentAsset)
             .Include(o => o.RentalOrder!).ThenInclude(r => r.RentalCharges)
+            .Include(o => o.AppliedPromotions).ThenInclude(p => p.AssetAssignments)
+            .Include(o => o.Payments)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.OrderId == orderId
                                       && !o.IsDeleted
                                       && o.OrderType == RentalOrderType
                                       && o.RentalOrder != null, cancellationToken);
+    }
 
     // customerUserId null = màn vận hành (Staff/Admin) đọc mọi đơn
     private async Task<RentalOrderDetailRow?> LoadDetailAsync(
@@ -214,24 +222,168 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => _context.Orders.AddAsync(order, cancellationToken).AsTask();
 
-    public async Task<RentalOrder?> GetByOrderCodeWithFulfillmentAsync(string orderCode, CancellationToken cancellationToken = default)
+    public Task<(IReadOnlyList<AdminRentalOrderRow> Items, int TotalCount)> GetAdminPagedAsync(
+        AdminRentalOrderFilter filter,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.RentalOrders
-            .Include(ro => ro.Order)
-                .ThenInclude(o => o.CustomerUser)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.ProductVariant)
-                    .ThenInclude(pv => pv!.Product)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.Bundle)
-            .Include(ro => ro.RentalOrderItems.Where(roi => !roi.IsDeleted))
-                .ThenInclude(roi => roi.AssetAssignments)
-                    .ThenInclude(a => a.EquipmentAsset)
-                        .ThenInclude(ea => ea.ProductVariant)
-            .Include(ro => ro.RentalCharges)
-                .ThenInclude(rc => rc.EquipmentAsset)
-            .Include(ro => ro.RentalCharges)
-                .ThenInclude(rc => rc.CreatedByUser)
-            .FirstOrDefaultAsync(ro => ro.Order.OrderCode == orderCode, cancellationToken);
+        // Giá trị asset_assignments.status / rental_charges.status (xem RenTrek.BLL.Constants)
+        const string Issued = "Issued", Returned = "Returned", Lost = "LostOrException", Cancelled = "Cancelled", Draft = "Draft";
+        var now = filter.Now;
+
+        var orders = _context.Orders.AsNoTracking()
+            .Where(o => !o.IsDeleted && o.OrderType == RentalOrderType && o.RentalOrder != null);
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+            orders = orders.Where(o => o.Status == filter.Status);
+
+        if (filter.OverdueOnly)
+            orders = orders.Where(o => o.RentalOrder!.RentalEndAt < now
+                                       && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
+                                           && i.AssetAssignments.Any(a => a.Status == Issued)));
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            orders = orders.Where(o => o.OrderCode.ToLower().Contains(search)
+                                       || o.CustomerUser.FullName.ToLower().Contains(search)
+                                       || o.CustomerUser.Email.ToLower().Contains(search));
+        }
+
+        return orders
+            .OrderByDescending(o => o.RentalOrder!.RentalStartAt)
+            .ThenBy(o => o.OrderId)
+            .ToPageAsync(filter.PageNumber, filter.PageSize, o => new AdminRentalOrderRow
+            {
+                OrderId = o.OrderId,
+                OrderCode = o.OrderCode,
+                CustomerName = o.CustomerUser.FullName,
+                Status = o.Status,
+                PaymentStatus = o.PaymentStatus,
+                RentalStartAt = o.RentalOrder!.RentalStartAt,
+                RentalEndAt = o.RentalOrder.RentalEndAt,
+                TotalAmount = o.TotalAmount,
+                AssetsCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status != Cancelled),
+                IssuedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == Issued),
+                ReturnedCount = o.RentalOrder.RentalOrderItems.Where(i => !i.IsDeleted)
+                    .SelectMany(i => i.AssetAssignments).Count(a => a.Status == Returned || a.Status == Lost),
+                DraftChargesCount = o.RentalOrder.RentalCharges.Count(c => c.Status == Draft),
+                IsOverdue = o.RentalOrder.RentalEndAt < now
+                            && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
+                                && i.AssetAssignments.Any(a => a.Status == Issued))
+            }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AdminRentalScheduleRow>> GetHandoverScheduleAsync(
+        DateTime rangeStartUtc,
+        DateTime rangeEndUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string Confirmed = "Confirmed", InFulfillment = "InFulfillment", Reserved = "Reserved";
+
+        return await _context.Set<AssetAssignment>()
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(a => a.RentalOrderItem != null
+                        && !a.RentalOrderItem.IsDeleted
+                        && !a.RentalOrderItem.RentalOrder.Order.IsDeleted
+                        && a.RentalOrderItem.RentalOrder.Order.OrderType == RentalOrderType
+                        && (a.RentalOrderItem.RentalOrder.Order.Status == Confirmed
+                            || a.RentalOrderItem.RentalOrder.Order.Status == InFulfillment)
+                        && a.Status == Reserved
+                        && a.RentalOrderItem.RentalOrder.RentalStartAt >= rangeStartUtc
+                        && a.RentalOrderItem.RentalOrder.RentalStartAt < rangeEndUtc)
+            .OrderBy(a => a.RentalOrderItem!.RentalOrder.RentalStartAt)
+            .ThenBy(a => a.RentalOrderItem!.RentalOrder.Order.OrderCode)
+            .ThenBy(a => a.EquipmentAsset.AssetCode)
+            .Select(a => new AdminRentalScheduleRow
+            {
+                OrderId = a.RentalOrderItem!.RentalOrderId,
+                OrderCode = a.RentalOrderItem.RentalOrder.Order.OrderCode,
+                CustomerName = a.RentalOrderItem.RentalOrder.Order.CustomerUser.FullName,
+                CustomerPhone = a.RentalOrderItem.RentalOrder.Order.CustomerUser.Phone,
+                ProductName = a.EquipmentAsset.ProductVariant.Product.Name,
+                VariantName = a.EquipmentAsset.ProductVariant.Name,
+                AssetCode = a.EquipmentAsset.AssetCode,
+                ScheduledAt = a.RentalOrderItem.RentalOrder.RentalStartAt,
+                Status = a.Status
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AdminRentalScheduleRow>> GetReturnScheduleAsync(
+        DateTime rangeStartUtc,
+        DateTime rangeEndUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string Confirmed = "Confirmed", InFulfillment = "InFulfillment", Issued = "Issued";
+
+        return await _context.Set<AssetAssignment>()
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(a => a.RentalOrderItem != null
+                        && !a.RentalOrderItem.IsDeleted
+                        && !a.RentalOrderItem.RentalOrder.Order.IsDeleted
+                        && a.RentalOrderItem.RentalOrder.Order.OrderType == RentalOrderType
+                        && (a.RentalOrderItem.RentalOrder.Order.Status == Confirmed
+                            || a.RentalOrderItem.RentalOrder.Order.Status == InFulfillment)
+                        && a.Status == Issued
+                        && a.ReturnedAt == null
+                        && a.RentalOrderItem.RentalOrder.RentalEndAt >= rangeStartUtc
+                        && a.RentalOrderItem.RentalOrder.RentalEndAt < rangeEndUtc)
+            .OrderBy(a => a.RentalOrderItem!.RentalOrder.RentalEndAt)
+            .ThenBy(a => a.RentalOrderItem!.RentalOrder.Order.OrderCode)
+            .ThenBy(a => a.EquipmentAsset.AssetCode)
+            .Select(a => new AdminRentalScheduleRow
+            {
+                OrderId = a.RentalOrderItem!.RentalOrderId,
+                OrderCode = a.RentalOrderItem.RentalOrder.Order.OrderCode,
+                CustomerName = a.RentalOrderItem.RentalOrder.Order.CustomerUser.FullName,
+                CustomerPhone = a.RentalOrderItem.RentalOrder.Order.CustomerUser.Phone,
+                ProductName = a.EquipmentAsset.ProductVariant.Product.Name,
+                VariantName = a.EquipmentAsset.ProductVariant.Name,
+                AssetCode = a.EquipmentAsset.AssetCode,
+                ScheduledAt = a.RentalOrderItem.RentalOrder.RentalEndAt,
+                Status = a.Status
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task AddAdjustmentAsync(RentalOrderAdjustment adjustment, CancellationToken cancellationToken = default)
+        => _context.RentalOrderAdjustments.AddAsync(adjustment, cancellationToken).AsTask();
+
+    public async Task<List<RentalOrderAdjustmentRow>?> GetAdjustmentsAsync(
+        Guid orderId,
+        Guid? customerUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var exists = await _context.Orders
+            .IgnoreQueryFilters()
+            .AnyAsync(o => o.OrderId == orderId
+                           && (customerUserId == null || o.CustomerUserId == customerUserId)
+                           && !o.IsDeleted
+                           && o.OrderType == RentalOrderType
+                           && o.RentalOrder != null, cancellationToken);
+        if (!exists)
+            return null;
+
+        return await _context.RentalOrderAdjustments
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.RentalOrderId == orderId)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.RentalOrderAdjustmentId)
+            .Select(x => new RentalOrderAdjustmentRow
+            {
+                Id = x.RentalOrderAdjustmentId,
+                AdjustmentType = x.AdjustmentType,
+                OldEndAt = x.OldEndAt,
+                NewEndAt = x.NewEndAt,
+                ExtraAmount = x.ExtraAmount,
+                RequestedByUserId = x.RequestedByUserId,
+                RequestedByName = x.RequestedByUser.FullName,
+                CreatedAt = x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
     }
 }

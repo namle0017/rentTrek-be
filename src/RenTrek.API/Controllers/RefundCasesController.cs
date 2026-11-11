@@ -15,7 +15,8 @@ namespace RenTrek.API.Controllers;
 public sealed class RefundCasesController(IRefundCaseService refundCaseService) : ControllerBase
 {
     [HttpGet("{refundCaseId:guid}")]
-    public async Task<IActionResult> GetById(Guid refundCaseId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<RefundCaseResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByIdAsync(Guid refundCaseId, CancellationToken cancellationToken)
     {
         var result = await refundCaseService.GetAsync(refundCaseId, cancellationToken);
         return Ok(ApiResponse<RefundCaseResponse>.Ok(result, "Lấy hồ sơ hoàn tiền thành công"));

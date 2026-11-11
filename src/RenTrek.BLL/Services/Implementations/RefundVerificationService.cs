@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
@@ -21,7 +23,7 @@ public sealed class RefundVerificationService(
     private static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan IssueWindow = TimeSpan.FromMinutes(15);
 
-    public async Task<(RefundActionChallenge Challenge, string Code)> IssueAsync(
+    public async Task<(RefundChallengeResponse Challenge, string Code)> IssueAsync(
         Guid adminUserId,
         CancellationToken cancellationToken = default)
     {
@@ -37,7 +39,7 @@ public sealed class RefundVerificationService(
         foreach (var open in await unitOfWork.RefundCases.GetOpenChallengesAsync(adminUserId, cancellationToken))
             open.UsedAt = utcNow;
 
-        var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+        var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
         var challenge = new RefundActionChallenge
         {
             ChallengeId = Guid.NewGuid(),
@@ -47,7 +49,7 @@ public sealed class RefundVerificationService(
             CreatedAt = utcNow
         };
         await unitOfWork.RefundCases.AddChallengeAsync(challenge, cancellationToken);
-        return (challenge, code);
+        return (new RefundChallengeResponse { ChallengeId = challenge.ChallengeId, ExpiresAt = challenge.ExpiresAt }, code);
     }
 
     public async Task<string?> VerifyAsync(

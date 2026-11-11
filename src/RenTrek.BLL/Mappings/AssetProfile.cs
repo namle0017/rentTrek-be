@@ -1,4 +1,4 @@
-using AutoMapper;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Warehouse.Responses;
 using RenTrek.DAL.Entities;
 
@@ -16,7 +16,7 @@ public class AssetProfile : AutoMapper.Profile
             .ForMember(dest => dest.VariantName, opt => opt.MapFrom(src => src.ProductVariant.Name))
             .ForMember(dest => dest.CurrentAssignment, opt => opt.MapFrom(src =>
                 src.AssetAssignments
-                    .Where(x => x.Status == "Issued" || x.Status == "Reserved")
+                    .Where(x => x.Status == AssignmentStatuses.Issued || x.Status == AssignmentStatuses.Reserved)
                     .OrderByDescending(x => x.ReservedFrom)
                     .Select(x => new AssetCurrentAssignmentResponse
                     {

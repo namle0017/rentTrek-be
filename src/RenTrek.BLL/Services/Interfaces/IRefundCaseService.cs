@@ -2,18 +2,17 @@ using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Refund.Internal;
 using RenTrek.BLL.DTOs.Refund.Requests;
 using RenTrek.BLL.DTOs.Refund.Responses;
-using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Services.Interfaces;
 
 public interface IRefundCaseService
 {
     // Dùng trong luồng hủy booking
-    Task<RefundQuoteResult> QuoteAsync(Order order, DateTimeOffset utcNow, CancellationToken cancellationToken = default);
+    Task<RefundQuoteResult> QuoteAsync(RefundOrderInput order, DateTimeOffset utcNow, CancellationToken cancellationToken = default);
 
     /// <summary>Tạo Payment Refund + RefundCase trong transaction của caller; không tự commit.</summary>
     Task<RefundCaseSummaryResponse> OpenForCancellationAsync(
-        Order order,
+        RefundOrderInput order,
         RefundQuoteResult quote,
         RefundBankAccountRequest bankAccount,
         string consentVersion,

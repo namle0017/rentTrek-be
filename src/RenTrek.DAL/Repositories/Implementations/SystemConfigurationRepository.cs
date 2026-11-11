@@ -20,4 +20,10 @@ public class SystemConfigurationRepository : GenericRepository<SystemConfigurati
             .Where(c => c.ConfigKey == key && !c.IsDeleted)
             .Select(c => (string?)c.ConfigValue)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<List<SystemConfiguration>> GetActiveAsync(CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking().Where(c => !c.IsDeleted).OrderBy(c => c.ConfigKey).ToListAsync(cancellationToken);
+
+    public Task<SystemConfiguration?> GetForUpdateAsync(string key, CancellationToken cancellationToken = default)
+        => _dbSet.SingleOrDefaultAsync(c => c.ConfigKey == key && !c.IsDeleted, cancellationToken);
 }

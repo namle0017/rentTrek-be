@@ -12,13 +12,11 @@ public sealed class UpsertPostRequest
 
     public string PostType { get; set; } = string.Empty;
 
-    /// <summary>Văn bản thuần; dòng bắt đầu bằng "## " là tiêu đề mục.</summary>
+    /// <summary>Markdown. Bài mới luôn là Draft; đổi trạng thái qua publish / archive.</summary>
     public string Content { get; set; } = string.Empty;
 
-    public string Status { get; set; } = string.Empty;
-
-    /// <summary>Tên tag; tag chưa có sẽ được tạo nhanh.</summary>
-    public List<string> TagNames { get; set; } = [];
+    /// <summary>Tag lấy từ GET /admin/tags.</summary>
+    public List<Guid> TagIds { get; set; } = [];
 
     public List<Guid> SoftSkillIds { get; set; } = [];
 

@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using RenTrek.API.Common;
-using RenTrek.BLL.Services.Admin;
+using RenTrek.BLL.Services.Interfaces;
 using System.Security.Claims;
 
 namespace RenTrek.API.Extensions;

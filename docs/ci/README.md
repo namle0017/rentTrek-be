@@ -65,7 +65,7 @@ are placed under `artifacts/`. No arbitrary coverage percentage is enforced.
 | API references DAL only for registration in global Program | Project graph, NetArchTest IL checks, complete Cecil type-reference metadata (includes async/lambda generated code); only `DAL.DependencyInjection` is allowed in API metadata |
 | BLL cannot depend on API/ASP.NET Core/DbContext/concrete repositories/UoW | NetArchTest IL dependency checks |
 | DAL cannot depend on BLL/API/ASP.NET Core | NetArchTest IL dependency checks |
-| §6.8: services inject interfaces and use IUnitOfWork instead of direct repositories | Constructor parameter reflection |
+| §6.8: services inject interfaces, use IUnitOfWork instead of direct repositories, and never reference EF Core | Constructor parameter reflection |
 | Entities must not cross BLL service contracts or HTTP DTO properties | Recursive generic/array parameter/return/property inspection; DAL enums are allowed |
 | Controllers do not catch exceptions; repositories do not save changes | Roslyn invocation/catch syntax checks |
 | DTO roles and suffixes | Existing `DtoNamingConventionTests`, run explicitly in Architecture as well as existing unit suite |

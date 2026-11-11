@@ -18,7 +18,7 @@ public sealed class PostsController(IPostService postService) : ControllerBase
     /// <summary>Danh sách bài đã xuất bản, lọc theo loại / tag slug / kỹ năng.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<PostListItemResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] PostQueryRequest query, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync([FromQuery] PostQueryRequest query, CancellationToken cancellationToken)
     {
         var result = await postService.GetPublishedPostsAsync(query, cancellationToken);
         return Ok(ApiResponse<PagedResponse<PostListItemResponse>>.Ok(result, "Lấy danh sách bài viết thành công"));
@@ -27,7 +27,7 @@ public sealed class PostsController(IPostService postService) : ControllerBase
     /// <summary>Danh sách tag và kỹ năng mềm dùng cho bộ lọc / trình soạn.</summary>
     [HttpGet("taxonomy")]
     [ProducesResponseType(typeof(ApiResponse<PostTaxonomyResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetTaxonomy(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetTaxonomyAsync(CancellationToken cancellationToken)
     {
         var result = await postService.GetTaxonomyAsync(cancellationToken);
         return Ok(ApiResponse<PostTaxonomyResponse>.Ok(result, "Lấy danh sách tag và kỹ năng thành công"));
@@ -37,7 +37,7 @@ public sealed class PostsController(IPostService postService) : ControllerBase
     [HttpGet("{slug}")]
     [ProducesResponseType(typeof(ApiResponse<PostDetailResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetBySlug([FromRoute] string slug, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetBySlugAsync([FromRoute] string slug, CancellationToken cancellationToken)
     {
         var result = await postService.GetPublishedPostBySlugAsync(slug, cancellationToken);
         return Ok(ApiResponse<PostDetailResponse>.Ok(result, "Lấy chi tiết bài viết thành công"));

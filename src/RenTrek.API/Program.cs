@@ -2,8 +2,8 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using DotNetEnv;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RenTrek.API.BackgroundServices;
 using RenTrek.API.Common;
@@ -14,7 +14,6 @@ using RenTrek.API.Identity;
 using RenTrek.BLL;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.Helpers.Implementations;
-using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL;
 
@@ -64,14 +63,16 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddSwaggerWithJwt();
 
+// Chỉ cho phép domain FE khai báo trong Cors__AllowedOrigins__N (.env / Render)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicyName, policy => policy
-        .SetIsOriginAllowed(_ => true)
+        .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
 
-// Giới hạn tần suất gọi: Auth công khai (10 req/phút/IP) & Thao tác hoàn tiền nhạy cảm
+// Giới hạn theo tài khoản cho thao tác hoàn tiền (§11), đọc user nên phải đứng sau UseAuthentication
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -81,14 +82,20 @@ builder.Services.AddRateLimiter(options =>
             StatusCodes.Status429TooManyRequests,
             new Dictionary<string, string[]> { ["code"] = [ErrorCodes.TooManyRequests] }),
         cancellationToken));
-
     options.AddPolicy(RateLimitPolicies.RefundSensitive, context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
-
-    options.AddPolicy(RateLimitPolicies.AuthPublic, context => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(RateLimitPolicies.AuthSensitive, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+});
+
+// Render đứng sau proxy: lấy IP client thật từ X-Forwarded-For (phần tử cuối do proxy gắn) cho rate limit theo IP.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 builder.Services.AddHostedService<RefundDataPurgeBackgroundService>();
@@ -100,15 +107,17 @@ var app = builder.Build();
 
 // ── Pipeline (thứ tự theo docs/01-CONVENTIONS.md §2.1) ──
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseForwardedHeaders();
 
-if (app.Environment.IsDevelopment())
+// Swagger tại /swagger: luôn bật khi Development; môi trường khác (Render) chỉ bật khi đặt Swagger__Enabled=true
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options => options.DocumentTitle = "renTrek API");
 }
 
-app.UseStaticFiles();
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();

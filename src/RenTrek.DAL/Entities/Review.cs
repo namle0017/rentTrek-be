@@ -1,4 +1,4 @@
-﻿namespace RenTrek.DAL.Entities;
+namespace RenTrek.DAL.Entities;
 
 public class Review
 {
