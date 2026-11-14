@@ -13,7 +13,18 @@ public static class SwaggerExtensions
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>
         {
-            options.SwaggerDoc("v1", new OpenApiInfo { Title = "renTrek API", Version = "v1" });
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "renTrek API",
+                Version = "v1",
+                Description = """
+                    REST API cho web renTrek (thuê đồ dã ngoại, đặt chuyến trekking).
+
+                    **Cách thử API cần đăng nhập:** gọi `POST /api/v1/auth/login`, copy `data.accessToken`, bấm **Authorize** và dán token vào (không cần tiền tố `Bearer`).
+
+                    Mọi response có dạng `{ success, statusCode, message, data, errors, timestamp }`.
+                    """
+            });
             options.CustomSchemaIds(GetSchemaId);
 
             var bearerScheme = new OpenApiSecurityScheme

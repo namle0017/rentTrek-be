@@ -28,6 +28,15 @@ public sealed class AdminPaymentsController(IAdminPaymentService service) : Cont
         return Ok(ApiResponse<PagedResponse<AdminPaymentListItemResponse>>.Ok(result, "Lấy danh sách giao dịch thành công"));
     }
 
+    /// <summary>O27: thẻ KPI (tổng thu / hoàn thành công, đang chờ), cùng bộ lọc và phạm vi với danh sách giao dịch.</summary>
+    [HttpGet("payments/stats")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPaymentStatsResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PaymentStatsAsync([FromQuery] AdminQueryRequest request, CancellationToken cancellationToken)
+    {
+        var result = await service.GetPaymentStatsAsync(request, cancellationToken);
+        return Ok(ApiResponse<AdminPaymentStatsResponse>.Ok(result, "Lấy thống kê giao dịch thành công"));
+    }
+
     /// <summary>O28: hàng đợi hoàn tiền theo tab PendingApproval | Pending | Failed | NeedsReconciliation.</summary>
     [HttpGet("refunds")]
     [Authorize(Roles = RoleNames.Admin)]

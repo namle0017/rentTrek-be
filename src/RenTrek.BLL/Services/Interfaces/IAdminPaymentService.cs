@@ -13,6 +13,9 @@ public interface IAdminPaymentService
     /// <summary>Danh sách giao dịch thu / hoàn; Staff chỉ thấy đơn trong phạm vi phụ trách.</summary>
     Task<PagedResponse<AdminPaymentListItemResponse>> GetPaymentsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Tổng thu / hoàn thành công và tiền đang chờ, cùng bộ lọc và phạm vi với <see cref="GetPaymentsAsync"/>.</summary>
+    Task<AdminPaymentStatsResponse> GetPaymentStatsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
+
     /// <summary>Hàng đợi hoàn tiền theo tab PendingApproval | Pending | Failed | NeedsReconciliation (mặc định PendingApproval).</summary>
     Task<PagedResponse<AdminPaymentListItemResponse>> GetRefundsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
 

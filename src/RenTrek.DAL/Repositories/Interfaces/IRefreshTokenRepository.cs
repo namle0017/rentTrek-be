@@ -10,6 +10,10 @@ public interface IRefreshTokenRepository : IGenericRepository<RefreshToken>
     /// <summary>Phiên còn hiệu lực của người dùng (chỉ đọc), mới nhất trước.</summary>
     Task<List<RefreshToken>> GetActiveByUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken = default);
 
+    /// <summary>Thời điểm đăng nhập (token đầu tiên) của từng family, chỉ đọc.</summary>
+    Task<Dictionary<Guid, DateTime>> GetFamilyStartTimesAsync(
+        Guid userId, IReadOnlyCollection<Guid> familyIds, CancellationToken cancellationToken = default);
+
     /// <summary>Một refresh token của người dùng (chỉ đọc).</summary>
     Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default);
 

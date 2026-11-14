@@ -17,6 +17,10 @@ public interface IAccountRepository : IGenericRepository<Account>
     /// <summary>Một tài khoản chưa xoá (chỉ đọc); null nếu không có.</summary>
     Task<AdminUserRow?> GetAdminRowAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>Tài khoản chưa xoá theo danh sách vai trò và trạng thái, sắp theo tên (chỉ đọc).</summary>
+    Task<IReadOnlyList<AdminUserRow>> GetByRolesAsync(
+        IReadOnlyCollection<string> roleNames, string status, CancellationToken cancellationToken = default);
+
     /// <summary>Số đơn đã đặt, số chuyến quản lý và số chuyến dẫn của tài khoản.</summary>
     Task<AccountActivityRow> GetActivityAsync(Guid userId, CancellationToken cancellationToken = default);
 }

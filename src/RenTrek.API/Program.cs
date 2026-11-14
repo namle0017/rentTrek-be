@@ -109,10 +109,11 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseForwardedHeaders();
 
-if (app.Environment.IsDevelopment())
+// Swagger tại /swagger: luôn bật khi Development; môi trường khác (Render) chỉ bật khi đặt Swagger__Enabled=true
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options => options.DocumentTitle = "renTrek API");
 }
 
 app.UseHttpsRedirection();
