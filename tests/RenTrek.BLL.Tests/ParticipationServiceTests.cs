@@ -510,6 +510,10 @@ public sealed class ParticipationServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public IRoleRepository Roles => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();

@@ -31,6 +31,9 @@ public class ProductBundleConfiguration : IEntityTypeConfiguration<ProductBundle
         builder.Property(e => e.Status)
             .HasMaxLength(50)
             .HasColumnName("status");
+        builder.Property(e => e.ReplacementValue)
+            .HasPrecision(18)
+            .HasColumnName("replacement_value");
         builder.Property(e => e.UpdatedAt)
             .HasDefaultValueSql("now()")
             .HasColumnName("updated_at");

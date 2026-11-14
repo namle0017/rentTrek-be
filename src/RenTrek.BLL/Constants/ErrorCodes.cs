@@ -75,4 +75,15 @@ public static class ErrorCodes
     // Gia hạn đơn thuê (T5)
     public const string RentalNotExtendable = "RENTAL_NOT_EXTENDABLE";
     public const string RentalExtensionPriceChanged = "RENTAL_EXTENSION_PRICE_CHANGED";
+
+    // Cọc, huỷ đơn đã thanh toán, giao nhận có bằng chứng
+    public const string EmailNotVerified = "EMAIL_NOT_VERIFIED";
+    public const string RentalOutstandingDebt = "RENTAL_OUTSTANDING_DEBT";
+    public const string RentalEvidenceRequired = "RENTAL_EVIDENCE_REQUIRED";
+    public const string RentalNoShowNotReached = "RENTAL_NO_SHOW_NOT_REACHED";
+    public const string RentalReceiptNotConfirmable = "RENTAL_RECEIPT_NOT_CONFIRMABLE";
+    public const string RentalReportNotFound = "RENTAL_REPORT_NOT_FOUND";
+    public const string RentalReportNotReviewable = "RENTAL_REPORT_NOT_REVIEWABLE";
+    public const string RefundBankInfoNotRequired = "REFUND_BANK_INFO_NOT_REQUIRED";
+    public const string RentalExtensionPending = "RENTAL_EXTENSION_PENDING";
 }

@@ -76,6 +76,15 @@ public sealed class AdminProductCatalogService(
         }, cancellationToken);
     }
 
+    private static decimal? ValidReplacementValue(decimal? value)
+    {
+        if (value is null)
+            return null;
+        if (value < 0 || value > 10_000_000_000m)
+            throw new RenTrek.BLL.Exceptions.ValidationException("replacementValue", "Giá trị thiết bị phải từ 0 đến 10 tỷ đồng");
+        return Math.Round(value.Value, 0);
+    }
+
     public async Task<Guid> CreateVariantAsync(Guid productId, SaveVariantRequest request, CancellationToken cancellationToken)
     {
         RequireAdmin();
@@ -92,6 +101,7 @@ public sealed class AdminProductCatalogService(
                 Name = request.VariantName.Trim(),
                 Size = Trim(request.Size),
                 Color = Trim(request.Color),
+                ReplacementValue = ValidReplacementValue(request.ReplacementValue),
                 Status = ToCatalogStatus(request.Status),
                 CreatedAt = Now,
                 UpdatedAt = Now
@@ -113,6 +123,7 @@ public sealed class AdminProductCatalogService(
             variant.Name = request.VariantName.Trim();
             variant.Size = Trim(request.Size);
             variant.Color = Trim(request.Color);
+            variant.ReplacementValue = ValidReplacementValue(request.ReplacementValue);
             variant.Status = ToCatalogStatus(request.Status);
             variant.UpdatedAt = Now;
             await AuditAsync("Update", "ProductVariant", variantId, new { before, after = request }, cancellationToken);
@@ -275,6 +286,7 @@ public sealed class AdminProductCatalogService(
             CategoryName = category?.Name ?? string.Empty,
             Description = bundle.Description,
             Status = bundle.Status,
+            ReplacementValue = bundle.ReplacementValue,
             CreatedAt = bundle.CreatedAt,
             UpdatedAt = bundle.UpdatedAt,
             Items = items.Select(i =>
@@ -310,6 +322,7 @@ public sealed class AdminProductCatalogService(
                 CategoryId = request.CategoryId,
                 Name = request.Name.Trim(),
                 Description = Trim(request.Description),
+                ReplacementValue = ValidReplacementValue(request.ReplacementValue),
                 Status = status,
                 CreatedAt = Now,
                 UpdatedAt = Now
@@ -334,6 +347,7 @@ public sealed class AdminProductCatalogService(
             bundle.Name = request.Name.Trim();
             bundle.CategoryId = request.CategoryId;
             bundle.Description = Trim(request.Description);
+            bundle.ReplacementValue = ValidReplacementValue(request.ReplacementValue);
             bundle.Status = status;
             bundle.UpdatedAt = Now;
             await AuditAsync("Update", "ProductBundle", bundleId, new { before, after = request }, cancellationToken);

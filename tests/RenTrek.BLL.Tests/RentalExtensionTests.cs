@@ -75,7 +75,7 @@ public sealed class RentalExtensionTests
     [InlineData(OrderStatuses.Completed, 2)]
     [InlineData(OrderStatuses.PendingPayment, 2)]
     [InlineData(OrderStatuses.Cancelled, 2)]
-    [InlineData(OrderStatuses.InFulfillment, -1)]
+    [InlineData(OrderStatuses.InFulfillment, -4)]
     public async Task QuoteExtension_WhenOrderNotActiveOrAlreadyEnded_Throws409NotExtendable(string status, int endOffsetDays)
     {
         var detail = Detail(status, Now.UtcDateTime.AddDays(-3), Now.UtcDateTime.AddDays(endOffsetDays));
@@ -145,7 +145,7 @@ public sealed class RentalExtensionTests
     }
 
     [Fact]
-    public async Task Extend_WhenValid_LocksAppliesAdjustmentChargeAndQueuesNotification()
+    public async Task Extend_WithExtraAmount_CreatesPendingPaymentAndHoldsAssets_AppliesOnlyWhenPaid()
     {
         var harness = new Harness();
 
@@ -157,27 +157,28 @@ public sealed class RentalExtensionTests
         Assert.Equal(new[] { VariantId }, harness.LockedVariants);
         Assert.Equal(Now.UtcDateTime, harness.LastFilter!.NowUtc);
 
+        // Chưa thanh toán: hạn trả / giá dòng giữ nguyên, thiết bị được giữ chỗ tới hạn mới
         var rental = harness.Tracked.RentalOrder!;
-        Assert.Equal(NewEndUtc, rental.RentalEndAt);
+        Assert.Equal(EndUtc, rental.RentalEndAt);
         var item = Assert.Single(rental.RentalOrderItems);
-        Assert.Equal((5, 80_000m, 400_000m), (item.BillableDays, item.DailyPrice, item.LineAmount));
         Assert.Equal(NewEndUtc, Assert.Single(item.AssetAssignments).ReservedUntil);
-        Assert.Equal(200_000m, harness.Tracked.TotalAmount);
+        Assert.Empty(harness.Charges);
 
+        var payment = Assert.Single(harness.Payments);
+        Assert.Equal((PaymentPurposes.RentalExtension, PaymentStatuses.Pending, 100_000m), (payment.Purpose, payment.Status, payment.Amount));
         var adjustment = Assert.Single(harness.Adjustments);
-        Assert.Equal((RentalAdjustmentTypes.Extension, EndUtc, NewEndUtc, 100_000m, CustomerId),
-            (adjustment.AdjustmentType, adjustment.OldEndAt, adjustment.NewEndAt, adjustment.ExtraAmount, adjustment.RequestedByUserId));
-        var charge = Assert.Single(harness.Charges);
-        Assert.Equal((RentalChargeTypes.Extension, RentalChargeStatuses.Assessed, 100_000m, OrderId),
-            (charge.ChargeType, charge.Status, charge.Amount, charge.RentalOrderId));
+        Assert.Equal((RentalAdjustmentStatuses.Pending, payment.PaymentId, 100_000m), (adjustment.Status, adjustment.PaymentId, adjustment.ExtraAmount));
+        Assert.Equal(adjustment.RentalOrderAdjustmentId, result.Adjustment.Id);
+        Assert.Equal(OrderId, result.Order.Id);
 
+        // Webhook xác nhận tiền vào: áp hạn mới, tính lại giá dòng, báo khách
+        await harness.Service.ApplyPaidExtensionAsync(harness.Tracked, adjustment, Now.UtcDateTime);
+        Assert.Equal(NewEndUtc, rental.RentalEndAt);
+        Assert.Equal((5, 80_000m, 400_000m), (item.BillableDays, item.DailyPrice, item.LineAmount));
+        Assert.Equal(RentalAdjustmentStatuses.Applied, adjustment.Status);
         var notification = Assert.Single(harness.Notifications);
         Assert.Equal((CustomerId, NotificationTypes.RentalExtended, $"RentalExtended:{adjustment.RentalOrderAdjustmentId}"),
             (notification.Recipient, notification.Type, notification.EventKey));
-
-        Assert.Equal(adjustment.RentalOrderAdjustmentId, result.Adjustment.Id);
-        Assert.Equal(100_000m, result.Adjustment.ExtraAmount);
-        Assert.Equal(OrderId, result.Order.Id);
     }
 
     [Fact]
@@ -495,6 +496,7 @@ public sealed class RentalExtensionTests
         public Guid? LastAdjustmentsCustomerId { get; private set; } = Guid.Empty;
         public List<RentalOrderAdjustment> Adjustments { get; } = [];
         public List<RentalCharge> Charges { get; } = [];
+        public List<Payment> Payments { get; } = [];
         public List<(Guid Recipient, string Type, string EventKey)> Notifications { get; } = [];
         public Order Tracked { get; }
         public IUnitOfWork UnitOfWork { get; }
@@ -547,6 +549,7 @@ public sealed class RentalExtensionTests
                 ("GetForFulfillmentAsync", args => Task.FromResult<Order?>((Guid)args[0]! == OrderId ? Tracked : null)),
                 ("AddAdjustmentAsync", args => { Adjustments.Add((RentalOrderAdjustment)args[0]!); return Task.CompletedTask; }
             ),
+                ("GetPendingAdjustmentAsync", _ => Task.FromResult<RentalOrderAdjustment?>(null)),
                 ("GetAdjustmentsAsync", args =>
                 {
                     LastAdjustmentsCustomerId = (Guid?)args[1];
@@ -570,8 +573,25 @@ public sealed class RentalExtensionTests
                 ("AddAsync", args => { Charges.Add((RentalCharge)args[0]!); return Task.CompletedTask; }
             ));
 
+            var policies = TestProxy.Create<IRentalPolicyRepository>(
+                ("GetActiveWithTiersAsync", _ => Task.FromResult<RentalPolicy?>(null)),
+                ("GetWithTiersAsync", _ => Task.FromResult<RentalPolicy?>(null)));
+            var refundCases = TestProxy.Create<IRefundCaseRepository>(
+                ("GetLatestByOrderAsync", _ => Task.FromResult<RefundCase?>(null)));
+            var settlements = TestProxy.Create<IRentalSettlementRepository>(
+                ("GetByOrderAsync", _ => Task.FromResult<RentalSettlement?>(null)));
+            var photos = TestProxy.Create<IRentalEvidencePhotoRepository>(
+                ("GetByOrderAsync", _ => Task.FromResult<IReadOnlyList<RentalEvidencePhoto>>([])));
+            var payments = TestProxy.Create<IPaymentRepository>(
+                ("AddAsync", args => { Payments.Add((Payment)args[0]!); return Task.CompletedTask; }));
+
             UnitOfWork = TestProxy.Create<IUnitOfWork>(
                 ("get_RentalOrders", _ => rentalOrders),
+                ("get_RentalPolicies", _ => policies),
+                ("get_RefundCases", _ => refundCases),
+                ("get_RentalSettlements", _ => settlements),
+                ("get_RentalEvidencePhotos", _ => photos),
+                ("get_Payments", _ => payments),
                 ("get_RentalPriceTiers", _ => priceTiers),
                 ("get_EquipmentAssets", _ => assets),
                 ("get_RentalCharges", _ => charges),

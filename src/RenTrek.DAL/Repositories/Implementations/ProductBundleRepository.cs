@@ -276,4 +276,18 @@ public class ProductBundleRepository : GenericRepository<ProductBundle>, IProduc
                 .Select(i => i.ImageUrl)
                 .FirstOrDefault()
         };
+
+    public async Task<Dictionary<Guid, decimal?>> GetReplacementValuesAsync(
+        IReadOnlyCollection<Guid> bundleIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (bundleIds.Count == 0)
+            return [];
+
+        return await _context.ProductBundles
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(b => bundleIds.Contains(b.BundleId))
+            .ToDictionaryAsync(b => b.BundleId, b => b.ReplacementValue, cancellationToken);
+    }
 }

@@ -13,7 +13,7 @@ public sealed class RefundCaseConfiguration : IEntityTypeConfiguration<RefundCas
     {
         builder.ToTable("refund_cases", table =>
         {
-            table.HasCheckConstraint("ck_refund_cases_payout_details", "(((payout_details_ciphertext IS NOT NULL) AND (payout_details_nonce IS NOT NULL) AND (payout_details_tag IS NOT NULL)) OR ((payout_details_ciphertext IS NULL) AND (payout_details_nonce IS NULL) AND (payout_details_tag IS NULL) AND (sensitive_data_purged_at IS NOT NULL)))");
+            table.HasCheckConstraint("ck_refund_cases_payout_details", "(((payout_details_ciphertext IS NOT NULL) AND (payout_details_nonce IS NOT NULL) AND (payout_details_tag IS NOT NULL) AND (bank_code IS NOT NULL) AND (bank_account_last4 IS NOT NULL) AND (consent_version IS NOT NULL) AND (consent_accepted_at IS NOT NULL)) OR ((payout_details_ciphertext IS NULL) AND (payout_details_nonce IS NULL) AND (payout_details_tag IS NULL) AND ((sensitive_data_purged_at IS NOT NULL) OR ((status)::text = ANY ((ARRAY['AwaitingBankInfo'::character varying, 'Cancelled'::character varying])::text[])))))");
             table.HasCheckConstraint("refund_cases_amount_check", "(amount > (0)::numeric)");
             table.HasCheckConstraint("refund_cases_row_version_check", "(row_version >= 1)");
         });
@@ -26,6 +26,9 @@ public sealed class RefundCaseConfiguration : IEntityTypeConfiguration<RefundCas
         builder.Property(x => x.RefundPolicyRuleId).HasColumnName("refund_policy_rule_id");
         builder.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 0);
         builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
+        builder.Property(x => x.Source).HasColumnName("source").HasMaxLength(40).HasDefaultValue("TripCancellation");
+        builder.Property(x => x.BankInfoRequestedAt).HasColumnName("bank_info_requested_at");
+        builder.Property(x => x.BankInfoSubmittedAt).HasColumnName("bank_info_submitted_at");
         builder.Property(x => x.BankCode).HasColumnName("bank_code").HasMaxLength(20);
         builder.Property(x => x.BankAccountLast4).HasColumnName("bank_account_last4").HasMaxLength(4).IsFixedLength();
         builder.Property(x => x.PayoutDetailsCiphertext).HasColumnName("payout_details_ciphertext");
@@ -50,6 +53,7 @@ public sealed class RefundCaseConfiguration : IEntityTypeConfiguration<RefundCas
         builder.HasIndex(x => new { x.Status, x.CreatedAt }, "ix_refund_cases_status_created")
             .HasFilter("(NOT is_deleted)").IsDescending(false, true);
         builder.HasIndex(x => x.RefundPaymentId, "refund_cases_refund_payment_id_key").IsUnique();
+        builder.HasIndex(x => new { x.Source, x.Status }, "ix_refund_cases_source_status").HasFilter("(NOT is_deleted)");
         builder.HasIndex(x => x.OrderId, "ux_refund_cases_open_order")
             .IsUnique()
             .HasFilter("((NOT is_deleted) AND ((status)::text <> ALL ((ARRAY['Completed'::character varying, 'Rejected'::character varying, 'Cancelled'::character varying])::text[])))");

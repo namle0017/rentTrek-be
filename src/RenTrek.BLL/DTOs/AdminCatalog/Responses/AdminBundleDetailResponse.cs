@@ -9,6 +9,7 @@ public sealed class AdminBundleDetailResponse
     public string CategoryName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal? ReplacementValue { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<AdminBundleItemResponse> Items { get; set; } = [];

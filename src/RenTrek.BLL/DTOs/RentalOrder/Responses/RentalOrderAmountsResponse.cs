@@ -11,10 +11,10 @@ public class RentalOrderAmountsResponse
 
     public decimal TotalAmount { get; set; }
 
-    /// <summary>Luôn 0 (hệ thống không thu cọc).</summary>
+    /// <summary>Tiền cọc (thu cùng tiền thuê, hoàn sau khi trả đồ trừ phí phát sinh).</summary>
     public decimal DepositAmount { get; set; }
 
-    /// <summary>Số tiền khách cần thanh toán, bằng TotalAmount.</summary>
+    /// <summary>Số tiền khách cần thanh toán = TotalAmount + DepositAmount.</summary>
     public decimal TotalPayable { get; set; }
 
     /// <summary>Tổng các giao dịch thu (Collection) đã thành công.</summary>

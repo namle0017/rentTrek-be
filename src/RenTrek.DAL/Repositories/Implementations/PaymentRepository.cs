@@ -17,9 +17,12 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
         => PostgresAdvisoryLock.AcquireAsync(_context, $"payment:order:{orderId:N}", cancellationToken);
 
     public Task<Order?> GetOrderAsync(Guid orderId, Guid? customerUserId = null, CancellationToken cancellationToken = default)
-        => _context.Orders.SingleOrDefaultAsync(
-            o => o.OrderId == orderId && (customerUserId == null || o.CustomerUserId == customerUserId),
-            cancellationToken);
+        // Kèm RentalOrder để tính số phải trả của đơn thuê (tiền thuê + cọc)
+        => _context.Orders
+            .Include(o => o.RentalOrder)
+            .SingleOrDefaultAsync(
+                o => o.OrderId == orderId && (customerUserId == null || o.CustomerUserId == customerUserId),
+                cancellationToken);
 
     public Task<Payment?> GetLatestPendingCollectionAsync(Guid orderId, CancellationToken cancellationToken = default)
         => _dbSet

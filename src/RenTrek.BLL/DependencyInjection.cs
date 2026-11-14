@@ -7,6 +7,7 @@ using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Internal;
 
 namespace RenTrek.BLL;
 
@@ -75,7 +76,9 @@ public static class DependencyInjection
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
-        services.AddScoped<IRefundCaseService, RefundCaseService>();
+        services.AddScoped<RefundCaseService>();
+        services.AddScoped<IRefundCaseService>(sp => sp.GetRequiredService<RefundCaseService>());
+        services.AddScoped<IRentalRefundOpener>(sp => sp.GetRequiredService<RefundCaseService>());
         services.AddScoped<IRefundVerificationService, RefundVerificationService>();
         services.AddScoped<ITripRecurrenceService, TripRecurrenceService>();
         services.AddScoped<ITripService, TripService>();
@@ -85,7 +88,19 @@ public static class DependencyInjection
         services.AddScoped<IRentalAvailabilityService, RentalAvailabilityService>();
         services.AddScoped<IProductBundleService, ProductBundleService>();
         services.AddScoped<IPromotionService, PromotionService>();
-        services.AddScoped<IRentalOrderService, RentalOrderService>();
+        services.AddScoped<RentalOrderService>();
+        services.AddScoped<IRentalOrderService>(sp => sp.GetRequiredService<RentalOrderService>());
+        services.AddScoped<IRentalExtensionApplier>(sp => sp.GetRequiredService<RentalOrderService>());
+        services.AddScoped<IRentalPolicyService, RentalPolicyService>();
+        services.AddScoped<IRentalNoticeDispatcher, RentalNoticeDispatcher>();
+        services.AddScoped<IRentalCancellationService, RentalCancellationService>();
+        services.AddScoped<IRentalLifecycleService, RentalLifecycleService>();
+        services.AddScoped<IRentalEvidenceService, RentalEvidenceService>();
+        services.AddScoped<IRentalReportService, RentalReportService>();
+        // Một instance cho cả quyết toán và xử lý khoản thu sau (webhook) trong cùng scope
+        services.AddScoped<RentalSettlementService>();
+        services.AddScoped<IRentalSettlementService>(sp => sp.GetRequiredService<RentalSettlementService>());
+        services.AddScoped<IRentalPostPaymentService>(sp => sp.GetRequiredService<RentalSettlementService>());
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IParticipationService, ParticipationService>();

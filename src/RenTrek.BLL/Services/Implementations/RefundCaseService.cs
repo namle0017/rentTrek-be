@@ -12,6 +12,7 @@ using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Internal;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -29,7 +30,7 @@ public sealed class RefundCaseService(
     IEmailSender emailSender,
     ILogger<RefundCaseService> logger,
     INotificationService notificationService,
-    IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService
+    IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService, IRentalRefundOpener
 {
     private const string PaymentTypeRefund = "Refund";
     private const string PaymentMethodBankTransfer = "BankTransfer";
@@ -117,6 +118,129 @@ public sealed class RefundCaseService(
         await AuditAsync(order.CustomerUserId, "RefundCaseCreated", refund, utcNow, cancellationToken);
         await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
         return MapSummary(refund);
+    }
+
+    public async Task<RefundCaseSummaryResponse> OpenRentalRefundAsync(
+        Order order,
+        decimal amount,
+        string source,
+        RefundBankAccountRequest? bankAccount,
+        string? consentVersion,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        if (amount <= 0)
+            throw new ConflictException("Số tiền hoàn phải lớn hơn 0", ErrorCodes.ValidationError);
+
+        var originalPaymentId = await unitOfWork.RefundCases.GetLatestCollectionPaymentIdAsync(order.OrderId, cancellationToken);
+        var payment = new Payment
+        {
+            PaymentId = Guid.NewGuid(),
+            OrderId = order.OrderId,
+            OriginalPaymentId = originalPaymentId,
+            PaymentType = PaymentTypeRefund,
+            Amount = amount,
+            PaymentMethod = PaymentMethodBankTransfer,
+            Status = PaymentStatuses.PendingApproval,
+            CreatedAt = utcNow,
+            Purpose = PurposeRentalFee
+        };
+        await unitOfWork.Payments.AddAsync(payment, cancellationToken);
+
+        var refund = new RefundCase
+        {
+            RefundCaseId = Guid.NewGuid(),
+            OrderId = order.OrderId,
+            RefundPaymentId = payment.PaymentId,
+            CustomerUserId = order.CustomerUserId,
+            Amount = amount,
+            Source = source,
+            Status = RefundCaseStatuses.AwaitingBankInfo,
+            BankInfoRequestedAt = utcNow,
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        };
+
+        if (bankAccount is not null)
+        {
+            ApplyBankAccount(refund, bankAccount, consentVersion ?? RefundBankCodes.ConsentVersion, utcNow);
+        }
+
+        await unitOfWork.RefundCases.AddAsync(refund, cancellationToken);
+        await AuditAsync(order.CustomerUserId, "RefundCaseCreated", refund, utcNow, cancellationToken);
+        if (refund.Status == RefundCaseStatuses.Requested)
+        {
+            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
+        }
+        else
+        {
+            await notificationService.QueueAsync(
+                order.CustomerUserId,
+                NotificationTypes.RefundBankInfoRequired,
+                "Cần nhập tài khoản nhận hoàn tiền",
+                $"Đơn {order.OrderCode} có {amount:N0}đ cần hoàn. Vui lòng nhập số tài khoản để hệ thống chuyển tiền.",
+                EntityType,
+                refund.RefundCaseId,
+                $"RefundBankInfoRequired:{refund.RefundCaseId}",
+                cancellationToken);
+        }
+
+        return MapSummary(refund);
+    }
+
+    public Task<RefundCaseSummaryResponse> SubmitBankInfoAsync(
+        Guid refundCaseId,
+        SubmitRefundBankInfoRequest request,
+        CancellationToken cancellationToken = default)
+        => MutateAsync(refundCaseId, async (refund, utcNow) =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            EnsureOwned(refund);
+            if (refund.Status != RefundCaseStatuses.AwaitingBankInfo)
+                throw new ConflictException("Hồ sơ không ở bước chờ nhập tài khoản", ErrorCodes.RefundBankInfoNotRequired);
+
+            var errors = new Dictionary<string, string[]>();
+            if (request.BankAccount is null)
+                errors["bankAccount"] = ["Cần cung cấp tài khoản nhận hoàn"];
+            if (!request.ConsentAccepted || request.ConsentVersion != RefundBankCodes.ConsentVersion)
+                errors["consentAccepted"] = ["Bạn cần đồng ý xử lý dữ liệu ngân hàng"];
+            if (errors.Count > 0)
+                throw new ValidationException(errors);
+
+            ApplyBankAccount(refund, request.BankAccount!, RefundBankCodes.ConsentVersion, utcNow);
+            refund.RowVersion++;
+            await AuditAsync(refund.CustomerUserId, "RefundBankInfoSubmitted", refund, utcNow, cancellationToken);
+            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {refund.Order.OrderCode} đã có STK, chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
+            return MapSummary(refund);
+        }, cancellationToken);
+
+    /// <summary>Mã hoá STK + chủ tài khoản, chỉ lưu ngân hàng và 4 số cuối dạng rõ; chuyển hồ sơ sang Requested.</summary>
+    private void ApplyBankAccount(RefundCase refund, RefundBankAccountRequest bankAccount, string consentVersion, DateTimeOffset utcNow)
+    {
+        var accountNumber = (bankAccount.AccountNumber ?? string.Empty).Trim();
+        var holder = Regex.Replace((bankAccount.AccountHolder ?? string.Empty).Trim(), @"\s+", " ").ToUpperInvariant();
+        var errors = new Dictionary<string, string[]>();
+        if (!RefundBankCodes.All.Contains(bankAccount.BankCode))
+            errors["bankAccount.bankCode"] = ["Ngân hàng không được hỗ trợ"];
+        if (!Regex.IsMatch(accountNumber, @"^\d{6,20}$"))
+            errors["bankAccount.accountNumber"] = ["Số tài khoản gồm 6–20 chữ số"];
+        if (holder.Length is < 2 or > 100)
+            errors["bankAccount.accountHolder"] = ["Tên chủ tài khoản gồm 2–100 ký tự"];
+        if (errors.Count > 0)
+            throw new ValidationException(errors);
+
+        refund.BankCode = bankAccount.BankCode;
+        refund.BankAccountLast4 = accountNumber[^4..];
+        refund.ConsentVersion = consentVersion;
+        refund.ConsentAcceptedAt = utcNow;
+        var protectedPayload = dataProtector.Protect(new RefundPayoutDetails(accountNumber, holder), refund.RefundCaseId, refund.OrderId);
+        refund.PayoutDetailsCiphertext = protectedPayload.Ciphertext;
+        refund.PayoutDetailsNonce = protectedPayload.Nonce;
+        refund.PayoutDetailsTag = protectedPayload.Tag;
+        refund.BankInfoSubmittedAt = utcNow;
+        refund.Status = RefundCaseStatuses.Requested;
+        refund.UpdatedAt = utcNow;
     }
 
     public async Task<RefundCaseSummaryResponse?> GetSummaryByOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
@@ -219,7 +343,7 @@ public sealed class RefundCaseService(
         => MutateAsync(refundCaseId, async (refund, utcNow) =>
         {
             EnsureNotOwnRefund(refund, currentUser.RequiredUserId);
-            if (refund.Status != RefundCaseStatuses.Requested)
+            if (refund.Status is not (RefundCaseStatuses.Requested or RefundCaseStatuses.AwaitingBankInfo))
                 throw new ConflictException("Chỉ từ chối được hồ sơ chưa xuất cho kế toán", ErrorCodes.RefundCaseNotRejectable);
             EnsureRowVersion(refund, request.ExpectedRowVersion);
 
@@ -511,7 +635,8 @@ public sealed class RefundCaseService(
             await NotifyAsync(userId, title, content, refund, utcNow, cancellationToken);
     }
 
-    private static string Mask(RefundCase refund) => $"******{refund.BankAccountLast4}";
+    private static string Mask(RefundCase refund)
+        => string.IsNullOrEmpty(refund.BankAccountLast4) ? string.Empty : $"******{refund.BankAccountLast4}";
 
     private static RefundCaseSummaryResponse MapSummary(RefundCase refund)
         => new()
@@ -520,6 +645,7 @@ public sealed class RefundCaseService(
             Amount = refund.Amount,
             Status = refund.Status,
             BankCode = refund.BankCode,
+            Source = refund.Source,
             MaskedAccount = Mask(refund),
             RowVersion = refund.RowVersion
         };
@@ -542,7 +668,8 @@ public sealed class RefundCaseService(
     {
         (string Status, DateTimeOffset? At)[] events =
         [
-            (RefundCaseStatuses.Requested, refund.CreatedAt),
+            (RefundCaseStatuses.AwaitingBankInfo, refund.BankInfoRequestedAt),
+            (RefundCaseStatuses.Requested, refund.BankInfoRequestedAt is null ? refund.CreatedAt : refund.BankInfoSubmittedAt),
             (RefundCaseStatuses.Approved, refund.ApprovedAt),
             (RefundCaseStatuses.Completed, refund.CompletedAt),
             (refund.Status, refund.UpdatedAt)
@@ -564,6 +691,8 @@ public sealed class RefundCaseService(
             RefundCaseId = refund.RefundCaseId,
             OrderId = refund.OrderId,
             OrderCode = refund.Order.OrderCode,
+            OrderType = refund.Order.OrderType,
+            Source = refund.Source,
             TourName = trip?.Tour?.Name,
             TripStartAt = trip?.StartAt,
             CustomerName = refund.CustomerUser.FullName,

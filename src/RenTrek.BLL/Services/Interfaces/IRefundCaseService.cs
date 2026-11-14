@@ -19,6 +19,9 @@ public interface IRefundCaseService
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Khách nhập STK cho hồ sơ đang chờ (AwaitingBankInfo → Requested).</summary>
+    Task<RefundCaseSummaryResponse> SubmitBankInfoAsync(Guid refundCaseId, SubmitRefundBankInfoRequest request, CancellationToken cancellationToken = default);
+
     Task<RefundCaseSummaryResponse?> GetSummaryByOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     // Customer

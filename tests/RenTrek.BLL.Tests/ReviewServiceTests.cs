@@ -518,6 +518,10 @@ public sealed class ReviewServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IRoleRepository Roles => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ITagRepository Tags => throw new NotSupportedException();

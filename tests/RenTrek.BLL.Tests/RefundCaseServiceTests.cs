@@ -156,9 +156,9 @@ public sealed class RefundCaseServiceTests
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
         var sheet = workbook.Worksheet(1);
         Assert.Equal(2, sheet.LastRowUsed()!.RowNumber());
-        Assert.Equal("0123456789", sheet.Cell(2, 5).GetString());
-        Assert.Equal("NGUYEN VAN A", sheet.Cell(2, 6).GetString());
-        Assert.Equal(2_000_000d, sheet.Cell(2, 7).GetDouble());
+        Assert.Equal("0123456789", sheet.Cell(2, 7).GetString());
+        Assert.Equal("NGUYEN VAN A", sheet.Cell(2, 8).GetString());
+        Assert.Equal(2_000_000d, sheet.Cell(2, 9).GetDouble());
 
         Assert.Equal(RefundCaseStatuses.Approved, refund.Status);
         Assert.Equal(fixture.Admin, refund.ApprovedByAdminUserId);
@@ -181,7 +181,7 @@ public sealed class RefundCaseServiceTests
         var file = await fixture.Service.ExportAsync(await fixture.NewExportRequestAsync());
 
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
-        var cell = workbook.Worksheet(1).Cell(2, 6);
+        var cell = workbook.Worksheet(1).Cell(2, 8);
         Assert.False(cell.HasFormula);
         Assert.StartsWith("=HYPERLINK", cell.GetString());
     }
@@ -202,7 +202,7 @@ public sealed class RefundCaseServiceTests
         var file = await fixture.Service.ExportAsync(request);
 
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
-        Assert.Equal("0123456789", workbook.Worksheet(1).Cell(2, 5).GetString());
+        Assert.Equal("0123456789", workbook.Worksheet(1).Cell(2, 7).GetString());
         Assert.Equal(RefundCaseStatuses.Approved, refund.Status);
         Assert.Equal(1, refund.RowVersion);
     }
@@ -701,6 +701,9 @@ public sealed class RefundCaseServiceTests
         public Task<bool> ProviderTransactionUsedAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Cases.Any(x => x.ProviderTransactionId == providerTransactionId));
 
+        public Task<IReadOnlyList<RefundCase>> GetAwaitingBankInfoAsync(DateTimeOffset requestedBefore, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<RefundCase>>([]);
+
         public Task<IReadOnlyList<Guid>> GetPurgeableIdsAsync(DateTimeOffset closedBefore, CancellationToken cancellationToken = default)
             => Ids(x => x.PayoutDetailsCiphertext is not null && x.Status == RefundCaseStatuses.Completed && x.CompletedAt <= closedBefore);
 
@@ -747,7 +750,7 @@ public class TestProxy : DispatchProxy
     public static T Create<T>(params (string Name, Func<object?[], object?> Handler)[] handlers) where T : class
     {
         var proxy = Create<T, TestProxy>();
-        ((TestProxy)(object)proxy)._handlers = handlers.ToDictionary(x => x.Name, x => x.Handler);
+        ((TestProxy)(object)proxy)._handlers = handlers.GroupBy(x => x.Name).ToDictionary(g => g.Key, g => g.First().Handler);
         return proxy;
     }
 

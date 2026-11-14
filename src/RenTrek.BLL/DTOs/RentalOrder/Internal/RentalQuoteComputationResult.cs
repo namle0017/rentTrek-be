@@ -35,5 +35,11 @@ internal class RentalQuoteComputationResult
 
     public int HoldMinutes { get; set; }
 
+    /// <summary>Chính sách thuê đồ (cọc, phạt) áp cho đơn.</summary>
+    public RenTrek.BLL.Helpers.RentalPolicySnapshot RentalPolicy { get; set; } = RenTrek.BLL.Services.Implementations.RentalPolicyService.Default;
+
+    /// <summary>Giá trị thiết bị / combo theo chỉ số dòng (0 nếu chưa nhập).</summary>
+    public Dictionary<int, decimal> UnitReplacementValues { get; set; } = [];
+
     public bool IsAllAvailable => Availability.All(line => line.IsAvailable);
 }

@@ -50,7 +50,7 @@ public sealed class RentalExportControllersTests
     public async Task ExportControllers_SupportJsonAndCsv_AndReportsReuseSingleQuery()
     {
         var fulfillment = new StubRentalFulfillmentService();
-        var rentalController = new AdminRentalOrdersController(fulfillment);
+        var rentalController = new AdminRentalOrdersController(fulfillment, null!, null!, null!, null!);
         var date = new DateOnly(2026, 11, 8);
 
         var handoverJson = await rentalController.GetHandoverListAsync(date, null, CancellationToken.None);

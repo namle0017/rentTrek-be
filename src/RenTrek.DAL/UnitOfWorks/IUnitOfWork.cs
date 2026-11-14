@@ -41,6 +41,10 @@ public interface IUnitOfWork : IDisposable
     IRentalOrderRepository RentalOrders { get; }
     IRentalOrderItemRepository RentalOrderItems { get; }
     IRentalPriceTierRepository RentalPriceTiers { get; }
+    IRentalPolicyRepository RentalPolicies { get; }
+    IRentalEvidencePhotoRepository RentalEvidencePhotos { get; }
+    IRentalReportRepository RentalReports { get; }
+    IRentalSettlementRepository RentalSettlements { get; }
     IReviewRepository Reviews { get; }
     IRoleRepository Roles { get; }
     ISoftSkillRepository SoftSkills { get; }

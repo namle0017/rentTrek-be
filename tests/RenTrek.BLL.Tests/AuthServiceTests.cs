@@ -242,6 +242,9 @@ public sealed class AuthServiceTests
         public Task SendRentalOrderConfirmationAsync(string toEmail, string recipientName, string orderCode, decimal totalDeposit, decimal totalRentalFee, string rentalDates, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
+        public Task SendRentalNoticeAsync(string toEmail, string recipientName, string orderCode, string subject, string title, IReadOnlyList<(string Label, string Value)> rows, string instruction, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task SendTourBookingConfirmationAsync(string toEmail, string recipientName, string orderCode, string tourName, string tripDate, decimal totalAmount, int participantCount, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
@@ -387,6 +390,10 @@ public sealed class AuthServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ISystemConfigurationRepository SystemConfigurations => throw new NotSupportedException();

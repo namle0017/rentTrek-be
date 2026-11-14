@@ -87,6 +87,14 @@ public sealed class RefundCaseRepository(AppDbContext context) : IRefundCaseRepo
             .Select(x => x.RefundCaseId)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<RefundCase>> GetAwaitingBankInfoAsync(DateTimeOffset requestedBefore, CancellationToken cancellationToken = default)
+        => await context.RefundCases.AsNoTracking()
+            .Include(x => x.Order)
+            .Where(x => !x.IsDeleted && x.Status == "AwaitingBankInfo" && x.BankInfoRequestedAt != null && x.BankInfoRequestedAt <= requestedBefore)
+            .OrderBy(x => x.BankInfoRequestedAt)
+            .Take(200)
+            .ToListAsync(cancellationToken);
+
     public Task<RefundPolicy?> GetPolicyWithRulesAsync(Guid refundPolicyId, CancellationToken cancellationToken = default)
         => context.RefundPolicies.AsNoTracking()
             .Include(x => x.RefundPolicyRules.Where(rule => !rule.IsDeleted))

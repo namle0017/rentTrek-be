@@ -13,13 +13,16 @@ public sealed class RefundCase
     public Guid? RefundPolicyRuleId { get; set; }
     public decimal Amount { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string BankCode { get; set; } = string.Empty;
-    public string BankAccountLast4 { get; set; } = string.Empty;
+    public string Source { get; set; } = "TripCancellation";
+    public string? BankCode { get; set; }
+    public string? BankAccountLast4 { get; set; }
     public byte[]? PayoutDetailsCiphertext { get; set; }
     public byte[]? PayoutDetailsNonce { get; set; }
     public byte[]? PayoutDetailsTag { get; set; }
-    public string ConsentVersion { get; set; } = string.Empty;
-    public DateTimeOffset ConsentAcceptedAt { get; set; }
+    public string? ConsentVersion { get; set; }
+    public DateTimeOffset? ConsentAcceptedAt { get; set; }
+    public DateTimeOffset? BankInfoRequestedAt { get; set; }
+    public DateTimeOffset? BankInfoSubmittedAt { get; set; }
     public string? ProviderTransactionId { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }

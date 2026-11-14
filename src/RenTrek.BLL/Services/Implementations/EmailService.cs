@@ -111,10 +111,32 @@ public class EmailService : IEmailService
                 ("Tiền cọc thiết bị", $"{totalDeposit:N0} đ"),
                 ("Tổng thanh toán", $"<strong style=\"color: #1B4332; font-size: 16px;\">{totalAmount:N0} đ</strong>")
             },
-            instruction: "Quý khách vui lòng đến cửa hàng renTrek đúng thời gian đã đăng ký để nhận và kiểm tra thiết bị. Khi trả đồ nguyên vẹn, tiền cọc sẽ được hoàn lại tự động.",
+            instruction: "Quý khách vui lòng đến cửa hàng renTrek đúng thời gian đã đăng ký để nhận và kiểm tra thiết bị. Sau khi trả đồ và nhân viên kiểm tra, phần cọc còn lại (sau khi trừ phí phát sinh nếu có) sẽ được hoàn: hệ thống sẽ gửi yêu cầu nhập số tài khoản nhận tiền.",
             accentColor: "#1B4332");
 
         await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, null, "RENTAL ORDER CONFIRMATION", cancellationToken);
+    }
+
+    public async Task SendRentalNoticeAsync(
+        string toEmail,
+        string recipientName,
+        string orderCode,
+        string subject,
+        string title,
+        IReadOnlyList<(string Label, string Value)> rows,
+        string instruction,
+        CancellationToken cancellationToken = default)
+    {
+        var htmlBody = GenerateOrderNotificationHtml(
+            title: title,
+            recipientName: recipientName,
+            orderCode: orderCode,
+            orderTypeLabel: "Đơn thuê thiết bị dã ngoại",
+            detailRows: rows.ToArray(),
+            instruction: instruction,
+            accentColor: "#1B4332");
+
+        await SendEmailOrDevFallbackAsync(toEmail, recipientName, $"[renTrek] {subject} #{orderCode}", htmlBody, null, "RENTAL NOTICE", cancellationToken);
     }
 
     public async Task SendTourBookingConfirmationAsync(

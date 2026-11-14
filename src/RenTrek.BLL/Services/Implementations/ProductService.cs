@@ -102,6 +102,7 @@ public class ProductService : IProductService
                     Name = variant.Name,
                     Size = variant.Size,
                     Color = variant.Color,
+                    ReplacementValue = variant.ReplacementValue,
                     Status = ToDisplay(variant.Status),
                     ImageUrls = variant.Images
                         .OrderByDescending(image => image.IsPrimary)

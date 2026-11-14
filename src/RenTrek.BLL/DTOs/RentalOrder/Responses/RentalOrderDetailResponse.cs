@@ -49,4 +49,20 @@ public class RentalOrderDetailResponse
     public List<RentalOrderTimelineEventResponse> Timeline { get; set; } = [];
 
     public RentalOrderAllowedActionsResponse AllowedActions { get; set; } = new();
+
+    /// <summary>Chính sách cọc / phạt đã snapshot lúc đặt.</summary>
+    public RenTrek.BLL.DTOs.RentalPolicy.Responses.RentalPolicyResponse? RentalPolicy { get; set; }
+    public string? CancellationType { get; set; }
+    public DateTime? HandedOverAt { get; set; }
+    public DateTime? CustomerReceivedConfirmedAt { get; set; }
+    /// <summary>Customer | Auto.</summary>
+    public string? ReceiptConfirmSource { get; set; }
+    /// <summary>Hồ sơ hoàn tiền mới nhất của đơn (nếu có).</summary>
+    public RentalOrderRefundCaseResponse? RefundCase { get; set; }
+    /// <summary>Kết quả quyết toán cọc đã chốt (sau khi admin duyệt).</summary>
+    public RentalOrderSettlementResponse? Settlement { get; set; }
+    /// <summary>Khoản thu sau đang chờ thanh toán (gia hạn / phí vượt cọc).</summary>
+    public RentalOrderPaymentResponse? PendingAdditionalPayment { get; set; }
+    /// <summary>Ảnh bằng chứng giao / nhận lại.</summary>
+    public List<RentalEvidencePhotoResponse> EvidencePhotos { get; set; } = [];
 }

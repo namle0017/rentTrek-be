@@ -2,7 +2,7 @@
 
 ## 1. Phạm vi
 
-Luồng này áp dụng cho booking chuyến đi đã thanh toán nhưng chưa khởi hành. RenTrekk chưa tự động chuyển tiền hoàn qua SePay. Admin xuất hồ sơ cho kế toán chuyển khoản thủ công và ghi nhận kết quả.
+Luồng này áp dụng cho booking chuyến đi đã thanh toán nhưng chưa khởi hành, và (từ 2026-11-14) cho đơn thuê: huỷ đơn đã thanh toán, khách không đến nhận, hoàn cọc sau khi trả đồ — xem [`06-RENTAL-DEPOSIT-FLOW.md`](06-RENTAL-DEPOSIT-FLOW.md). Hồ sơ đơn thuê có thể bắt đầu ở `AwaitingBankInfo` (chưa có STK, khách nhập sau qua `POST /refund-cases/{id}/bank-info` rồi mới sang `Requested`); file Excel có thêm cột "Loại đơn" và "Nguồn hoàn". RenTrekk chưa tự động chuyển tiền hoàn qua SePay. Admin xuất hồ sơ cho kế toán chuyển khoản thủ công và ghi nhận kết quả.
 
 ## 2. Luồng khách hàng
 

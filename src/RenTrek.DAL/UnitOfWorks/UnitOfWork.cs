@@ -52,6 +52,10 @@ public class UnitOfWork : IUnitOfWork
     private IRentalOrderRepository? _rentalOrders;
     private IRentalOrderItemRepository? _rentalOrderItems;
     private IRentalPriceTierRepository? _rentalPriceTiers;
+    private IRentalPolicyRepository? _rentalPolicies;
+    private IRentalEvidencePhotoRepository? _rentalEvidencePhotos;
+    private IRentalReportRepository? _rentalReports;
+    private IRentalSettlementRepository? _rentalSettlements;
     private IReviewRepository? _reviews;
     private IRoleRepository? _roles;
     private ISoftSkillRepository? _softSkills;
@@ -112,6 +116,10 @@ public class UnitOfWork : IUnitOfWork
     public IRentalOrderRepository RentalOrders => _rentalOrders ??= new RentalOrderRepository(_context);
     public IRentalOrderItemRepository RentalOrderItems => _rentalOrderItems ??= new RentalOrderItemRepository(_context);
     public IRentalPriceTierRepository RentalPriceTiers => _rentalPriceTiers ??= new RentalPriceTierRepository(_context);
+    public IRentalPolicyRepository RentalPolicies => _rentalPolicies ??= new RentalPolicyRepository(_context);
+    public IRentalEvidencePhotoRepository RentalEvidencePhotos => _rentalEvidencePhotos ??= new RentalEvidencePhotoRepository(_context);
+    public IRentalReportRepository RentalReports => _rentalReports ??= new RentalReportRepository(_context);
+    public IRentalSettlementRepository RentalSettlements => _rentalSettlements ??= new RentalSettlementRepository(_context);
     public IReviewRepository Reviews => _reviews ??= new ReviewRepository(_context);
     public IRoleRepository Roles => _roles ??= new RoleRepository(_context);
     public ISoftSkillRepository SoftSkills => _softSkills ??= new SoftSkillRepository(_context);

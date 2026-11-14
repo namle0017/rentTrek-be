@@ -21,6 +21,12 @@ public class RentalOrderDetailRow
     public DateTime RentalStartAt { get; set; }
     public DateTime RentalEndAt { get; set; }
     public decimal DepositAmount { get; set; }
+    public Guid CustomerUserId { get; set; }
+    public Guid? RentalPolicyId { get; set; }
+    public DateTime? HandedOverAt { get; set; }
+    public DateTime? CustomerReceivedConfirmedAt { get; set; }
+    public string? ReceiptConfirmSource { get; set; }
+    public string? CancellationType { get; set; }
 
     // Liên hệ khách (chỉ dùng ở màn vận hành)
     public string CustomerName { get; set; } = string.Empty;

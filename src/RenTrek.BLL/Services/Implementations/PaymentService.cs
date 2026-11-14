@@ -12,6 +12,7 @@ using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Internal;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -28,7 +29,8 @@ public sealed partial class PaymentService(
     IOptions<EmailSettings> emailOptions,
     ITripGroupingService tripGroupingService,
     INotificationService notificationService,
-    ILogger<PaymentService> logger) : IPaymentService
+    ILogger<PaymentService> logger,
+    IRentalPostPaymentService? rentalPostPaymentService = null) : IPaymentService
 {
     private const string PaymentTypeCollection = "Collection";
     private const string PaymentMethodBankTransfer = "BankTransfer";
@@ -58,6 +60,15 @@ public sealed partial class PaymentService(
             var order = await unitOfWork.Payments.GetOrderAsync(orderId, userId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đơn", ErrorCodes.OrderNotFound);
 
+            var existing = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
+
+            // Khoản thu sau (gia hạn / phí vượt cọc) đã được tạo sẵn: trả lại hướng dẫn chuyển khoản của nó
+            if (existing is not null && PaymentPurposes.AfterOrderPaid.Contains(existing.Purpose))
+            {
+                await unitOfWork.CommitAsync(cancellationToken);
+                return (MapPayment(existing, order), false);
+            }
+
             if (order.Status != OrderStatuses.PendingPayment || order.PaymentStatus != OrderPaymentStatuses.Unpaid)
                 throw new ConflictException("Đơn không ở trạng thái chờ thanh toán", ErrorCodes.OrderNotPayable);
 
@@ -65,7 +76,6 @@ public sealed partial class PaymentService(
             if (order.HoldExpiresAt <= now)
                 throw new ConflictException("Thời gian giữ chỗ đã hết, vui lòng tạo lại đơn", ErrorCodes.HoldExpired);
 
-            var existing = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
             if (existing is not null)
             {
                 await unitOfWork.CommitAsync(cancellationToken);
@@ -77,7 +87,8 @@ public sealed partial class PaymentService(
                 PaymentId = Guid.NewGuid(),
                 OrderId = order.OrderId,
                 PaymentType = PaymentTypeCollection,
-                Amount = order.TotalAmount,
+                // Đơn thuê: tiền thuê + cọc trong một lần chuyển khoản
+                Amount = OrderPayableAmount.Of(order),
                 PaymentMethod = PaymentMethodBankTransfer,
                 Status = PaymentStatuses.Pending,
                 CreatedAt = now,
@@ -163,6 +174,48 @@ public sealed partial class PaymentService(
             }
 
             var now = timeProvider.GetUtcNow();
+            var isAfterPaidCollection = PaymentPurposes.AfterOrderPaid.Contains(payment.Purpose);
+
+            if (isAfterPaidCollection)
+            {
+                // Gia hạn / phí vượt cọc: đơn đã thanh toán từ trước, chỉ cần đúng khoản đang chờ và đúng số tiền
+                var afterPaidPayable = payment.Status == PaymentStatuses.Pending
+                                       && request.TransferAmount == payment.Amount
+                                       && order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Expired);
+                if (afterPaidPayable && rentalPostPaymentService is not null)
+                {
+                    payment.Status = PaymentStatuses.Succeeded;
+                    payment.ProviderTransactionId = providerTransactionId;
+                    payment.ProcessedAt = now;
+                    await rentalPostPaymentService.ApplySucceededPaymentAsync(payment, order, now, cancellationToken);
+                }
+                else
+                {
+                    // Không đổi trạng thái thanh toán của đơn (đơn vẫn Paid); ghi dòng chờ đối soát cho admin
+                    await unitOfWork.Payments.AddAsync(new Payment
+                    {
+                        PaymentId = Guid.NewGuid(),
+                        OrderId = order.OrderId,
+                        PaymentType = PaymentTypeCollection,
+                        Amount = request.TransferAmount,
+                        PaymentMethod = PaymentMethodBankTransfer,
+                        ProviderTransactionId = providerTransactionId,
+                        Status = PaymentStatuses.PendingApproval,
+                        CreatedAt = now,
+                        Purpose = payment.Purpose
+                    }, cancellationToken);
+                    logger.LogWarning(
+                        "SePay giao dịch {TransactionId} ({Amount}) cho khoản thu sau của đơn {OrderCode} cần đối soát",
+                        request.Id,
+                        request.TransferAmount,
+                        order.OrderCode);
+                }
+
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.CommitAsync(cancellationToken);
+                return;
+            }
+
             var payable = payment.Status == PaymentStatuses.Pending
                           && order.Status == OrderStatuses.PendingPayment
                           && order.PaymentStatus == OrderPaymentStatuses.Unpaid

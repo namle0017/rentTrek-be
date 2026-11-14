@@ -42,6 +42,9 @@ public interface IRefundCaseRepository
     /// <summary>Hồ sơ đã kết thúc trước <paramref name="closedBefore"/> mà vẫn còn payload mã hóa.</summary>
     Task<IReadOnlyList<Guid>> GetPurgeableIdsAsync(DateTimeOffset closedBefore, CancellationToken cancellationToken = default);
 
+    /// <summary>Hồ sơ đang chờ khách nhập STK, yêu cầu từ trước mốc (để nhắc), kèm đơn (chỉ đọc).</summary>
+    Task<IReadOnlyList<RefundCase>> GetAwaitingBankInfoAsync(DateTimeOffset requestedBefore, CancellationToken cancellationToken = default);
+
     Task<RefundPolicy?> GetPolicyWithRulesAsync(Guid refundPolicyId, CancellationToken cancellationToken = default);
 
     Task<Guid?> GetLatestCollectionPaymentIdAsync(Guid orderId, CancellationToken cancellationToken = default);

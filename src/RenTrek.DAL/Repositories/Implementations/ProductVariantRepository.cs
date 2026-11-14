@@ -55,4 +55,17 @@ public class ProductVariantRepository : GenericRepository<ProductVariant>, IProd
         return _dbSet.IgnoreQueryFilters()
             .AnyAsync(v => v.Sku.ToUpper() == normalized && v.Id != excludeVariantId, cancellationToken);
     }
+
+    public async Task<Dictionary<Guid, decimal?>> GetReplacementValuesAsync(
+        IReadOnlyCollection<Guid> variantIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (variantIds.Count == 0)
+            return [];
+
+        return await _dbSet.IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(v => variantIds.Contains(v.Id))
+            .ToDictionaryAsync(v => v.Id, v => v.ReplacementValue, cancellationToken);
+    }
 }

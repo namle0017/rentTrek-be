@@ -276,7 +276,7 @@ public sealed class NotificationServiceTests
         var promotion = TestProxy.Create<IPromotionService>(
             ("EvaluateAsync", _ => Task.FromResult(new PromotionEvaluationResult { IsApplied = false })));
 
-        var uow = TestProxy.Create<IUnitOfWork>(
+        var uow = TestProxy.Create<IUnitOfWork>([
             ("BeginTransactionAsync", _ => Task.CompletedTask),
             ("CommitAsync", _ => Task.CompletedTask),
             ("RollbackAsync", _ => Task.CompletedTask),
@@ -299,6 +299,7 @@ public sealed class NotificationServiceTests
                 ("GetValueAsync", _ => Task.FromResult<string?>("15")))),
             ("get_RentalOrders", _ => TestProxy.Create<IRentalOrderRepository>(
                 ("GetByIdempotencyKeyAsync", _ => Task.FromResult<Order?>(null)),
+                ("HasOutstandingDebtAsync", _ => Task.FromResult(false)),
                 ("AcquireIdempotencyLockAsync", _ => Task.CompletedTask),
                 ("OrderCodeExistsAsync", _ => Task.FromResult(false)),
                 ("AddOrderAsync", args => { storedOrder = (Order)args[0]!; return Task.CompletedTask; }
@@ -319,7 +320,8 @@ public sealed class NotificationServiceTests
                     RefundPolicyId = storedOrder.RefundPolicyId,
                     RefundPolicyName = "Chính sách thuê",
                     RefundPolicyVersion = 1
-                })))));
+                })))),
+            .. RentalDepositTestDefaults.UnitOfWorkHandlers()]);
 
         var service = new RentalOrderService(uow, availability, promotion, harness.Clock, harness.Service);
 
@@ -434,6 +436,8 @@ public sealed class NotificationServiceTests
             ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>(("AddAsync", _ => Task.CompletedTask))),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(("AddAsync", args => { order.Payments.Add((Payment)args[0]!); return Task.CompletedTask; }))),
             ("get_Notifications", _ => harness.Repo),
+            // Đơn thuê không có cọc trong test này
+            ("get_RentalOrders", _ => TestProxy.Create<IRentalOrderRepository>(("GetByIdAsync", _ => Task.FromResult<RentalOrder?>(null)))),
             ("get_Orders", _ => TestProxy.Create<IOrderRepository>(
                 ("GetAdminForUpdateAsync", _ => Task.FromResult<Order?>(order)),
                 ("GetManualCollectionAsync", _ => Task.FromResult<Payment?>(null)),

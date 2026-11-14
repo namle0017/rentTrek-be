@@ -42,6 +42,18 @@ public class RentalOrderAdjustmentConfiguration : IEntityTypeConfiguration<Renta
             .OnDelete(DeleteBehavior.ClientSetNull)
             .HasConstraintName("rental_order_adjustments_rental_order_id_fkey");
 
+        builder.Property(e => e.Status)
+            .HasMaxLength(20)
+            .HasDefaultValue("Applied")
+            .HasColumnName("status");
+        builder.Property(e => e.PaymentId).HasColumnName("payment_id");
+        builder.Property(e => e.AppliedAt).HasColumnName("applied_at");
+        builder.HasIndex(e => e.PaymentId, "ix_rental_order_adjustments_payment_id");
+
+        builder.HasOne(d => d.Payment).WithMany()
+            .HasForeignKey(d => d.PaymentId)
+            .HasConstraintName("rental_order_adjustments_payment_id_fkey");
+
         builder.HasOne(d => d.RequestedByUser).WithMany()
             .HasForeignKey(d => d.RequestedByUserId)
             .OnDelete(DeleteBehavior.ClientSetNull)

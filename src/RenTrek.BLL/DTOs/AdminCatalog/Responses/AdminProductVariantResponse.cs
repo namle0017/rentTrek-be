@@ -8,6 +8,7 @@ public sealed class AdminProductVariantResponse
     public string? Size { get; set; }
     public string? Color { get; set; }
     public string Status { get; set; } = string.Empty;
+    public decimal? ReplacementValue { get; set; }
     public IReadOnlyList<string> ImageUrls { get; set; } = [];
     /// <summary>Ảnh kèm id để xoá (§13.10); cùng thứ tự với ImageUrls.</summary>
     public IReadOnlyList<AdminVariantImageResponse> Images { get; set; } = [];

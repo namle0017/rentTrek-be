@@ -38,10 +38,15 @@ public class RentalChargeConfiguration : IEntityTypeConfiguration<RentalCharge>
             .HasMaxLength(50)
             .HasColumnName("status");
         builder.Property(e => e.VoidedAt).HasColumnName("voided_at");
+        builder.Property(e => e.TierMinDays).HasColumnName("tier_min_days");
+
+        // Mỗi loại phí trễ / phí huỷ chỉ có một dòng đang hiệu lực, job chỉ nâng bậc
+        builder.HasIndex(e => new { e.RentalOrderId, e.ChargeType }, "ux_rental_charges_one_tier_charge")
+            .IsUnique()
+            .HasFilter("(((charge_type)::text = ANY ((ARRAY['LatePickup'::character varying, 'LateReturnPenalty'::character varying, 'CancellationFee'::character varying])::text[])) AND ((status)::text <> 'Voided'::text))");
 
         builder.HasOne(d => d.CreatedByUser).WithMany(p => p.RentalCharges)
             .HasForeignKey(d => d.CreatedByUserId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
             .HasConstraintName("rental_charges_created_by_user_id_fkey");
 
         builder.HasOne(d => d.EquipmentAsset).WithMany(p => p.RentalCharges)

@@ -8,7 +8,9 @@ public sealed class RefundCaseSummaryResponse
     public Guid RefundCaseId { get; set; }
     public decimal Amount { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string BankCode { get; set; } = string.Empty;
+    public string? BankCode { get; set; }
+
+    public string Source { get; set; } = string.Empty;
     public string MaskedAccount { get; set; } = string.Empty;
     public int RowVersion { get; set; }
 }

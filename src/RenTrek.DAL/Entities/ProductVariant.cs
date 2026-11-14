@@ -13,6 +13,7 @@ public class ProductVariant
     public string Name { get; set; } = string.Empty;
     public string? Size { get; set; }
     public string? Color { get; set; }
+    public decimal? ReplacementValue { get; set; }
     public CatalogStatus Status { get; set; } = CatalogStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

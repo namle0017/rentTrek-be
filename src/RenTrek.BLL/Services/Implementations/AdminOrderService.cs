@@ -19,6 +19,15 @@ public sealed class AdminOrderService(
     INotificationService notificationService)
     : AdminServiceBase(unitOfWork, currentUser, timeProvider), IAdminOrderService
 {
+    /// <summary>Số khách phải trả ở lần thanh toán đầu: đơn thuê gồm cả cọc.</summary>
+    private async Task<decimal> PayableAmountAsync(Order order, CancellationToken cancellationToken)
+    {
+        if (order.OrderType != OrderTypes.Rental)
+            return order.TotalAmount;
+        var rental = order.RentalOrder ?? await UnitOfWork.RentalOrders.GetByIdAsync(order.OrderId, cancellationToken);
+        return order.TotalAmount + (rental?.DepositAmount ?? 0m);
+    }
+
     private static AdminOrderResponse ToResponse(AdminOrderRow x) => new(
         x.OrderId, x.OrderCode, x.OrderType,
         new AdminCustomerResponse(x.CustomerUserId, x.CustomerUserCode, x.CustomerFullName, x.CustomerEmail, x.CustomerPhone),
@@ -105,8 +114,9 @@ public sealed class AdminOrderService(
             }
             Check(order.Status is "PendingPayment" or "Confirmed", "status", "Đơn hàng không thể nhận thanh toán thủ công");
             Check(order.HoldExpiresAt == null || order.HoldExpiresAt > Clock.GetUtcNow() || order.Status == OrderStatuses.Confirmed, "status", "Đơn đã hết hạn giữ chỗ");
-            var collected = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && x.Purpose != "AdditionalCharge").Sum(x => x.Amount);
-            Check(collected + request.Amount <= order.TotalAmount, "amount", "Số tiền vượt quá số tiền còn phải thanh toán");
+            var collected = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && !PaymentPurposes.AfterOrderPaid.Contains(x.Purpose)).Sum(x => x.Amount);
+            var payable = await PayableAmountAsync(order, cancellationToken);
+            Check(collected + request.Amount <= payable, "amount", "Số tiền vượt quá số tiền còn phải thanh toán");
             await UnitOfWork.Payments.AddAsync(new Payment
             {
                 PaymentId = Guid.NewGuid(),
@@ -120,7 +130,7 @@ public sealed class AdminOrderService(
                 CreatedAt = Clock.GetUtcNow(),
                 ProcessedAt = Clock.GetUtcNow()
             }, cancellationToken);
-            order.PaymentStatus = collected + request.Amount == order.TotalAmount ? "Paid" : "PartiallyPaid";
+            order.PaymentStatus = collected + request.Amount == payable ? "Paid" : "PartiallyPaid";
             if (order.PaymentStatus == OrderPaymentStatuses.Paid)
             {
                 order.Status = OrderStatuses.Confirmed; order.HoldExpiresAt = null; order.ReconciliationDeadlineAt = null;
@@ -189,9 +199,10 @@ public sealed class AdminOrderService(
                     ErrorCodes.OrderNotReconcilable);
 
             var receivedAmount = received.Sum(x => x.Amount);
-            var paid = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && x.Purpose != "AdditionalCharge").Sum(x => x.Amount)
+            var paid = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && !PaymentPurposes.AfterOrderPaid.Contains(x.Purpose)).Sum(x => x.Amount)
                 + receivedAmount;
-            if (paid < order.TotalAmount)
+            var payable = await PayableAmountAsync(order, cancellationToken);
+            if (paid < payable)
                 throw new ConflictException(
                     "Tổng tiền đã nhận chưa đủ giá trị đơn. Vui lòng dùng Hoàn toàn bộ (reconcile-refund).",
                     ErrorCodes.OrderNotReconcilable);
@@ -205,7 +216,7 @@ public sealed class AdminOrderService(
             { promotion.Status = AppliedPromotionStatuses.Applied; promotion.AppliedAt = Now; }
 
             // Tiền thừa: sinh lệnh hoàn chờ duyệt, gắn với lần chuyển vừa nhận
-            var excess = paid - order.TotalAmount;
+            var excess = paid - payable;
             if (excess > 0)
             {
                 var source = received[^1];
@@ -252,8 +263,8 @@ public sealed class AdminOrderService(
 
             await AddFullRefundsAsync(order, cancellationToken);
             // Thoát NeedsReconciliation để mark-manual / hồ sơ hoàn tiền xử lý tiếp; mark-manual sẽ chuyển sang Refunded
-            var collected = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && x.Purpose != "AdditionalCharge").Sum(x => x.Amount);
-            order.PaymentStatus = collected >= order.TotalAmount ? OrderPaymentStatuses.Paid : "PartiallyPaid";
+            var collected = order.Payments.Where(x => x.PaymentType == "Collection" && x.Status == PaymentStatuses.Succeeded && !PaymentPurposes.AfterOrderPaid.Contains(x.Purpose)).Sum(x => x.Amount);
+            order.PaymentStatus = collected >= await PayableAmountAsync(order, cancellationToken) ? OrderPaymentStatuses.Paid : "PartiallyPaid";
             return new { receivedAmount = received.Sum(x => x.Amount), previousStatus, status = order.Status };
         }, cancellationToken);
 
