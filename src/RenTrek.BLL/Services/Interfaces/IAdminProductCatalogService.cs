@@ -17,6 +17,9 @@ public interface IAdminProductCatalogService
     /// <summary>Sửa thông tin sản phẩm cha.</summary>
     Task UpdateProductAsync(Guid productId, SaveProductRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Đổi nhanh trạng thái sản phẩm cha (Active / Inactive).</summary>
+    Task UpdateProductStatusAsync(Guid productId, UpdateProductStatusRequest request, CancellationToken cancellationToken);
+
     /// <summary>Ẩn sản phẩm (xoá mềm); biến thể của nó tự ẩn theo.</summary>
     Task DeleteProductAsync(Guid productId, CancellationToken cancellationToken);
 
@@ -40,6 +43,9 @@ public interface IAdminProductCatalogService
 
     /// <summary>13.10. Xoá mềm ảnh biến thể; xoá ảnh đại diện thì ảnh đứng đầu còn lại lên thay.</summary>
     Task DeleteVariantImageAsync(Guid variantId, Guid imageId, CancellationToken cancellationToken);
+
+    /// <summary>Đặt ảnh có sẵn của biến thể làm ảnh đại diện (hạ cờ đại diện ở các ảnh khác).</summary>
+    Task SetPrimaryVariantImageAsync(Guid variantId, Guid imageId, CancellationToken cancellationToken);
 
     /// <summary>Bảng giá tổng hợp mọi biến thể và combo, lọc theo danh mục nếu có.</summary>
     Task<IReadOnlyList<AdminPricingItemResponse>> GetPricingAsync(Guid? categoryId, CancellationToken cancellationToken);

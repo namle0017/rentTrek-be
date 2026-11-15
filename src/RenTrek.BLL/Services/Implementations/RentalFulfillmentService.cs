@@ -9,6 +9,7 @@ using RenTrek.BLL.DTOs.RentalOrder.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Internal;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Models;
 using RenTrek.DAL.UnitOfWorks;
@@ -28,8 +29,14 @@ namespace RenTrek.BLL.Services.Implementations;
 public sealed class RentalFulfillmentService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
-    TimeProvider timeProvider) : IRentalFulfillmentService
+    TimeProvider timeProvider,
+    IRentalPolicyService? rentalPolicyService = null,
+    IRentalSettlementService? settlementService = null,
+    IRentalNoticeDispatcher? noticeDispatcher = null,
+    IRentalReportService? reportService = null) : IRentalFulfillmentService
 {
+    private readonly IRentalPolicyService _policies = rentalPolicyService ?? new RentalPolicyService(unitOfWork, timeProvider);
+
     // ponytail: hằng số; đưa vào system_configurations nếu vận hành cần chỉnh theo từng kho
     private const int HandoverEarlyHours = 24;
 
@@ -81,7 +88,59 @@ public sealed class RentalFulfillmentService(
             ?? throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
 
         var graceHours = await GetGraceHoursAsync(cancellationToken);
-        return MapDetail(detail, timeProvider.GetUtcNow().UtcDateTime, graceHours);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var response = MapDetail(detail, now, graceHours);
+
+        var policy = await _policies.GetSnapshotAsync(detail.RentalPolicyId, cancellationToken);
+        response.RentalPolicy = _policies.ToResponse(policy);
+        response.HandedOverAt = detail.HandedOverAt is { } handed ? RentalPeriodCalculator.ToUtc(handed) : null;
+        response.CustomerReceivedConfirmedAt = detail.CustomerReceivedConfirmedAt is { } confirmed ? RentalPeriodCalculator.ToUtc(confirmed) : null;
+        response.ReceiptConfirmSource = detail.ReceiptConfirmSource;
+        response.CancellationType = detail.CancellationType;
+        response.EvidencePhotos = (await unitOfWork.RentalEvidencePhotos.GetByOrderAsync(orderId, cancellationToken))
+            .Select(p => new RentalEvidencePhotoResponse
+            {
+                Id = p.RentalEvidencePhotoId,
+                AssetAssignmentId = p.AssetAssignmentId,
+                Stage = p.Stage,
+                ImageUrl = p.ImageUrl,
+                Note = p.Note,
+                CreatedAt = RentalPeriodCalculator.ToUtc(p.CreatedAt)
+            }).ToList();
+        if (reportService is not null)
+            response.Reports = (await reportService.GetByOrderAsync(orderId, cancellationToken)).ToList();
+
+        var stored = await unitOfWork.RentalSettlements.GetByOrderAsync(orderId, cancellationToken);
+        if (stored is not null)
+        {
+            response.StoredSettlement = new RentalOrderSettlementResponse
+            {
+                RentalFeePaid = stored.RentalFeePaid,
+                DepositHeld = stored.DepositHeld,
+                TotalCharges = stored.TotalCharges,
+                RentalFeeRefund = stored.RentalFeeRefund,
+                DepositRefund = stored.DepositRefund,
+                AmountOwed = stored.AmountOwed,
+                SettledAt = RentalPeriodCalculator.ToUtc(stored.SettledAt)
+            };
+        }
+
+        var actions = response.AllowedActions;
+        var pickup = RentalPenaltyCalculator.GetPickupStatus(
+            policy, detail.DepositAmount, RentalPeriodCalculator.ToUtc(detail.RentalStartAt), RentalPeriodCalculator.ToUtc(detail.RentalEndAt), now);
+        var notHandedOver = detail.HandedOverAt is null && !detail.Assignments.Any(a => a.Status is AssignmentStatuses.Issued or AssignmentStatuses.Returned or AssignmentStatuses.LostOrException);
+        actions.CanReportNoShow = detail.Status == OrderStatuses.Confirmed && detail.PaymentStatus == OrderPaymentStatuses.Paid && notHandedOver && pickup.IsNoShow;
+        actions.MinPhotosPerAsset = policy.MinPhotosPerAsset;
+        var hasOpenInspection = response.Reports.Any(r => r.ReportType == RentalReportTypes.ReturnInspection && r.Status == RentalReportStatuses.Submitted);
+        var allBack = detail.Status == OrderStatuses.InFulfillment
+                      && !detail.Assignments.Any(a => a.Status is AssignmentStatuses.Reserved or AssignmentStatuses.Issued);
+        actions.CanSubmitReturnReport = allBack && !hasOpenInspection;
+        if (!IsAdmin)
+        {
+            actions.CanComplete = false;
+            actions.CompleteBlockedReason = "Chỉ admin quyết toán; staff gửi báo cáo kiểm tra trả đồ";
+        }
+        return response;
     }
 
     /// <summary>Lấy danh sách thiết bị cần giao theo ngày giờ Việt Nam (mặc định hôm nay UTC+7).</summary>
@@ -237,12 +296,16 @@ public sealed class RentalFulfillmentService(
         => IssueAsync(orderId, "RentalHandoverScan",
             reserved => RentalFulfillmentRules.PickByCode(reserved, request.AssetCode), cancellationToken);
 
-    private Task<AdminRentalOrderDetailResponse> IssueAsync(
+    private async Task<AdminRentalOrderDetailResponse> IssueAsync(
         Guid orderId,
         string auditAction,
         Func<List<AssetAssignment>, List<AssetAssignment>> pick,
         CancellationToken cancellationToken)
-        => MutateAsync(orderId, auditAction, (order, now, actorId) =>
+    {
+        var photoCounts = await unitOfWork.RentalEvidencePhotos.CountByAssignmentAsync(orderId, RentalEvidenceStages.Handover, cancellationToken);
+        var minPhotos = (await PolicyForOrderAsync(orderId, cancellationToken)).MinPhotosPerAsset;
+        Order? issuedOrder = null;
+        var result = await MutateAsync(orderId, auditAction, (order, now, actorId) =>
         {
             EnsureStatus(order, OrderStatuses.Confirmed, OrderStatuses.InFulfillment);
             if (order.PaymentStatus != OrderPaymentStatuses.Paid)
@@ -270,6 +333,16 @@ public sealed class RentalFulfillmentService(
                     $"Thiết bị chưa sẵn sàng để giao: {string.Join(", ", unusable)}. Cần đổi thiết bị khác trước khi giao.",
                     ErrorCodes.ResourceUnavailable);
 
+            // Bằng chứng tình trạng lúc giao: mỗi thiết bị phải có đủ ảnh trước khi bàn giao
+            var missingPhotos = targets
+                .Where(a => photoCounts.GetValueOrDefault(a.AssetAssignmentId) < minPhotos)
+                .Select(a => a.EquipmentAsset.AssetCode)
+                .ToList();
+            if (missingPhotos.Count > 0)
+                throw new ConflictException(
+                    $"Cần chụp ít nhất {minPhotos} ảnh cho mỗi thiết bị trước khi giao: {string.Join(", ", missingPhotos)}",
+                    ErrorCodes.RentalEvidenceRequired);
+
             foreach (var assignment in targets)
             {
                 assignment.Status = AssignmentStatuses.Issued;
@@ -278,9 +351,43 @@ public sealed class RentalFulfillmentService(
 
             order.Status = OrderStatuses.InFulfillment;
             rental.HandledByUserId ??= actorId;
+            rental.HandedOverAt ??= now;
+            issuedOrder = order;
 
             return new { issued = targets.Select(a => a.EquipmentAsset.AssetCode).ToList() };
         }, cancellationToken);
+
+        if (noticeDispatcher is not null && issuedOrder is not null)
+        {
+            var queued = await noticeDispatcher.QueueAsync(
+                issuedOrder.CustomerUserId,
+                issuedOrder.OrderCode,
+                issuedOrder.OrderId,
+                NotificationTypes.RentalHandedOver,
+                "Vui lòng xác nhận đã nhận đồ",
+                $"Đơn {issuedOrder.OrderCode} đã được bàn giao. Vui lòng kiểm tra kỹ và bấm \"Đã nhận & kiểm tra\" trong chi tiết đơn.",
+                $"RentalHandedOver:{issuedOrder.OrderId}",
+                new RentalEmailNotice(
+                    "Xác nhận đã nhận đồ",
+                    "Thiết bị đã được bàn giao cho bạn",
+                    [("Hạn trả", Format(RentalPeriodCalculator.ToUtc(issuedOrder.RentalOrder!.RentalEndAt)))],
+                    "Vui lòng kiểm tra kỹ thiết bị và bấm \"Đã nhận & kiểm tra\" trong chi tiết đơn. Nếu có lỗi, hãy báo ngay kèm ảnh. Không phản hồi sau 24 giờ được coi là đã nhận đủ và đúng tình trạng."),
+                cancellationToken);
+            if (queued)
+            {
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                await noticeDispatcher.FlushAsync(cancellationToken);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<RentalPolicySnapshot> PolicyForOrderAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var rental = await unitOfWork.RentalOrders.GetByIdAsync(orderId, cancellationToken);
+        return await _policies.GetSnapshotAsync(rental?.RentalPolicyId, cancellationToken);
+    }
 
     // ---------- Nhận trả (FR-R07) + đề xuất phí trễ ----------
 
@@ -290,10 +397,27 @@ public sealed class RentalFulfillmentService(
         CancellationToken cancellationToken = default)
     {
         var graceHours = await GetGraceHoursAsync(cancellationToken);
+        var policy = await PolicyForOrderAsync(orderId, cancellationToken);
+        var photoCounts = await unitOfWork.RentalEvidencePhotos.CountByAssignmentAsync(orderId, RentalEvidenceStages.Return, cancellationToken);
+        var variantValues = await unitOfWork.ProductVariants.GetReplacementValuesAsync(
+            await VariantIdsAsync(orderId, cancellationToken), cancellationToken);
 
         return await MutateAsync(orderId, "RentalReturn", (order, now, actorId) =>
         {
             EnsureStatus(order, OrderStatuses.InFulfillment);
+
+            // Bằng chứng lúc nhận lại: thiết bị trả về (không phải báo mất) phải có đủ ảnh
+            var missingPhotos = request.Items
+                .Where(i => i.Condition != ReturnConditions.Lost && photoCounts.GetValueOrDefault(i.AssignmentId) < policy.MinPhotosPerAsset)
+                .Select(i => i.AssignmentId)
+                .ToList();
+            if (missingPhotos.Count > 0)
+            {
+                var codes = Assignments(order).Where(a => missingPhotos.Contains(a.AssetAssignmentId)).Select(a => a.EquipmentAsset.AssetCode);
+                throw new ConflictException(
+                    $"Cần chụp ít nhất {policy.MinPhotosPerAsset} ảnh tình trạng cho mỗi thiết bị nhận lại: {string.Join(", ", codes)}",
+                    ErrorCodes.RentalEvidenceRequired);
+            }
 
             var byId = Assignments(order).ToDictionary(a => a.AssetAssignmentId);
             var returnedAssignments = new List<AssetAssignment>();
@@ -312,9 +436,28 @@ public sealed class RentalFulfillmentService(
                 assignment.ReturnCondition = item.Condition;
                 if (item.Condition == ReturnConditions.Lost)
                 {
-                    // Mất: không trở về kho cho thuê (PRD §7.5, BR-22)
+                    // Mất: không trở về kho cho thuê (PRD §7.5, BR-22). Đề xuất phí mất = giá trị thiết bị (nháp, admin duyệt)
                     assignment.Status = AssignmentStatuses.LostOrException;
                     asset.AssetStatus = EquipmentAssetStatuses.Lost;
+                    var value = RentalOrderOps.AssetReplacementValue(assignment, variantValues);
+                    var hasLoss = order.RentalOrder!.RentalCharges.Any(c => c.ChargeType == RentalChargeTypes.Loss
+                                                                           && c.EquipmentAssetId == assignment.EquipmentAssetId
+                                                                           && c.Status != RentalChargeStatuses.Voided);
+                    if (value > 0 && !hasLoss)
+                    {
+                        order.RentalOrder.RentalCharges.Add(new RentalCharge
+                        {
+                            RentalChargeId = Guid.NewGuid(),
+                            RentalOrderId = order.OrderId,
+                            EquipmentAssetId = assignment.EquipmentAssetId,
+                            ChargeType = RentalChargeTypes.Loss,
+                            Amount = value,
+                            Reason = $"Mất thiết bị {asset.AssetCode}: bồi thường giá trị thiết bị",
+                            Status = RentalChargeStatuses.Draft,
+                            CreatedByUserId = actorId,
+                            CreatedAt = now
+                        });
+                    }
                 }
                 else
                 {
@@ -365,22 +508,35 @@ public sealed class RentalFulfillmentService(
                 });
             }
 
+            // Phạt trả trễ theo bậc % cọc tính tới lúc nhận lại (job có thể chưa kịp nâng bậc)
+            var returnStatus = RentalPenaltyCalculator.GetReturnStatus(policy, rental.DepositAmount, end, now);
+            if (returnStatus.Tier is { } tier && returnStatus.PenaltyFee > 0)
+            {
+                RentalOrderOps.UpsertTieredCharge(
+                    rental, RentalChargeTypes.LateReturnPenalty, returnStatus.PenaltyFee, tier.MinDaysLate,
+                    $"Phạt trả trễ {returnStatus.DaysLate} ngày ({tier.PercentOfDeposit:0.##}% cọc)", actorId, now);
+            }
+
             return new
             {
                 returned = request.Items.Select(i => new { i.AssignmentId, i.Condition }).ToList(),
                 lateDays,
-                suggestedLateFee = lateFee
+                suggestedLateFee = lateFee,
+                penalty = returnStatus.PenaltyFee
             };
         }, cancellationToken);
     }
 
     // ---------- Phí phát sinh (FR-C02–C04) ----------
 
-    public Task<AdminRentalOrderDetailResponse> CreateChargeAsync(
+    public async Task<AdminRentalOrderDetailResponse> CreateChargeAsync(
         Guid orderId,
         CreateRentalChargeRequest request,
         CancellationToken cancellationToken = default)
-        => MutateAsync(orderId, "RentalChargeCreate", (order, now, actorId) =>
+    {
+        var chargeVariantValues = await unitOfWork.ProductVariants.GetReplacementValuesAsync(
+            await VariantIdsAsync(orderId, cancellationToken), cancellationToken);
+        return await MutateAsync(orderId, "RentalChargeCreate", (order, now, actorId) =>
         {
             EnsureStatus(order, OrderStatuses.InFulfillment);
 
@@ -395,6 +551,13 @@ public sealed class RentalFulfillmentService(
                     throw new ConflictException($"Thiết bị {assignment.EquipmentAsset.AssetCode} chưa từng được giao cho đơn này");
 
                 equipmentAssetId = assignment.EquipmentAssetId;
+
+                if (request.ChargeType is RentalChargeTypes.Damage or RentalChargeTypes.Loss)
+                {
+                    var value = RentalOrderOps.AssetReplacementValue(assignment, chargeVariantValues);
+                    if (value > 0 && request.Amount > value)
+                        throw new ConflictException($"Phí {request.ChargeType} không được vượt giá trị thiết bị ({value:N0}đ)");
+                }
             }
 
             var charge = new RentalCharge
@@ -405,14 +568,24 @@ public sealed class RentalFulfillmentService(
                 ChargeType = request.ChargeType,
                 Amount = request.Amount,
                 Reason = request.Reason.Trim(),
-                Status = RentalChargeStatuses.Assessed,
+                // Staff lập phí ở dạng nháp, admin duyệt khi xem báo cáo kiểm tra trả đồ; admin lập thì chốt luôn
+                Status = IsAdmin ? RentalChargeStatuses.Assessed : RentalChargeStatuses.Draft,
                 CreatedByUserId = actorId,
                 CreatedAt = now
             };
             order.RentalOrder!.RentalCharges.Add(charge);
 
-            return new { charge.RentalChargeId, charge.ChargeType, charge.Amount };
+            return new { charge.RentalChargeId, charge.ChargeType, charge.Amount, charge.Status };
         }, cancellationToken);
+    }
+
+    private async Task<List<Guid>> VariantIdsAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = await unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken);
+        return order is null
+            ? []
+            : Assignments(order).Select(a => a.EquipmentAsset.ProductVariantId).Distinct().ToList();
+    }
 
     public Task<AdminRentalOrderDetailResponse> AssessChargeAsync(
         Guid orderId,
@@ -450,7 +623,49 @@ public sealed class RentalFulfillmentService(
 
     // ---------- Đóng đơn (FR-R08) ----------
 
-    public Task<AdminRentalOrderDetailResponse> CompleteAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<AdminRentalOrderDetailResponse> CompleteAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        if (settlementService is null)
+            return await LegacyCompleteAsync(orderId, cancellationToken);
+        if (!IsAdmin)
+            throw new ForbiddenException("Chỉ admin quyết toán đơn thuê. Staff vui lòng gửi báo cáo kiểm tra trả đồ.");
+
+        var actorId = currentUser.RequiredUserId;
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
+            await unitOfWork.RentalOrders.AcquireFulfillmentLockAsync(orderId, cancellationToken);
+            var order = await unitOfWork.RentalOrders.GetForFulfillmentAsync(orderId, cancellationToken)
+                ?? throw new NotFoundException("Không tìm thấy đơn thuê", ErrorCodes.OrderNotFound);
+            var now = timeProvider.GetUtcNow();
+            var settlement = await settlementService.SettleAsync(order, actorId, now, cancellationToken);
+            await unitOfWork.AuditLogs.AddAsync(new AuditLog
+            {
+                AuditLogId = Guid.NewGuid(),
+                ActorUserId = actorId,
+                Action = "RentalComplete",
+                EntityType = "Order",
+                EntityId = orderId,
+                Details = JsonSerializer.Serialize(new { settlement.DepositHeld, settlement.TotalCharges, settlement.DepositRefund, settlement.AmountOwed }),
+                CreatedAt = now.UtcDateTime
+            }, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            noticeDispatcher?.Discard();
+            await unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+
+        if (noticeDispatcher is not null)
+            await noticeDispatcher.FlushAsync(cancellationToken);
+        return await GetDetailAsync(orderId, cancellationToken);
+    }
+
+    private Task<AdminRentalOrderDetailResponse> LegacyCompleteAsync(Guid orderId, CancellationToken cancellationToken)
         => MutateAsync(orderId, "RentalComplete", (order, _, _) =>
         {
             EnsureStatus(order, OrderStatuses.InFulfillment);

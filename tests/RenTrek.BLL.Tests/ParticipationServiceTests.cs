@@ -24,6 +24,8 @@ public sealed class ParticipationServiceTests
         var trip1Id = Guid.NewGuid();
         var trip2Id = Guid.NewGuid();
         var tourId = Guid.NewGuid();
+        var reviewedOrderId = Guid.NewGuid();
+        var reviewId = Guid.NewGuid();
         var repo = new FakeParticipantPostReadRepository
         {
             MyParticipationsResult =
@@ -86,7 +88,11 @@ public sealed class ParticipationServiceTests
                     OrderStatus = OrderStatuses.Confirmed,
                     OrderPaymentStatus = OrderPaymentStatuses.Paid,
                     UnreadPostCount = 0,
-                    HasReview = true
+                    HasReview = true,
+                    OrderId = reviewedOrderId,
+                    ReviewId = reviewId,
+                    ReviewRating = 4,
+                    ReviewComment = "Chuyến rất tuyệt"
                 },
                 new MyParticipationRow
                 {
@@ -118,6 +124,11 @@ public sealed class ParticipationServiceTests
         Assert.True(result[2].CanReview);
         Assert.False(result[3].CanReview);
         Assert.True(result[3].HasReview);
+        Assert.Equal(reviewedOrderId, result[3].OrderId);
+        Assert.Equal(reviewId, result[3].ReviewId);
+        Assert.Equal(4, result[3].ReviewRating);
+        Assert.Equal("Chuyến rất tuyệt", result[3].ReviewComment);
+        Assert.Null(result[0].ReviewRating);
         Assert.False(result[4].CanReview);
         Assert.Equal(userId, repo.RequestedUserId);
     }
@@ -510,6 +521,10 @@ public sealed class ParticipationServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public IRoleRepository Roles => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();

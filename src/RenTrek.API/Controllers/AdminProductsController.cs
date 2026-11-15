@@ -11,6 +11,7 @@ using RenTrek.BLL.Exceptions;
 namespace RenTrek.API.Controllers;
 
 [ApiController]
+// Staff trực tiếp quản lý kho nên được tạo / sửa sản phẩm, biến thể, ảnh và bảng giá; chỉ thao tác xoá giữ riêng Admin.
 [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
 [Route("api/v1/admin/products")]
 public sealed class AdminProductsController(IProductService productService, IAdminProductCatalogService catalogService,
@@ -19,7 +20,6 @@ public sealed class AdminProductsController(IProductService productService, IAdm
 {
     /// <summary>Upload ảnh sản phẩm lên Cloudinary, sau đó gắn URL vào biến thể.</summary>
     [HttpPost("images/upload")]
-    [Authorize(Roles = RoleNames.Admin)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(IProductImageUploadService.MaxBytes + 64 * 1024)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status201Created)]
@@ -35,7 +35,6 @@ public sealed class AdminProductsController(IProductService productService, IAdm
 
     /// <summary>13.3. Tạo sản phẩm cha; trả id.</summary>
     [HttpPost]
-    [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<Guid>), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateAsync([FromBody] SaveProductRequest request, CancellationToken cancellationToken)
     {
@@ -46,12 +45,21 @@ public sealed class AdminProductsController(IProductService productService, IAdm
 
     /// <summary>13.4. Sửa sản phẩm cha.</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateAsync([FromRoute] Guid id, [FromBody] SaveProductRequest request, CancellationToken cancellationToken)
     {
         await catalogService.UpdateProductAsync(id, request, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Cập nhật sản phẩm thành công"));
+    }
+
+    /// <summary>Đổi nhanh trạng thái sản phẩm cha (Active / Inactive).</summary>
+    [HttpPatch("{id:guid}/status")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateStatusAsync([FromRoute] Guid id, [FromBody] UpdateProductStatusRequest request, CancellationToken cancellationToken)
+    {
+        await catalogService.UpdateProductStatusAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Cập nhật trạng thái sản phẩm thành công"));
     }
 
     /// <summary>13.5. Xoá mềm sản phẩm.</summary>
@@ -66,7 +74,6 @@ public sealed class AdminProductsController(IProductService productService, IAdm
 
     /// <summary>13.6. Thêm biến thể cho sản phẩm (409 SKU_ALREADY_EXISTS nếu trùng); trả id.</summary>
     [HttpPost("{id:guid}/variants")]
-    [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<Guid>), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateVariantAsync([FromRoute] Guid id, [FromBody] SaveVariantRequest request,
         CancellationToken cancellationToken)

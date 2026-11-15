@@ -64,6 +64,26 @@ public sealed class AdminProductCatalogService(
         }, cancellationToken);
     }
 
+    public async Task UpdateProductStatusAsync(Guid productId, UpdateProductStatusRequest request, CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        if (string.IsNullOrWhiteSpace(request.Status)
+            || (!string.Equals(request.Status.Trim(), ActiveStatus, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.Status.Trim(), InactiveStatus, StringComparison.OrdinalIgnoreCase)))
+            throw new RenTrek.BLL.Exceptions.ValidationException("status", "Trạng thái sản phẩm phải là Active hoặc Inactive");
+
+        await AtomicAsync(LockKey, async () =>
+        {
+            var product = await GetProductAsync(productId, cancellationToken);
+            var previousStatus = product.Status.ToString();
+            product.Status = string.Equals(request.Status.Trim(), ActiveStatus, StringComparison.OrdinalIgnoreCase)
+                ? CatalogStatus.Active
+                : CatalogStatus.Inactive;
+            product.UpdatedAt = Now;
+            await AuditAsync("UpdateStatus", "Product", productId, new { before = previousStatus, after = product.Status.ToString() }, cancellationToken);
+        }, cancellationToken);
+    }
+
     public async Task DeleteProductAsync(Guid productId, CancellationToken cancellationToken)
     {
         RequireAdmin();
@@ -71,9 +91,28 @@ public sealed class AdminProductCatalogService(
         {
             var product = await GetProductAsync(productId, cancellationToken);
             product.IsDeleted = true;
+            product.Status = CatalogStatus.Inactive;
             product.UpdatedAt = Now;
-            await AuditAsync("Delete", "Product", productId, new { product.Name }, cancellationToken);
+
+            var variants = await UnitOfWork.ProductVariants.GetByProductForUpdateAsync(productId, cancellationToken);
+            foreach (var variant in variants)
+            {
+                variant.IsDeleted = true;
+                variant.Status = CatalogStatus.Inactive;
+                variant.UpdatedAt = Now;
+            }
+
+            await AuditAsync("Delete", "Product", productId, new { product.Name, deletedVariantsCount = variants.Count }, cancellationToken);
         }, cancellationToken);
+    }
+
+    private static decimal? ValidReplacementValue(decimal? value)
+    {
+        if (value is null)
+            return null;
+        if (value < 0 || value > 10_000_000_000m)
+            throw new RenTrek.BLL.Exceptions.ValidationException("replacementValue", "Giá trị thiết bị phải từ 0 đến 10 tỷ đồng");
+        return Math.Round(value.Value, 0);
     }
 
     public async Task<Guid> CreateVariantAsync(Guid productId, SaveVariantRequest request, CancellationToken cancellationToken)
@@ -92,6 +131,7 @@ public sealed class AdminProductCatalogService(
                 Name = request.VariantName.Trim(),
                 Size = Trim(request.Size),
                 Color = Trim(request.Color),
+                ReplacementValue = ValidReplacementValue(request.ReplacementValue),
                 Status = ToCatalogStatus(request.Status),
                 CreatedAt = Now,
                 UpdatedAt = Now
@@ -113,6 +153,7 @@ public sealed class AdminProductCatalogService(
             variant.Name = request.VariantName.Trim();
             variant.Size = Trim(request.Size);
             variant.Color = Trim(request.Color);
+            variant.ReplacementValue = ValidReplacementValue(request.ReplacementValue);
             variant.Status = ToCatalogStatus(request.Status);
             variant.UpdatedAt = Now;
             await AuditAsync("Update", "ProductVariant", variantId, new { before, after = request }, cancellationToken);
@@ -210,6 +251,29 @@ public sealed class AdminProductCatalogService(
         }, cancellationToken);
     }
 
+    public async Task SetPrimaryVariantImageAsync(Guid variantId, Guid imageId, CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        await AtomicAsync(LockKey, async () =>
+        {
+            var variant = await GetVariantAsync(variantId, cancellationToken);
+            var images = await UnitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
+            var target = images.FirstOrDefault(x => x.Id == imageId)
+                ?? throw new NotFoundException("Không tìm thấy ảnh", ErrorCodes.NotFound);
+            foreach (var image in images)
+            {
+                var shouldBePrimary = image.Id == imageId;
+                if (image.IsPrimary != shouldBePrimary)
+                {
+                    image.IsPrimary = shouldBePrimary;
+                    image.UpdatedAt = Now;
+                }
+            }
+            variant.UpdatedAt = Now;
+            await AuditAsync("SetPrimaryImage", "ProductVariant", variantId, new { imageId, target.ImageUrl }, cancellationToken);
+        }, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<AdminPricingItemResponse>> GetPricingAsync(Guid? categoryId, CancellationToken cancellationToken)
     {
         var rows = await UnitOfWork.RentalPriceTiers.GetPricingOverviewAsync(categoryId, cancellationToken);
@@ -275,6 +339,7 @@ public sealed class AdminProductCatalogService(
             CategoryName = category?.Name ?? string.Empty,
             Description = bundle.Description,
             Status = bundle.Status,
+            ReplacementValue = bundle.ReplacementValue,
             CreatedAt = bundle.CreatedAt,
             UpdatedAt = bundle.UpdatedAt,
             Items = items.Select(i =>
@@ -310,6 +375,7 @@ public sealed class AdminProductCatalogService(
                 CategoryId = request.CategoryId,
                 Name = request.Name.Trim(),
                 Description = Trim(request.Description),
+                ReplacementValue = ValidReplacementValue(request.ReplacementValue),
                 Status = status,
                 CreatedAt = Now,
                 UpdatedAt = Now
@@ -334,6 +400,7 @@ public sealed class AdminProductCatalogService(
             bundle.Name = request.Name.Trim();
             bundle.CategoryId = request.CategoryId;
             bundle.Description = Trim(request.Description);
+            bundle.ReplacementValue = ValidReplacementValue(request.ReplacementValue);
             bundle.Status = status;
             bundle.UpdatedAt = Now;
             await AuditAsync("Update", "ProductBundle", bundleId, new { before, after = request }, cancellationToken);

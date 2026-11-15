@@ -23,4 +23,13 @@ public sealed class AdminRentalOrderDetailResponse
     public AdminRentalOverdueResponse Overdue { get; set; } = new();
     public AdminRentalSettlementResponse Settlement { get; set; } = new();
     public AdminRentalAllowedActionsResponse AllowedActions { get; set; } = new();
+    public RenTrek.BLL.DTOs.RentalPolicy.Responses.RentalPolicyResponse? RentalPolicy { get; set; }
+    public DateTime? HandedOverAt { get; set; }
+    public DateTime? CustomerReceivedConfirmedAt { get; set; }
+    public string? ReceiptConfirmSource { get; set; }
+    public string? CancellationType { get; set; }
+    public List<RenTrek.BLL.DTOs.RentalOrder.Responses.RentalEvidencePhotoResponse> EvidencePhotos { get; set; } = [];
+    public List<RenTrek.BLL.DTOs.RentalReport.Responses.RentalReportResponse> Reports { get; set; } = [];
+    /// <summary>Quyết toán đã chốt (null nếu chưa).</summary>
+    public RenTrek.BLL.DTOs.RentalOrder.Responses.RentalOrderSettlementResponse? StoredSettlement { get; set; }
 }

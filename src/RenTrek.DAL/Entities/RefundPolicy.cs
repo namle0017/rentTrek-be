@@ -12,6 +12,12 @@ public class RefundPolicy
     public int Version { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public DateTime? EffectiveUntil { get; set; }
+    /// <summary>Đổi lịch phải trước giờ khởi hành ít nhất N giờ; null = không cho đổi lịch.</summary>
+    public int? RescheduleMinHoursBefore { get; set; }
+    public decimal RescheduleFee { get; set; }
+    public int MaxReschedules { get; set; }
+    /// <summary>Trễ quá N phút không báo ⇒ NoShow.</summary>
+    public int NoShowGraceMinutes { get; set; } = 30;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

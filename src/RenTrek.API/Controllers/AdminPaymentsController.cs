@@ -28,6 +28,15 @@ public sealed class AdminPaymentsController(IAdminPaymentService service) : Cont
         return Ok(ApiResponse<PagedResponse<AdminPaymentListItemResponse>>.Ok(result, "Lấy danh sách giao dịch thành công"));
     }
 
+    /// <summary>O27: thẻ KPI (tổng thu / hoàn thành công, đang chờ), cùng bộ lọc và phạm vi với danh sách giao dịch.</summary>
+    [HttpGet("payments/stats")]
+    [ProducesResponseType(typeof(ApiResponse<AdminPaymentStatsResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PaymentStatsAsync([FromQuery] AdminQueryRequest request, CancellationToken cancellationToken)
+    {
+        var result = await service.GetPaymentStatsAsync(request, cancellationToken);
+        return Ok(ApiResponse<AdminPaymentStatsResponse>.Ok(result, "Lấy thống kê giao dịch thành công"));
+    }
+
     /// <summary>O28: hàng đợi hoàn tiền theo tab PendingApproval | Pending | Failed | NeedsReconciliation.</summary>
     [HttpGet("refunds")]
     [Authorize(Roles = RoleNames.Admin)]
@@ -63,11 +72,36 @@ public sealed class AdminPaymentsController(IAdminPaymentService service) : Cont
     /// <summary>Đánh dấu khoản hoàn đã chuyển khoản thủ công, bắt buộc mã tham chiếu ngân hàng.</summary>
     [HttpPost("refunds/{paymentId:guid}/mark-manual")]
     [Authorize(Roles = RoleNames.Admin)]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(16 * 1024 * 1024)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
     [ProducesResponseType(typeof(ApiResponse<AdminRefundActionResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> MarkManualAsync(Guid paymentId, [FromBody] MarkManualRefundRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> MarkManualAsync(
+        Guid paymentId,
+        [FromForm] MarkManualRefundRequest request,
+        [FromForm] List<IFormFile>? files,
+        CancellationToken cancellationToken)
     {
-        var result = await service.MarkManualAsync(paymentId, request, cancellationToken);
-        return Ok(ApiResponse<AdminRefundActionResponse>.Ok(result, "Đã ghi nhận hoàn tiền thủ công"));
+        var inputs = ProofFormFiles.ToInputs(files);
+        try
+        {
+            var result = await service.MarkManualAsync(paymentId, request, inputs, cancellationToken);
+            return Ok(ApiResponse<AdminRefundActionResponse>.Ok(result, "Đã ghi nhận hoàn tiền thủ công"));
+        }
+        finally
+        {
+            ProofFormFiles.DisposeAll(inputs);
+        }
+    }
+
+    /// <summary>Tải ảnh chứng từ của khoản hoàn (stream thô, không bọc ApiResponse).</summary>
+    [HttpGet("refunds/{paymentId:guid}/proofs/{proofId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetProofAsync(Guid paymentId, Guid proofId, CancellationToken cancellationToken)
+    {
+        var (content, contentType, _) = await service.OpenRefundProofAsync(paymentId, proofId, cancellationToken);
+        Response.Headers.CacheControl = "private, no-store";
+        return File(content, contentType);
     }
 }

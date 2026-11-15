@@ -556,7 +556,16 @@ public sealed class AdminTourService(
                 GroupMaxParticipants = source.GroupMaxParticipants,
                 Status = TourStatuses.Draft,
                 CreatedAt = Now,
-                UpdatedAt = Now
+                UpdatedAt = Now,
+                SuggestedBundles = source.SuggestedBundles.Select(sb => new TourSuggestedBundle
+                {
+                    TourSuggestedBundleId = Guid.NewGuid(),
+                    TourId = newId,
+                    BundleId = sb.BundleId,
+                    SortOrder = sb.SortOrder,
+                    Note = sb.Note,
+                    CreatedAt = Now
+                }).ToList()
             }, cancellationToken);
             await UnitOfWork.TourImages.AddRangeAsync(source.Images.Select(i => new TourImage
             {
@@ -695,6 +704,56 @@ public sealed class AdminTourService(
             }
             Touch(tour);
             await AuditAsync("SetPosts", EntityType, tourId, new { before, after = request.Items }, cancellationToken);
+        }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AdminTourSuggestedBundleResponse>> GetSuggestedBundlesAsync(
+        Guid tourId, CancellationToken cancellationToken)
+    {
+        var tour = await LoadAsync(tourId, cancellationToken);
+        return tour.SuggestedBundles
+            .OrderBy(sb => sb.SortOrder).ThenBy(sb => sb.Bundle.Name)
+            .Select(sb => new AdminTourSuggestedBundleResponse
+            {
+                BundleId = sb.BundleId,
+                Name = sb.Bundle.Name,
+                Status = sb.Bundle.IsDeleted ? "Deleted" : sb.Bundle.Status,
+                SortOrder = sb.SortOrder,
+                Note = sb.Note
+            })
+            .ToList();
+    }
+
+    public async Task SetSuggestedBundlesAsync(Guid tourId, TourSuggestedBundlesRequest request,
+        CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        await AtomicAsync(LockKey, async () =>
+        {
+            var tour = await LoadAsync(tourId, cancellationToken);
+            var wanted = request.Items.ToDictionary(i => i.BundleId);
+            var bundles = await UnitOfWork.ProductBundles.GetActiveForRentalAsync(wanted.Keys.ToList(), cancellationToken);
+            Check(bundles.Count(b => b.IsActive) == wanted.Count, "items", "Có combo không tồn tại hoặc đã ngừng bán");
+            var before = tour.SuggestedBundles.Select(sb => new { sb.BundleId, sb.SortOrder, sb.Note }).ToList();
+            // Cascade + bắt buộc: bỏ khỏi collection là EF xoá dòng liên kết.
+            foreach (var link in tour.SuggestedBundles.Where(sb => !wanted.ContainsKey(sb.BundleId)).ToList())
+                tour.SuggestedBundles.Remove(link);
+            foreach (var item in request.Items)
+            {
+                var link = tour.SuggestedBundles.FirstOrDefault(sb => sb.BundleId == item.BundleId);
+                if (link is null)
+                    // Không gán Id: key có default DB, gán sẵn thì EF coi là dòng cũ và UPDATE (0 dòng).
+                    tour.SuggestedBundles.Add(link = new TourSuggestedBundle
+                    {
+                        TourId = tourId,
+                        BundleId = item.BundleId,
+                        CreatedAt = Now
+                    });
+                link.SortOrder = item.SortOrder;
+                link.Note = string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim();
+            }
+            Touch(tour);
+            await AuditAsync("SetSuggestedBundles", EntityType, tourId, new { before, after = request.Items }, cancellationToken);
         }, cancellationToken);
     }
 

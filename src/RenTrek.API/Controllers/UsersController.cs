@@ -78,6 +78,16 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<UserAvatarResponse>.Ok(new UserAvatarResponse(avatarUrl), "Tải lên ảnh đại diện thành công"));
     }
 
+    [HttpPost("me/password/request-otp")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> RequestChangePasswordOtpAsync(CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.RequiredUserId;
+        await _userService.SendChangePasswordOtpAsync(userId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Mã OTP xác thực đổi mật khẩu đã được gửi về email của bạn"));
+    }
+
     [HttpPut("me/password")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [Authorize]
@@ -87,6 +97,33 @@ public class UsersController : ControllerBase
 
         await _userService.ChangePasswordAsync(userId, request, _currentUserService.Jti, cancellationToken);
         return Ok(ApiResponse<object?>.Ok(null, "Đổi mật khẩu thành công"));
+    }
+
+    [HttpGet("me/sessions")]
+    [ProducesResponseType(typeof(ApiResponse<List<MySessionResponse>>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> GetSessionsAsync(CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetSessionsAsync(_currentUserService.RequiredUserId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<List<MySessionResponse>>.Ok(result, "Lấy danh sách phiên đăng nhập thành công"));
+    }
+
+    [HttpDelete("me/sessions/{familyId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> RevokeSessionAsync(Guid familyId, CancellationToken cancellationToken)
+    {
+        await _userService.RevokeSessionAsync(_currentUserService.RequiredUserId, familyId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đã đăng xuất phiên đăng nhập"));
+    }
+
+    [HttpPost("me/sessions/revoke-others")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [Authorize]
+    public async Task<IActionResult> RevokeOtherSessionsAsync(CancellationToken cancellationToken)
+    {
+        var count = await _userService.RevokeOtherSessionsAsync(_currentUserService.RequiredUserId, _currentUserService.Jti, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, $"Đã đăng xuất {count} phiên khác"));
     }
 
     [HttpGet("me/orders")]

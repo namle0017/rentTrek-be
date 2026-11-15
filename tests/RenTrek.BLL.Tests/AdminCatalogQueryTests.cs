@@ -147,6 +147,22 @@ public sealed class AdminCatalogQueryTests
         // Các truy vấn công khai dịch được sang SQL (sort theo giá dùng subquery)
         var (publicItems, _) = await products.GetPublicPagedAsync(new ProductFilter { SortBy = "priceperday", IsDescending = true });
         Assert.Contains(publicItems, p => p.Id == row.ProductId);
+
+        var (rentalItems, _) = await products.GetPublicPagedAsync(new ProductFilter
+        {
+            OfferingType = "Rental",
+            MinPrice = 80000m,
+            MaxPrice = 120000m
+        });
+        Assert.Contains(rentalItems, p => p.Id == row.ProductId);
+
+        var (saleItems, saleTotal) = await products.GetPublicPagedAsync(new ProductFilter { OfferingType = "Sale" });
+        Assert.Empty(saleItems);
+        Assert.Equal(0, saleTotal);
+
+        var (outOfRangeItems, _) = await products.GetPublicPagedAsync(new ProductFilter { MinPrice = 150000m });
+        Assert.DoesNotContain(outOfRangeItems, p => p.Id == row.ProductId);
+
         Assert.NotNull(await products.GetPublicDetailAsync(row.ProductId));
         Assert.Contains(await products.GetPublicCategoriesAsync(), c => c.Name == "Lều trại");
     }

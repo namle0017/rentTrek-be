@@ -44,6 +44,14 @@ public class RefreshTokenRepository : GenericRepository<RefreshToken>, IRefreshT
         => _dbSet.AsNoTracking().Where(x => x.UserId == userId && x.RevokedAt == null && x.ExpiresAt > now)
             .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
 
+    public Task<Dictionary<Guid, DateTime>> GetFamilyStartTimesAsync(
+        Guid userId, IReadOnlyCollection<Guid> familyIds, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking()
+            .Where(x => x.UserId == userId && familyIds.Contains(x.FamilyId))
+            .GroupBy(x => x.FamilyId)
+            .Select(g => new { g.Key, StartedAt = g.Min(x => x.CreatedAt) })
+            .ToDictionaryAsync(x => x.Key, x => x.StartedAt, cancellationToken);
+
     public Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default)
         => _dbSet.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId && x.RefreshTokenId == refreshTokenId, cancellationToken);
 

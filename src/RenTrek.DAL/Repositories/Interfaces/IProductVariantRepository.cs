@@ -20,4 +20,10 @@ public interface IProductVariantRepository : IGenericRepository<ProductVariant>
     /// SKU đã có ở biến thể khác chưa (tính cả biến thể đã xoá vì unique index phủ mọi dòng), so không phân biệt hoa thường.
     /// </summary>
     Task<bool> SkuExistsAsync(string sku, Guid? excludeVariantId, CancellationToken cancellationToken = default);
+
+    /// <summary>Giá trị thiết bị (đền bù mất) theo biến thể, kể cả biến thể đã xoá mềm; null nếu chưa nhập.</summary>
+    Task<Dictionary<Guid, decimal?>> GetReplacementValuesAsync(IReadOnlyCollection<Guid> variantIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách biến thể chưa xoá của một sản phẩm (có tracking để cập nhật).</summary>
+    Task<List<ProductVariant>> GetByProductForUpdateAsync(Guid productId, CancellationToken cancellationToken = default);
 }

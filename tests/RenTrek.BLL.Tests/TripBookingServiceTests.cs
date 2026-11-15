@@ -1,3 +1,4 @@
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
@@ -15,6 +16,64 @@ public sealed class TripBookingServiceTests
     private const string DefaultContactPhone = "0901234567";
 
     [Fact]
+    public async Task CreateAsync_RejectsWhenAcceptedRefundPolicyVersionIsStale()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        fixture.UnitOfWork.RefundPolicyVersion = 2;
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CreateAsync(
+            new CreateTripBookingRequest
+            {
+                AcceptedRefundPolicyVersion = 1,
+                TripId = fixture.Repository.Trip!.TripId,
+                ContactPhone = DefaultContactPhone
+            },
+            "stale-policy"));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal(ErrorCodes.RefundPolicyChanged, ex.ErrorCode);
+        Assert.Null(fixture.Repository.AddedOrder);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RequiresPolicyVersion()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+
+        await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.CreateAsync(
+            new CreateTripBookingRequest
+            {
+                TripId = fixture.Repository.Trip!.TripId,
+                ContactPhone = DefaultContactPhone
+            },
+            "no-policy-version"));
+        Assert.Null(fixture.Repository.AddedOrder);
+    }
+
+    [Fact]
+    public async Task CreateAsync_StoresTheFallbackPolicyWhenTheTripHasNoSpecificPolicy()
+    {
+        var fixture = CreateFixture(totalSlots: 5);
+        fixture.UnitOfWork.CommonRefundPolicy = new RefundPolicy
+        {
+            RefundPolicyId = Guid.NewGuid(),
+            Version = 3,
+            PolicyType = RefundPolicyTypes.Tour,
+            Status = RefundPolicyStatuses.Active
+        };
+
+        await fixture.Service.CreateAsync(new CreateTripBookingRequest
+        {
+            TripId = fixture.Repository.Trip!.TripId,
+            ContactPhone = DefaultContactPhone,
+            AcceptedRefundPolicyVersion = 3
+        }, "fallback-policy");
+
+        Assert.Equal(fixture.UnitOfWork.CommonRefundPolicy.RefundPolicyId, fixture.Repository.AddedOrder!.RefundPolicyId);
+        Assert.Equal(3, fixture.Repository.AddedOrder.AcceptedRefundPolicyVersion);
+    }
+
+    [Fact]
     public async Task CreateAsync_UsesBuyerForeignKeyWithoutAddingDetachedAccountToOrderGraph()
     {
         var fixture = CreateFixture(totalSlots: 5);
@@ -22,6 +81,7 @@ public sealed class TripBookingServiceTests
         await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone
             },
@@ -39,6 +99,7 @@ public sealed class TripBookingServiceTests
         var result = await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = " 0909000111 ",
                 AdditionalParticipants =
@@ -71,6 +132,7 @@ public sealed class TripBookingServiceTests
         await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 AdditionalParticipants =
@@ -99,6 +161,7 @@ public sealed class TripBookingServiceTests
         var result = await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 BuyerParticipates = false,
@@ -130,6 +193,7 @@ public sealed class TripBookingServiceTests
         await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 BuyerParticipates = false,
@@ -145,6 +209,7 @@ public sealed class TripBookingServiceTests
         await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 BuyerParticipates = false,
@@ -172,6 +237,7 @@ public sealed class TripBookingServiceTests
         var exception = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 AdditionalParticipants =
@@ -197,6 +263,7 @@ public sealed class TripBookingServiceTests
         var exception = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = fixture.Repository.Trip!.TripId,
                 ContactPhone = DefaultContactPhone,
                 AdditionalParticipants =
@@ -223,6 +290,7 @@ public sealed class TripBookingServiceTests
         var result = await fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = existing.TripBookingOrder.TripId,
                 ContactPhone = DefaultContactPhone
             },
@@ -243,6 +311,7 @@ public sealed class TripBookingServiceTests
         await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CreateAsync(
             new CreateTripBookingRequest
             {
+                AcceptedRefundPolicyVersion = 1,
                 TripId = existing.TripBookingOrder.TripId,
                 ContactPhone = DefaultContactPhone,
                 BuyerParticipates = false,
@@ -630,13 +699,29 @@ public sealed class TripBookingServiceTests
         public IPromotionRepository Promotions => throw new NotSupportedException();
         public IPromotionTierRepository PromotionTiers => throw new NotSupportedException();
         public IRefundCaseRepository RefundCases => throw new NotSupportedException();
-        public IRefundPolicyRepository RefundPolicies => throw new NotSupportedException();
+        public IRefundPolicyRepository RefundPolicies => TestProxy.Create<IRefundPolicyRepository>(
+            ("GetDetailAsync", args => Task.FromResult<RefundPolicy?>(CommonRefundPolicy is null
+                ? new RefundPolicy
+                {
+                    RefundPolicyId = (Guid)args[0]!,
+                    PolicyType = RefundPolicyTypes.Tour,
+                    Status = RefundPolicyStatuses.Active,
+                    Version = RefundPolicyVersion
+                }
+                : null)),
+            ("GetCurrentAsync", _ => Task.FromResult(CommonRefundPolicy)));
+        public RefundPolicy? CommonRefundPolicy { get; set; }
+        public int RefundPolicyVersion { get; set; } = 1;
         public IRefundPolicyRuleRepository RefundPolicyRules => throw new NotSupportedException();
         public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => throw new NotSupportedException();
         public IRentalChargeRepository RentalCharges => throw new NotSupportedException();
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ISystemConfigurationRepository SystemConfigurations => throw new NotSupportedException();
@@ -679,6 +764,7 @@ public sealed class TripBookingServiceTests
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Account? Account { get; set; }
         public List<Account> ConfirmedAccounts { get; } = [];
         public Trip? Trip { get; init; }

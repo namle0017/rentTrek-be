@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.RentalOrder.Requests;
@@ -17,11 +18,76 @@ public class RentalOrdersController : ControllerBase
 {
     private readonly IRentalOrderService _rentalOrderService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IRentalCancellationService _cancellationService;
+    private readonly IRentalLifecycleService _lifecycleService;
 
-    public RentalOrdersController(IRentalOrderService rentalOrderService, ICurrentUserService currentUserService)
+    public RentalOrdersController(
+        IRentalOrderService rentalOrderService,
+        ICurrentUserService currentUserService,
+        IRentalCancellationService cancellationService,
+        IRentalLifecycleService lifecycleService)
     {
         _rentalOrderService = rentalOrderService;
         _currentUserService = currentUserService;
+        _cancellationService = cancellationService;
+        _lifecycleService = lifecycleService;
+    }
+
+    /// <summary>Báo giá huỷ đơn đã thanh toán (phí theo chính sách cọc, số tiền hoàn); không ghi dữ liệu.</summary>
+    [HttpGet("{orderId:guid}/cancellation-preview")]
+    [ProducesResponseType(typeof(ApiResponse<RentalCancellationPreviewResponse>), StatusCodes.Status200OK)]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> GetCancellationPreviewAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await _cancellationService.PreviewAsync(_currentUserService.RequiredUserId, orderId, cancellationToken);
+        return Ok(ApiResponse<RentalCancellationPreviewResponse>.Ok(result, "Lấy báo giá huỷ đơn thành công"));
+    }
+
+    /// <summary>Khách huỷ đơn đã thanh toán, chưa nhận đồ; có tiền hoàn thì bắt buộc STK + đồng ý xử lý dữ liệu.</summary>
+    [HttpPost("{orderId:guid}/cancel-paid")]
+    [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
+    [ProducesResponseType(typeof(ApiResponse<RentalOrderDetailResponse>), StatusCodes.Status200OK)]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> CancelPaidAsync(
+        Guid orderId,
+        [FromBody] CancelPaidRentalOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _cancellationService.CancelPaidAsync(_currentUserService.RequiredUserId, orderId, request, cancellationToken);
+        return Ok(ApiResponse<RentalOrderDetailResponse>.Ok(result, "Đã huỷ đơn thuê"));
+    }
+
+    /// <summary>Khách gửi ảnh khi báo lỗi lúc nhận đồ (lưu làm bằng chứng CustomerIssue).</summary>
+    [HttpPost("{orderId:guid}/issue-photos")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(5 * 1024 * 1024 + 64 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<RentalEvidencePhotoResponse>), StatusCodes.Status201Created)]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> UploadIssuePhotoAsync(
+        Guid orderId,
+        IFormFile file,
+        [FromForm] Guid? assignmentId,
+        [FromForm] string? note,
+        [FromServices] IRentalEvidenceService evidence,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            throw new RenTrek.BLL.Exceptions.ValidationException("Vui lòng chọn ảnh");
+        await using var stream = file.OpenReadStream();
+        var photo = await evidence.UploadCustomerAsync(
+            _currentUserService.RequiredUserId, orderId, assignmentId, note, stream, file.FileName, file.ContentType, file.Length, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponse<RentalEvidencePhotoResponse>.Ok(photo, "Đã gửi ảnh", StatusCodes.Status201Created));
+    }
+
+    /// <summary>Khách xác nhận đã nhận đồ và đã kiểm tra kỹ.</summary>
+    [HttpPost("{orderId:guid}/confirm-receipt")]
+    [ProducesResponseType(typeof(ApiResponse<RentalOrderDetailResponse>), StatusCodes.Status200OK)]
+    [Authorize(Roles = RoleNames.Customer)]
+    public async Task<IActionResult> ConfirmReceiptAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await _lifecycleService.ConfirmReceiptAsync(_currentUserService.RequiredUserId, orderId, cancellationToken);
+        return Ok(ApiResponse<RentalOrderDetailResponse>.Ok(result, "Đã xác nhận nhận đồ"));
     }
 
     [HttpPost("quote")]

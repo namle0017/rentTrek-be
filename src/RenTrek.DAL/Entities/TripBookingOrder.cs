@@ -15,6 +15,7 @@ public sealed class TripBookingOrder
     public Guid? SplitApprovedByUserId { get; set; }
     public DateTimeOffset? SplitAt { get; set; }
     public int InviteVersion { get; set; }
+    public int RescheduleCount { get; set; }
 
     public Order Order { get; set; } = null!;
     public Trip Trip { get; set; } = null!;

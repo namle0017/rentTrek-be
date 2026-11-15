@@ -49,4 +49,13 @@ public class ProductsController : ControllerBase
         var product = await _productService.GetByIdAsync(id, cancellationToken);
         return Ok(ApiResponse<ProductDetailResponse>.Ok(product, "Lấy sản phẩm thành công"));
     }
+
+    [HttpGet("{id:guid}/related")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRelatedAsync(Guid id, [FromQuery] int limit = 4, CancellationToken cancellationToken = default)
+    {
+        var related = await _productService.GetRelatedAsync(id, limit, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<ProductResponse>>.Ok(related, "Lấy danh sách sản phẩm liên quan thành công"));
+    }
 }

@@ -65,6 +65,14 @@ public class AccountRepository : GenericRepository<Account>, IAccountRepository
     public Task<AdminUserRow?> GetAdminRowAsync(Guid userId, CancellationToken cancellationToken = default)
         => _dbSet.AsNoTracking().Where(x => x.UserId == userId).Select(ToAdminRow).SingleOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<AdminUserRow>> GetByRolesAsync(
+        IReadOnlyCollection<string> roleNames, string status, CancellationToken cancellationToken = default)
+        => await _dbSet.AsNoTracking()
+            .Where(x => x.Status == status && roleNames.Contains(x.Role.RoleName))
+            .OrderBy(x => x.FullName)
+            .Select(ToAdminRow)
+            .ToListAsync(cancellationToken);
+
     public async Task<AccountActivityRow> GetActivityAsync(Guid userId, CancellationToken cancellationToken = default)
         => new()
         {

@@ -13,7 +13,11 @@ public class RentalOrderAdjustment
     public decimal ExtraAmount { get; set; }
     public Guid RequestedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string Status { get; set; } = "Applied";
+    public Guid? PaymentId { get; set; }
+    public DateTime? AppliedAt { get; set; }
 
     public RentalOrder RentalOrder { get; set; } = null!;
     public Account RequestedByUser { get; set; } = null!;
+    public Payment? Payment { get; set; }
 }

@@ -23,6 +23,7 @@ internal sealed class ActiveTourRepositoryStub : ITourRepository
     public Task<int> CountByIdsAsync(IReadOnlyCollection<Guid> tourIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<bool> AnyByMainLocationAsync(Guid locationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<Tour?> GetForEditAsync(Guid tourId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<Tour?> GetSuggestionsAsync(Guid tourId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<bool> HasBookingsAsync(Guid tourId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<TourVersionRow>> GetFamilyVersionsAsync(Guid tourFamilyId, DateTimeOffset now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<(IReadOnlyList<AdminTourRow> Items, int TotalCount)> GetAdminPagedAsync(AdminTourFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();

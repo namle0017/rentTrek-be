@@ -519,6 +519,7 @@ public class AuthService : IAuthService
 
         var externalLogin = await _unitOfWork.UserExternalLogins.GetByProviderAndSubjectAsync("Google", subject, tracking: true, cancellationToken);
         Account? account;
+        var isNewAccount = false;
 
         if (externalLogin != null)
         {
@@ -530,6 +531,7 @@ public class AuthService : IAuthService
 
             if (account == null)
             {
+                isNewAccount = true;
                 var customerRole = await _unitOfWork.Roles.GetByNameAsync("Customer", tracking: true, cancellationToken)
                     ?? throw new InvalidOperationException("Chưa có role Customer trong bảng roles");
 
@@ -578,7 +580,10 @@ public class AuthService : IAuthService
         }
 
         account.LastLoginAt = DateTime.UtcNow;
-        _unitOfWork.Accounts.Update(account);
+        if (!isNewAccount)
+        {
+            _unitOfWork.Accounts.Update(account);
+        }
 
         return await IssueTokensAsync(account, Guid.NewGuid(), replaces: null, cancellationToken);
     }

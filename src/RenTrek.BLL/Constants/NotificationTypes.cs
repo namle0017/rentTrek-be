@@ -12,4 +12,14 @@ public static class NotificationTypes
     public const string TripScheduleChanged = "TripScheduleChanged";
     public const string RefundResult = "RefundResult";
     public const string RentalExtended = "RentalExtended";
+    public const string RentalLateFee = "RentalLateFee";
+    public const string RentalNoShow = "RentalNoShow";
+    public const string RentalHandedOver = "RentalHandedOver";
+    public const string RentalReturnReminder = "RentalReturnReminder";
+    public const string RentalReturnOverdue = "RentalReturnOverdue";
+    public const string RentalSettlement = "RentalSettlement";
+    public const string RefundBankInfoRequired = "RefundBankInfoRequired";
+    public const string RentalReportSubmitted = "RentalReportSubmitted";
+    public const string CustomerReportSubmitted = "CustomerReportSubmitted";
+    public const string CustomerReportUpdated = "CustomerReportUpdated";
 }

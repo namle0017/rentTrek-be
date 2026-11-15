@@ -89,13 +89,50 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
         var query = PublicProducts;
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var search = filter.Search.Trim();
-            query = query.Where(product => product.Name.Contains(search)
-                || (product.Description != null && product.Description.Contains(search)));
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(product => product.Name.ToLower().Contains(search)
+                || (product.Description != null && product.Description.ToLower().Contains(search))
+                || product.Variants.Any(variant => variant.Status == CatalogStatus.Active && variant.Sku.ToLower().Contains(search)));
         }
 
         if (filter.CategoryId.HasValue)
             query = query.Where(product => product.CategoryId == filter.CategoryId.Value);
+
+        if (filter.InStockOnly == true)
+        {
+            query = query.Where(product => product.Variants.Any(variant =>
+                variant.Status == CatalogStatus.Active
+                && variant.EquipmentAssets.Any(asset => !asset.IsDeleted && asset.AssetStatus == AvailableAssetStatus)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.OfferingType))
+        {
+            var offeringType = filter.OfferingType.Trim();
+            if (!string.Equals(offeringType, "Rental", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(_ => false);
+        }
+
+        if (filter.MinPrice.HasValue)
+        {
+            var minPrice = filter.MinPrice.Value;
+            query = query.Where(product =>
+                product.Variants
+                    .Where(v => v.Status == CatalogStatus.Active)
+                    .SelectMany(v => v.RentalPriceTiers)
+                    .Select(t => (decimal?)t.DailyPrice)
+                    .Min() >= minPrice);
+        }
+
+        if (filter.MaxPrice.HasValue)
+        {
+            var maxPrice = filter.MaxPrice.Value;
+            query = query.Where(product =>
+                product.Variants
+                    .Where(v => v.Status == CatalogStatus.Active)
+                    .SelectMany(v => v.RentalPriceTiers)
+                    .Select(t => (decimal?)t.DailyPrice)
+                    .Min() <= maxPrice);
+        }
 
         // Giá ngày thấp nhất của các biến thể đang bán; null (không có bậc giá) xếp cuối
         IOrderedQueryable<Product> sorted = (filter.SortBy ?? string.Empty).ToLowerInvariant() switch
@@ -127,6 +164,21 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
         return _context.Categories.AsNoTracking()
             .Where(category => categoryIds.Contains(category.Id))
             .OrderBy(category => category.Name).ThenBy(category => category.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<List<Product>> GetRelatedPublicAsync(
+        Guid categoryId,
+        Guid excludeProductId,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(limit, 1, 12);
+        return WithPublicDetail(PublicProducts
+                .Where(product => product.CategoryId == categoryId && product.Id != excludeProductId)
+                .OrderByDescending(product => product.CreatedAt)
+                .ThenBy(product => product.Id))
+            .Take(take)
             .ToListAsync(cancellationToken);
     }
 

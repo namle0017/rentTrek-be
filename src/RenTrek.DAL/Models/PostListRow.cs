@@ -18,6 +18,12 @@ public class PostListRow
 
     public DateTime? PublishedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>Đoạn nội dung bắt đầu từ ảnh Markdown đầu tiên (null nếu bài không có ảnh), để lấy ảnh bìa.</summary>
+    public string? ImageSnippet { get; set; }
+
+    public const int ImageSnippetLength = 600;
+
     public Guid CreatedByUserId { get; set; }
     public string AuthorName { get; set; } = string.Empty;
     public List<Tag> Tags { get; set; } = [];
@@ -29,5 +35,5 @@ public class PostListRow
     /// <summary>Số lượt người tham gia đã đọc.</summary>
     public int ReadCount { get; set; }
 
-    public const int PreviewLength = 440;
+    public const int PreviewLength = 1200;
 }

@@ -90,15 +90,19 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
 });
 
-// Render đứng sau proxy: lấy IP client thật từ X-Forwarded-For (phần tử cuối do proxy gắn) cho rate limit theo IP.
+// Render / ngrok đứng sau proxy: lấy IP client thật từ X-Forwarded-For (phần tử cuối do proxy gắn) cho rate limit theo IP,
+// và scheme gốc từ X-Forwarded-Proto để UseHttpsRedirection không redirect 307 request đã là HTTPS ở phía proxy
+// (preflight OPTIONS bị redirect thì trình duyệt báo lỗi CORS).
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
 builder.Services.AddHostedService<RefundDataPurgeBackgroundService>();
+builder.Services.AddHostedService<RentalLifecycleBackgroundService>();
+builder.Services.AddHostedService<TripBookingExpiryBackgroundService>();
 
 // Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
 builder.Services.AddHealthChecks();
@@ -109,10 +113,11 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseForwardedHeaders();
 
-if (app.Environment.IsDevelopment())
+// Swagger tại /swagger: luôn bật khi Development; môi trường khác (Render) chỉ bật khi đặt Swagger__Enabled=true
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options => options.DocumentTitle = "renTrek API");
 }
 
 app.UseHttpsRedirection();

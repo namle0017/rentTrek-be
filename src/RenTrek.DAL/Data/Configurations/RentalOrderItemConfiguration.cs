@@ -24,6 +24,10 @@ public class RentalOrderItemConfiguration : IEntityTypeConfiguration<RentalOrder
             .HasDefaultValueSql("gen_random_uuid()")
             .HasColumnName("rental_order_item_id");
         builder.Property(e => e.BillableDays).HasColumnName("billable_days");
+        builder.Property(e => e.UnitReplacementValue)
+            .HasPrecision(18)
+            .HasDefaultValue(0m)
+            .HasColumnName("unit_replacement_value");
         builder.Property(e => e.BundleId).HasColumnName("bundle_id");
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()")

@@ -26,6 +26,23 @@ public class RentalOrderConfiguration : IEntityTypeConfiguration<RentalOrder>
         builder.Property(e => e.HandledByUserId).HasColumnName("handled_by_user_id");
         builder.Property(e => e.RentalEndAt).HasColumnName("rental_end_at");
         builder.Property(e => e.RentalStartAt).HasColumnName("rental_start_at");
+        builder.Property(e => e.RentalPolicyId).HasColumnName("rental_policy_id");
+        builder.Property(e => e.HandedOverAt).HasColumnName("handed_over_at");
+        builder.Property(e => e.CustomerReceivedConfirmedAt).HasColumnName("customer_received_confirmed_at");
+        builder.Property(e => e.ReceiptConfirmSource)
+            .HasMaxLength(20)
+            .HasColumnName("receipt_confirm_source");
+        builder.Property(e => e.CancellationType)
+            .HasMaxLength(30)
+            .HasColumnName("cancellation_type");
+
+        builder.HasIndex(e => e.RentalPolicyId, "ix_rental_orders_rental_policy_id");
+        builder.HasIndex(e => e.CancellationType, "ix_rental_orders_cancellation_type")
+            .HasFilter("(cancellation_type IS NOT NULL)");
+
+        builder.HasOne(d => d.RentalPolicy).WithMany()
+            .HasForeignKey(d => d.RentalPolicyId)
+            .HasConstraintName("rental_orders_rental_policy_id_fkey");
 
         builder.HasOne(d => d.HandledByUser).WithMany(p => p.RentalOrders)
             .HasForeignKey(d => d.HandledByUserId)

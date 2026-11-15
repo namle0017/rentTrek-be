@@ -19,6 +19,7 @@ public class ProductVariantConfiguration : IEntityTypeConfiguration<ProductVaria
         builder.Property(variant => variant.Size).HasMaxLength(50);
         builder.Property(variant => variant.Color).HasMaxLength(50);
         builder.Property(variant => variant.Status).HasConversion<string>().HasMaxLength(50);
+        builder.Property(variant => variant.ReplacementValue).HasPrecision(18).HasColumnName("replacement_value");
         builder.HasQueryFilter(variant => !variant.IsDeleted && !variant.Product.IsDeleted
             && !variant.Product.Category.IsDeleted);
 

@@ -17,9 +17,12 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
         => PostgresAdvisoryLock.AcquireAsync(_context, $"payment:order:{orderId:N}", cancellationToken);
 
     public Task<Order?> GetOrderAsync(Guid orderId, Guid? customerUserId = null, CancellationToken cancellationToken = default)
-        => _context.Orders.SingleOrDefaultAsync(
-            o => o.OrderId == orderId && (customerUserId == null || o.CustomerUserId == customerUserId),
-            cancellationToken);
+        // Kèm RentalOrder để tính số phải trả của đơn thuê (tiền thuê + cọc)
+        => _context.Orders
+            .Include(o => o.RentalOrder)
+            .SingleOrDefaultAsync(
+                o => o.OrderId == orderId && (customerUserId == null || o.CustomerUserId == customerUserId),
+                cancellationToken);
 
     public Task<Payment?> GetLatestPendingCollectionAsync(Guid orderId, CancellationToken cancellationToken = default)
         => _dbSet
@@ -51,6 +54,50 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
     public Task<(IReadOnlyList<AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
         AdminPaymentFilter filter, CancellationToken cancellationToken = default)
     {
+        var refundCases = _context.RefundCases;
+        var rules = _context.RefundPolicyRules;
+        return AdminFiltered(filter)
+            .SortBy(filter.SortBy, filter.IsDescending, nameof(Payment.CreatedAt), nameof(Payment.Amount), nameof(Payment.Status))
+            .ToPageAsync(filter.PageNumber, filter.PageSize, p => new AdminPaymentRow
+            {
+                PaymentId = p.PaymentId,
+                OrderId = p.OrderId,
+                OrderCode = p.Order.OrderCode,
+                OrderPaymentStatus = p.Order.PaymentStatus,
+                PaymentType = p.PaymentType,
+                Purpose = p.Purpose,
+                Amount = p.Amount,
+                PaymentMethod = p.PaymentMethod,
+                ProviderTransactionId = p.ProviderTransactionId,
+                Status = p.Status,
+                FailureReason = refundCases.Where(r => r.RefundPaymentId == p.PaymentId).Select(r => r.RejectionReason).FirstOrDefault(),
+                PolicyMinHoursBefore = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (int?)r.MinHoursBefore).FirstOrDefault(),
+                PolicyRefundPercentage = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (decimal?)r.RefundPercentage).FirstOrDefault(),
+                HasRefundCase = refundCases.Any(r => r.RefundPaymentId == p.PaymentId),
+                CreatedAt = p.CreatedAt
+            }, cancellationToken);
+    }
+
+    public async Task<AdminPaymentStatsRow> GetAdminStatsAsync(AdminPaymentFilter filter, CancellationToken cancellationToken = default)
+    {
+        // Gom theo (loại, trạng thái) ở DB rồi cộng ở bộ nhớ: tối đa vài chục nhóm
+        var buckets = await AdminFiltered(filter)
+            .GroupBy(p => new { p.PaymentType, p.Status })
+            .Select(g => new { g.Key.PaymentType, g.Key.Status, Count = g.Count(), Amount = g.Sum(p => p.Amount) })
+            .ToListAsync(cancellationToken);
+
+        var pending = buckets.Where(b => b.Status is "Pending" or "PendingApproval").ToList();
+        return new AdminPaymentStatsRow
+        {
+            TotalCollectionSucceeded = buckets.Where(b => b.PaymentType == "Collection" && b.Status == "Succeeded").Sum(b => b.Amount),
+            TotalRefundSucceeded = buckets.Where(b => b.PaymentType == "Refund" && b.Status == "Succeeded").Sum(b => b.Amount),
+            PendingCount = pending.Sum(b => b.Count),
+            PendingAmount = pending.Sum(b => b.Amount)
+        };
+    }
+
+    private IQueryable<Payment> AdminFiltered(AdminPaymentFilter filter)
+    {
         var query = _dbSet.AsNoTracking();
         if (filter.ScopeUserId.HasValue)
         {
@@ -60,7 +107,7 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
         if (filter.PaymentType != null) query = query.Where(p => p.PaymentType == filter.PaymentType);
         if (filter.Purpose != null) query = query.Where(p => p.Purpose == filter.Purpose);
         if (filter.Status != null) query = query.Where(p => p.Status == filter.Status);
-        if (filter.Tab is "PendingApproval" or "Pending" or "Failed")
+        if (filter.Tab is "PendingApproval" or "Pending" or "Failed" or "Succeeded")
             query = query.Where(p => p.PaymentType == "Refund" && p.Status == filter.Tab);
         if (filter.Tab == "NeedsReconciliation")
             query = query.Where(p => p.PaymentType == "Collection" && p.Status == "Pending" && p.ProviderTransactionId != null
@@ -81,29 +128,7 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
             query = query.Where(p => p.Order.OrderCode.ToLower().Contains(search)
                 || (p.ProviderTransactionId != null && p.ProviderTransactionId.ToLower().Contains(search)));
         }
-
-        var refundCases = _context.RefundCases;
-        var rules = _context.RefundPolicyRules;
-        return query
-            .SortBy(filter.SortBy, filter.IsDescending, nameof(Payment.CreatedAt), nameof(Payment.Amount), nameof(Payment.Status))
-            .ToPageAsync(filter.PageNumber, filter.PageSize, p => new AdminPaymentRow
-            {
-                PaymentId = p.PaymentId,
-                OrderId = p.OrderId,
-                OrderCode = p.Order.OrderCode,
-                OrderPaymentStatus = p.Order.PaymentStatus,
-                PaymentType = p.PaymentType,
-                Purpose = p.Purpose,
-                Amount = p.Amount,
-                PaymentMethod = p.PaymentMethod,
-                ProviderTransactionId = p.ProviderTransactionId,
-                Status = p.Status,
-                FailureReason = refundCases.Where(r => r.RefundPaymentId == p.PaymentId).Select(r => r.RejectionReason).FirstOrDefault(),
-                PolicyMinHoursBefore = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (int?)r.MinHoursBefore).FirstOrDefault(),
-                PolicyRefundPercentage = rules.Where(r => r.RefundPolicyRuleId == p.RefundPolicyRuleId).Select(r => (decimal?)r.RefundPercentage).FirstOrDefault(),
-                HasRefundCase = refundCases.Any(r => r.RefundPaymentId == p.PaymentId),
-                CreatedAt = p.CreatedAt
-            }, cancellationToken);
+        return query;
     }
 
     public Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default)

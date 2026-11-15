@@ -1,3 +1,5 @@
+using RenTrek.BLL.Constants;
+using RenTrek.BLL.Services.Internal;
 using RenTrek.BLL.DTOs.AdminTrip.Requests;
 using RenTrek.BLL.DTOs.Guide.Requests;
 using RenTrek.BLL.Exceptions;
@@ -116,7 +118,7 @@ public sealed class TripOperationsAndGuideServicesTests
             Status = "Open",
             RowVersion = 2
         };
-        var service = new AdminTripService(uow, new TestCurrentUserService(staffId, "Staff"), new TestTimeProvider(FixedNow), TestProxy.Create<INotificationService>());
+        var service = new AdminTripService(uow, new TestCurrentUserService(staffId, "Staff"), new TestTimeProvider(FixedNow), TestProxy.Create<INotificationService>(), TestProxy.Create<IRentalRefundOpener>());
 
         var ex = await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateAsync(
             tripId,
@@ -158,7 +160,8 @@ public sealed class TripOperationsAndGuideServicesTests
             uow,
             new TestCurrentUserService(Guid.NewGuid(), "Admin"),
             new TestTimeProvider(FixedNow),
-            TestProxy.Create<INotificationService>());
+            TestProxy.Create<INotificationService>(),
+            TestProxy.Create<IRentalRefundOpener>());
 
         // 1. RowVersion mismatch -> 409 CONCURRENCY_CONFLICT
         var concurrencyEx = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(
@@ -294,11 +297,18 @@ public sealed class TripOperationsAndGuideServicesTests
             ]
         });
 
+        var openedRefunds = new List<(Guid OrderId, decimal Amount, string Source)>();
+        var refundOpener = TestProxy.Create<IRentalRefundOpener>(("OpenRentalRefundAsync", args =>
+        {
+            openedRefunds.Add((((Order)args[0]!).OrderId, (decimal)args[1]!, (string)args[2]!));
+            return Task.FromResult(new RenTrek.BLL.DTOs.Refund.Responses.RefundCaseSummaryResponse());
+        }));
         var service = new AdminTripService(
             uow,
             new TestCurrentUserService(Guid.NewGuid(), "Admin"),
             new TestTimeProvider(FixedNow),
-            TestProxy.Create<INotificationService>());
+            TestProxy.Create<INotificationService>(),
+            refundOpener);
 
         var readiness = await service.GetReadinessChecklistAsync(tripId);
         Assert.True(readiness.IsReadyToDepart);
@@ -314,8 +324,11 @@ public sealed class TripOperationsAndGuideServicesTests
         Assert.Equal(2, cancelResult.AffectedParticipantsCount);
         Assert.Equal(6_400_000m, cancelResult.TotalRefundAmount);
         Assert.Equal(1, cancelResult.ReleasedAssetsCount);
-        Assert.Single(uow.TripRepo.AddedPayments);
-        Assert.Equal("PendingApproval", uow.TripRepo.AddedPayments[0].Status);
+        // Không còn tạo Payment hoàn trực tiếp; mở RefundCase TripCancellation cho toàn bộ tiền đã thu
+        Assert.Empty(uow.TripRepo.AddedPayments);
+        var opened = Assert.Single(openedRefunds);
+        Assert.Equal(6_400_000m, opened.Amount);
+        Assert.Equal(RefundCaseSources.TripCancellation, opened.Source);
         Assert.Single(uow.TripRepo.AddedAuditLogs);
     }
 
@@ -543,6 +556,181 @@ public sealed class TripOperationsAndGuideServicesTests
         Assert.Contains(uow.TripRepo.AddedAuditLogs, l => l.Action == "UPDATE_ATTENDANCE");
     }
 
+    [Theory]
+    [InlineData("Open")]
+    [InlineData("ClosedForBooking")]
+    [InlineData("Completed")]
+    [InlineData("Cancelled")]
+    public async Task GuideBatchAttendance_RejectsWhenTripNotInProgress(string tripStatus)
+    {
+        var fx = BuildAttendanceFixture(tripStatus);
+        var guideService = new GuidePortalService(
+            fx.Uow,
+            new TestCurrentUserService(fx.GuideId, "Guide"),
+            new TestTimeProvider(FixedNow));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            guideService.SubmitBatchAttendanceAsync(
+                fx.TripId,
+                new GuideBatchAttendanceRequest { ActivityId = fx.ActivityId, MarkAllPresent = true }));
+
+        Assert.Equal("TRIP_NOT_IN_PROGRESS", ex.ErrorCode);
+        Assert.Empty(fx.Uow.AttendanceRepo.Attendances);
+    }
+
+    [Theory]
+    [InlineData("Staff")]
+    [InlineData("Guide")]
+    public async Task AdminAttendanceUpdate_OnlyAdminMayWrite(string role)
+    {
+        var fx = BuildAttendanceFixture("InProgress");
+        var service = new AdminTripAttendanceService(
+            fx.Uow,
+            new TestCurrentUserService(Guid.NewGuid(), role),
+            new TestTimeProvider(FixedNow));
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "Khách báo lại")));
+
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Empty(fx.Uow.AttendanceRepo.Attendances);
+    }
+
+    [Fact]
+    public async Task AdminAttendanceUpdate_RequiresReasonAndActiveOrCompletedTrip_AndAudits()
+    {
+        var fx = BuildAttendanceFixture("InProgress");
+        var admin = new AdminTripAttendanceService(
+            fx.Uow,
+            new TestCurrentUserService(Guid.NewGuid(), "Admin"),
+            new TestTimeProvider(FixedNow));
+
+        // Thiếu lý do, kể cả khi ghi mới -> 400
+        var noReason = await Assert.ThrowsAsync<BadRequestException>(() =>
+            admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, null)));
+        Assert.Equal("REASON_REQUIRED_FOR_UPDATE", noReason.ErrorCode);
+
+        // Có lý do -> ghi và lưu audit
+        var result = await admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "HDV mất sóng, gọi điện báo"));
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Contains(fx.Uow.TripRepo.AddedAuditLogs, l => l.Action == "CREATE_ATTENDANCE");
+
+        // Chuyến chưa diễn ra -> 409
+        fx.Trip.Status = "Open";
+        var notEditable = await Assert.ThrowsAsync<ConflictException>(() =>
+            admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "Thử")));
+        Assert.Equal("ATTENDANCE_NOT_EDITABLE", notEditable.ErrorCode);
+    }
+
+    private static UpdateTripAttendancesRequest AdminRequest(AttendanceFixture fx, string? reason)
+        => new()
+        {
+            ActivityId = fx.ActivityId,
+            Records = [new TripAttendanceItemRequest { ParticipantId = fx.ParticipantId, Status = "Present", Reason = reason }]
+        };
+
+    private sealed record AttendanceFixture(
+        TestUnitOfWork Uow, Trip Trip, Guid TripId, Guid ActivityId, Guid GuideId, Guid ParticipantId);
+
+    private static AttendanceFixture BuildAttendanceFixture(string tripStatus)
+    {
+        var tripId = Guid.NewGuid();
+        var guideId = Guid.NewGuid();
+        var activity = new TourActivity { Id = Guid.NewGuid(), DayNumber = 1, Name = "Tập trung", StartTime = new TimeSpan(7, 0, 0), DurationMinutes = 30 };
+        var tour = new Tour { Id = Guid.NewGuid(), Name = "Tà Năng", Activities = [activity] };
+        var trip = new Trip { TripId = tripId, TourId = tour.Id, Tour = tour, StartAt = FixedNow, EndAt = FixedNow.AddDays(1), Status = tripStatus };
+        var participant = new BookingParticipant
+        {
+            ParticipantId = Guid.NewGuid(),
+            TripId = tripId,
+            FullName = "Trần An",
+            Status = "Confirmed",
+            BookingOrder = new TripBookingOrder { Order = new Order { Status = "Confirmed" } }
+        };
+        var group = new TripGroup
+        {
+            TripGroupId = Guid.NewGuid(),
+            TripId = tripId,
+            Trip = trip,
+            GuideUserId = guideId,
+            GroupName = "Nhóm 1",
+            MaxParticipants = 10,
+            BookingParticipants = [participant]
+        };
+        participant.TripGroupId = group.TripGroupId;
+        participant.TripGroup = group;
+
+        var uow = new TestUnitOfWork();
+        uow.GroupRepo.Trip = trip;
+        uow.GroupRepo.Groups.Add(group);
+        uow.AttendanceRepo.Trip = trip;
+        uow.AttendanceRepo.Participants.Add(participant);
+
+        return new AttendanceFixture(uow, trip, tripId, activity.Id, guideId, participant.ParticipantId);
+    }
+
+    [Fact]
+    public async Task Attendance_FirstActivityAbsent_TogglesNoShow_LaterActivityDoesNot()
+    {
+        var tripId = Guid.NewGuid();
+        var first = new TourActivity { Id = Guid.NewGuid(), DayNumber = 1, Name = "Tập trung", StartTime = new TimeSpan(7, 0, 0) };
+        var later = new TourActivity { Id = Guid.NewGuid(), DayNumber = 2, Name = "Leo đỉnh", StartTime = new TimeSpan(6, 0, 0) };
+        var trip = new Trip
+        {
+            TripId = tripId,
+            Tour = new Tour { Id = Guid.NewGuid(), Name = "Tà Năng", Activities = [later, first] },
+            StartAt = FixedNow,
+            EndAt = FixedNow.AddDays(2),
+            Status = "InProgress"
+        };
+        var participant = new BookingParticipant
+        {
+            ParticipantId = Guid.NewGuid(),
+            TripId = tripId,
+            FullName = "Khách A",
+            Status = BookingParticipantStatuses.Pending,
+            BookingOrder = new TripBookingOrder { Order = new Order { Status = "Confirmed" } }
+        };
+        var uow = new TestUnitOfWork();
+        uow.AttendanceRepo.Trip = trip;
+        uow.AttendanceRepo.Participants.Add(participant);
+        uow.GroupRepo.Participants.Add(participant);
+        var service = new AdminTripAttendanceService(uow, new TestCurrentUserService(Guid.NewGuid(), "Admin"), new TestTimeProvider(FixedNow));
+
+        Task Mark(Guid activityId, string status, string? reason = null) => service.UpdateAttendancesAsync(tripId, new UpdateTripAttendancesRequest
+        {
+            ActivityId = activityId,
+            Records = [new() { ParticipantId = participant.ParticipantId, Status = status, Reason = reason }]
+        });
+
+        await Mark(later.Id, "Absent", "Khách vắng");
+        Assert.Equal(BookingParticipantStatuses.Pending, participant.Status);
+
+        await Mark(first.Id, "Absent", "Khách vắng");
+        Assert.Equal(BookingParticipantStatuses.NoShow, participant.Status);
+
+        await Mark(first.Id, "Present", "Khách đến muộn, đã có mặt");
+        Assert.Equal(BookingParticipantStatuses.Pending, participant.Status);
+
+        await Mark(first.Id, "Excused", "Có phép");
+        Assert.Equal(BookingParticipantStatuses.Pending, participant.Status);
+    }
+
+    [Fact]
+    public async Task AdminOpenBookingAsync_RejectsOpeningWhenNoRefundPolicyResolves()
+    {
+        var uow = new TestUnitOfWork();
+        var trip = new Trip { TripId = Guid.NewGuid(), RefundPolicyId = Guid.NewGuid(), Status = "Draft" };
+        uow.TripRepo.Trip = trip;
+        var service = new AdminTripService(uow, new TestCurrentUserService(Guid.NewGuid(), "Admin"),
+            new TestTimeProvider(FixedNow), TestProxy.Create<INotificationService>(), TestProxy.Create<IRentalRefundOpener>());
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => service.OpenBookingAsync(trip.TripId));
+
+        Assert.Equal("REFUND_POLICY_CHANGED", error.ErrorCode);
+        Assert.Equal("Draft", trip.Status);
+    }
+
     private sealed class TestCurrentUserService(Guid userId, string role) : ICurrentUserService
     {
         public Guid? UserId => userId;
@@ -606,13 +794,19 @@ public sealed class TripOperationsAndGuideServicesTests
         public IProfileRepository Profiles => throw new NotSupportedException();
         public IPromotionRepository Promotions => throw new NotSupportedException();
         public IPromotionTierRepository PromotionTiers => throw new NotSupportedException();
-        public IRefundPolicyRepository RefundPolicies => throw new NotSupportedException();
+        public IRefundPolicyRepository RefundPolicies { get; } = TestProxy.Create<IRefundPolicyRepository>(
+            ("GetDetailAsync", _ => Task.FromResult<RefundPolicy?>(null)),
+            ("GetCurrentAsync", _ => Task.FromResult<RefundPolicy?>(null)));
         public IRefundPolicyRuleRepository RefundPolicyRules => throw new NotSupportedException();
         public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => throw new NotSupportedException();
         public IRentalChargeRepository RentalCharges => throw new NotSupportedException();
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ISystemConfigurationRepository SystemConfigurations => throw new NotSupportedException();

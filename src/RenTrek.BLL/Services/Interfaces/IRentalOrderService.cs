@@ -36,7 +36,8 @@ public interface IRentalOrderService
 
     /// <summary>
     /// Áp dụng gia hạn trong transaction có khoá đơn và khoá biến thể: tính lại báo giá trong khoá, chỉ áp dụng khi
-    /// acceptedExtraAmount khớp (ngược lại 409 RENTAL_EXTENSION_PRICE_CHANGED), ghi lịch sử điều chỉnh và phí Extension nếu tiền thêm lớn hơn 0.
+    /// acceptedExtraAmount khớp (ngược lại 409 RENTAL_EXTENSION_PRICE_CHANGED). Có tiền thêm thì tạo khoản thu RentalExtension
+    /// chờ thanh toán (giữ chỗ thiết bị tới hạn mới); hạn trả chỉ đổi khi tiền vào. Cho phép khi đã trễ trong giới hạn policy.
     /// </summary>
     Task<RentalExtensionResultResponse> ExtendAsync(
         Guid userId,
@@ -52,4 +53,5 @@ public interface IRentalOrderService
 
     /// <summary>Hủy đơn thuê chưa thanh toán của khách: trả thiết bị Reserved, hoàn khuyến mãi, hủy payment Pending. 409 ORDER_NOT_CANCELLABLE nếu không đủ điều kiện.</summary>
     Task<RentalOrderDetailResponse> CancelUnpaidAsync(Guid userId, Guid orderId, CancelRentalOrderRequest request, CancellationToken cancellationToken = default);
+
 }

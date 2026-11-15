@@ -1,3 +1,4 @@
+using RenTrek.BLL.DTOs.Refund.Internal;
 using RenTrek.BLL.DTOs.Admin.Requests;
 using RenTrek.BLL.DTOs.Admin.Responses;
 using RenTrek.BLL.DTOs.Common.Responses;
@@ -13,6 +14,9 @@ public interface IAdminPaymentService
     /// <summary>Danh sách giao dịch thu / hoàn; Staff chỉ thấy đơn trong phạm vi phụ trách.</summary>
     Task<PagedResponse<AdminPaymentListItemResponse>> GetPaymentsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Tổng thu / hoàn thành công và tiền đang chờ, cùng bộ lọc và phạm vi với <see cref="GetPaymentsAsync"/>.</summary>
+    Task<AdminPaymentStatsResponse> GetPaymentStatsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
+
     /// <summary>Hàng đợi hoàn tiền theo tab PendingApproval | Pending | Failed | NeedsReconciliation (mặc định PendingApproval).</summary>
     Task<PagedResponse<AdminPaymentListItemResponse>> GetRefundsAsync(AdminQueryRequest request, CancellationToken cancellationToken);
 
@@ -23,5 +27,12 @@ public interface IAdminPaymentService
     Task<AdminRefundActionResponse> RetryAsync(Guid paymentId, CancellationToken cancellationToken);
 
     /// <summary>Ghi nhận khoản hoàn Pending / Failed đã chuyển khoản thủ công (Succeeded) và cập nhật trạng thái thanh toán của đơn.</summary>
-    Task<AdminRefundActionResponse> MarkManualAsync(Guid paymentId, MarkManualRefundRequest request, CancellationToken cancellationToken);
+    Task<AdminRefundActionResponse> MarkManualAsync(
+        Guid paymentId,
+        MarkManualRefundRequest request,
+        IReadOnlyList<ProofFileInput> files,
+        CancellationToken cancellationToken);
+
+    /// <summary>Mở ảnh chứng từ của một khoản hoàn (chỉ Admin).</summary>
+    Task<(Stream Content, string ContentType, string FileName)> OpenRefundProofAsync(Guid paymentId, Guid proofId, CancellationToken cancellationToken);
 }

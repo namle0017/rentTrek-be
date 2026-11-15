@@ -1,7 +1,8 @@
 namespace RenTrek.BLL.DTOs.RentalOrder.Responses;
 
 /// <summary>
-/// Kết quả báo giá đơn thuê. Hệ thống không thu cọc: DepositAmount = 0 và TotalPayable = TotalAmount.
+/// Kết quả báo giá đơn thuê. Cọc = DepositPercent × SubtotalAmount (trước giảm giá, làm tròn lên 1.000đ);
+/// TotalPayable = TotalAmount + DepositAmount, khách trả một lần.
 /// </summary>
 public class RentalQuoteResponse
 {
@@ -22,6 +23,11 @@ public class RentalQuoteResponse
     public decimal DepositAmount { get; set; }
 
     public decimal TotalPayable { get; set; }
+
+    public decimal DepositPercent { get; set; }
+
+    /// <summary>Chính sách cọc / huỷ / phạt trễ khách đồng ý khi đặt.</summary>
+    public RenTrek.BLL.DTOs.RentalPolicy.Responses.RentalPolicyResponse? RentalPolicy { get; set; }
 
     /// <summary>Khuyến mãi áp dụng được; null khi không dùng mã hoặc mã không áp được.</summary>
     public RentalQuotePromotionResponse? Promotion { get; set; }

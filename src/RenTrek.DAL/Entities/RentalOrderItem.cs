@@ -10,6 +10,7 @@ public class RentalOrderItem
     public decimal LineAmount { get; set; }
     public Guid? BundleId { get; set; }
     public int BillableDays { get; set; }
+    public decimal UnitReplacementValue { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

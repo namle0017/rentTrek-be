@@ -1,8 +1,10 @@
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
+using RenTrek.BLL.Mappings;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
@@ -24,6 +26,19 @@ public sealed class TripService(
             ?? throw new NotFoundException("Không tìm thấy chuyến đi", ErrorCodes.ItemNotFound);
         var overflowSlots = await GetGroupOverflowSlotsAsync(unitOfWork, cancellationToken);
         return MapAdminTrip(trip, overflowSlots);
+    }
+
+    public async Task<TripRefundPolicyResponse> GetTripRefundPolicyAsync(
+        Guid tripId,
+        CancellationToken cancellationToken = default)
+    {
+        var trip = await unitOfWork.Trips.GetByIdAsync(tripId, cancellationToken);
+        if (trip is null || trip.IsDeleted || string.Equals(trip.Status, TripStatuses.Draft, StringComparison.OrdinalIgnoreCase))
+            throw new NotFoundException("Không tìm thấy chuyến đi", ErrorCodes.ItemNotFound);
+        var policy = await TripRefundPolicyResolver.ResolveAsync(
+                unitOfWork.RefundPolicies, trip.RefundPolicyId, timeProvider.GetUtcNow(), cancellationToken)
+            ?? throw new NotFoundException("Chuyến đi chưa có chính sách hoàn tiền", ErrorCodes.NotFound);
+        return RefundPolicyMapper.ToTripPolicy(policy);
     }
 
     public async Task<AdminTripResponse> CreateTripAsync(
@@ -274,6 +289,7 @@ public sealed class TripService(
                     throw new ConflictException($"Chỉ được mở bán Trip từ trạng thái Draft (hiện tại: {previousStatus})");
 
                 EnsureCanOpenTrip(trip, overflowSlots);
+                await TripRefundPolicyResolver.EnsureCanOpenAsync(unitOfWork.RefundPolicies, trip, utcNow, cancellationToken);
             }
             else if (targetStatus == TripStatuses.ClosedForBooking)
             {

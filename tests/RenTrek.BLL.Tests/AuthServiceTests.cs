@@ -235,6 +235,18 @@ public sealed class AuthServiceTests
             Verifications.Add((toEmail, otp, verifyUrl));
             return Task.CompletedTask;
         }
+
+        public Task SendChangePasswordOtpAsync(string toEmail, string recipientName, string otp, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SendRentalOrderConfirmationAsync(string toEmail, string recipientName, string orderCode, decimal totalDeposit, decimal totalRentalFee, string rentalDates, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SendRentalNoticeAsync(string toEmail, string recipientName, string orderCode, string subject, string title, IReadOnlyList<(string Label, string Value)> rows, string instruction, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SendTourBookingConfirmationAsync(string toEmail, string recipientName, string orderCode, string tourName, string tripDate, decimal totalAmount, int participantCount, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class FakeAccountRepository : IAccountRepository
@@ -258,6 +270,7 @@ public sealed class AuthServiceTests
 
         public Task<(IReadOnlyList<AdminUserRow> Items, int TotalCount)> GetAdminPagedAsync(AdminUserFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AdminUserRow?> GetAdminRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AdminUserRow>> GetByRolesAsync(IReadOnlyCollection<string> roleNames, string status, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AccountActivityRow> GetActivityAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Account?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<Account> entities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -287,6 +300,7 @@ public sealed class AuthServiceTests
         public Task<List<RefreshToken>> GetOtherActiveTokensAsync(Guid userId, Guid? excludeFamilyId, bool tracking = false, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RevokeFamilyTokensAsync(Guid familyId, string reason, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<RefreshToken>> GetActiveByUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Dictionary<Guid, DateTime>> GetFamilyStartTimesAsync(Guid userId, IReadOnlyCollection<Guid> familyIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<RefreshToken?> GetForUserAsync(Guid userId, Guid refreshTokenId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<List<RefreshToken>> GetByUserWithAccessTokensAsync(Guid userId, Guid? familyId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<RefreshToken?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -311,6 +325,7 @@ public sealed class AuthServiceTests
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public List<BookingParticipant> Seats { get; } = [];
 
         // Trả tất cả ghế trùng email để chứng minh AuthService tự loại đơn chưa Paid hoặc đã khởi hành
@@ -376,6 +391,10 @@ public sealed class AuthServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ISystemConfigurationRepository SystemConfigurations => throw new NotSupportedException();

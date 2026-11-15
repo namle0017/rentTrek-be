@@ -36,10 +36,11 @@ public sealed class RentalCancellationTests
                 RentalStartAt = DateTime.UtcNow.AddDays(1),
                 RentalEndAt = DateTime.UtcNow.AddDays(2)
             })));
-        var unit = TestProxy.Create<IUnitOfWork>(
+        var unit = TestProxy.Create<IUnitOfWork>([
             ("get_RentalOrders", _ => repository),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>()),
-            ("SaveChangesAsync", _ => Task.FromResult(1)));
+            ("SaveChangesAsync", _ => Task.FromResult(1)),
+            .. RentalDepositTestDefaults.UnitOfWorkHandlers()]);
         return (new RentalOrderService(unit, null!, null!, TimeProvider.System, null!), order);
     }
 

@@ -318,6 +318,9 @@ HTTP 500 Internal Server Error
 | 2.7 | Notifications | `GET` | `/users/me/notifications/unread-count` | User | Đếm số lượng thông báo chưa đọc của người dùng hiện tại | ✅ Done |
 | 2.8 | Notifications | `POST` | `/users/me/notifications/{notificationId}/read` | User | Đánh dấu đã đọc một thông báo thuộc người dùng hiện tại (idempotent, giữ `readAt` gốc) | ✅ Done |
 | 2.9 | Notifications | `POST` | `/users/me/notifications/read-all` | User | Đánh dấu đã đọc toàn bộ thông báo chưa đọc của người dùng hiện tại | ✅ Done |
+| 2.10 | Users | `GET` | `/users/me/sessions` | User | Danh sách phiên đăng nhập đang hoạt động của tôi | ✅ Done |
+| 2.11 | Users | `DELETE` | `/users/me/sessions/{familyId}` | User | Đăng xuất một phiên khác | ✅ Done |
+| 2.12 | Users | `POST` | `/users/me/sessions/revoke-others` | User | Đăng xuất mọi phiên trừ phiên hiện tại | ✅ Done |
 | 3.1 | Trip Bookings | `POST` | `/trip-bookings` | User | Tạo booking nhóm và giữ chỗ (hỗ trợ đặt giùm, gán theo email) | 🔁 Changed |
 | 3.2 | Trip Bookings | `GET` | `/trip-bookings/{orderId}` | User | Xem booking theo phạm vi quyền | 🔁 Changed |
 | 3.3 | Trip Bookings | `PUT` | `/trip-bookings/{orderId}/participants/{participantId}` | User | Buyer sửa họ tên, email, số điện thoại người đi trước khởi hành | ✅ Done |
@@ -378,6 +381,7 @@ HTTP 500 Internal Server Error
 | **4.9** | Users | `DELETE` | `/admin/users/{userId}/sessions/{sessionId}` | Admin | Thu hồi 1 phiên đăng nhập | Cưỡng chế ngắt kết nối thiết bị đáng ngờ | ✅ Done |
 | **4.10**| Users | `DELETE` | `/admin/users/{userId}/sessions` | Admin | Thu hồi tất cả phiên đăng nhập | Đăng xuất toàn bộ khi phát hiện rủi ro | ✅ Done |
 | **4.11**| Users | `GET` | `/admin/users/{userId}/activities` | Admin | Lịch sử hoạt động của user | Lazy-load tab Audit log theo user | ✅ Done |
+| **4.12**| Users | `GET` | `/admin/users/guides` | Staff/Admin | Danh sách hướng dẫn viên đang hoạt động | Dropdown phân công HDV khi chia nhóm chuyến | ✅ Done |
 | **5.1** | Catalog | `GET` | `/admin/categories` | Staff/Admin | Danh sách danh mục | Lọc theo loại (Tour/Equipment/Bundle) | ✅ Done |
 | **5.2** | Catalog | `POST` | `/admin/categories` | Admin | Tạo danh mục mới | Master data phân loại hệ thống | ✅ Done |
 | **5.3** | Catalog | `PUT` | `/admin/categories/{categoryId}` | Admin | Sửa danh mục | Cập nhật tên, mô tả danh mục | ✅ Done |
@@ -501,6 +505,7 @@ HTTP 500 Internal Server Error
 | **16.3**| Charges | `POST` | `/admin/rental-orders/{orderId}/charges/{chargeId}/void` | Staff/Admin | Hủy phí | Xem mục 16.3 | ✅ Done |
 | **16.4**| Charges | `POST` | `/admin/rental-orders/{orderId}/complete` | Staff/Admin | Đóng đơn và quyết toán cọc | Xem mục 16.4 | ✅ Done |
 | **17.1**| Payments | `GET` | `/admin/payments` | Staff/Admin | Danh sách giao dịch tài chính | Màn O27 toàn bộ giao dịch Thu và Hoàn | ✅ Done |
+| **17.1b**| Payments | `GET` | `/admin/payments/stats` | Staff/Admin | Thống kê giao dịch theo bộ lọc | Thẻ tổng thu, tổng hoàn, dòng tiền ròng, đang chờ ở màn O27 | ✅ Done |
 | **17.2**| Payments | `GET` | `/admin/refunds` | Admin | Hàng đợi yêu cầu hoàn tiền | Màn O28 tab Chờ duyệt, Chờ chuyển, Thất bại, Cần đối soát | ✅ Done |
 | **17.3**| Payments | `POST` | `/admin/refunds/{paymentId}/approve` | Admin | Duyệt hoàn tiền | Chuyển kế toán chuyển khoản thủ công (không gọi SePay) | ✅ Done |
 | **17.4**| Payments | `POST` | `/admin/refunds/{paymentId}/retry` | Admin | Thử lại giao dịch hoàn tiền lỗi | Đưa khoản Failed về Pending, tối đa 3 lần | ✅ Done |
@@ -508,10 +513,11 @@ HTTP 500 Internal Server Error
 | **17.6**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-accept` | Admin | Chấp nhận khoản tiền đối soát | Xác nhận đơn và tự hoàn phần tiền thừa | ✅ Done |
 | **17.7**| Payments | `POST` | `/admin/orders/{orderId}/reconcile-refund` | Admin | Hoàn toàn bộ & Hủy đơn đối soát | Hủy đơn và trả lại tiền khi khách chuyển sai hạn | ✅ Done |
 | **17.8**| Payments | `GET` | `/refund-cases/{refundCaseId}` | User | Khách xem hồ sơ hoàn tiền | — | ✅ Done |
-| **17.9**| Payments | `GET` | `/admin/refund-cases` | Admin | Hàng đợi hoàn tiền | — | ✅ Done |
+| **17.9**| Payments | `GET` | `/admin/refund-cases` | Admin, Staff | Hàng đợi hoàn tiền | — | ✅ Done |
+| **17.9a**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/approve` | Admin, Staff | Duyệt hồ sơ hoàn tiền | — | ✅ Done |
 | **17.10**| Payments | `POST` | `/admin/refund-cases/export/verification-codes` | Admin | Gửi OTP xuất Excel | — | ✅ Done |
 | **17.11**| Payments | `POST` | `/admin/refund-cases/export` | Admin | Xuất Excel chuyển khoản | — | ✅ Done |
-| **17.12**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/reject` | Admin | Từ chối hoàn tiền | — | ✅ Done |
+| **17.12**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/reject` | Admin, Staff | Từ chối hoàn tiền | — | ✅ Done |
 | **17.13**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/complete` | Admin | Ghi nhận chuyển khoản thành công | — | ✅ Done |
 | **17.14**| Payments | `POST` | `/admin/refund-cases/{refundCaseId}/mark-failed` | Admin | Ghi nhận chuyển khoản thất bại | — | ✅ Done |
 | **18.1**| Promos | `GET` | `/admin/promotions` | Staff/Admin | Danh sách chương trình khuyến mãi | Màn O29 tra cứu khuyến mãi | ✅ Done |
@@ -570,6 +576,8 @@ HTTP 500 Internal Server Error
 | **26.14**| Trips | `PATCH` | `/trips/{tripId}/status` | Staff/Admin | Đổi trạng thái chuyến (Staff: chỉ chuyến mình phụ trách) | — | ✅ Done |
 | **26.15**| Trips | `POST` | `/trips/generate-recurring` | Admin | Sinh chuyến từ quy tắc lặp | — | ✅ Done |
 | **26.16**| Trip Bookings | `GET` | `/trip-bookings/{orderId}/cancellation-preview` | User | Xem trước số tiền hoàn khi hủy | — | ✅ Done |
+| **26.16a**| Trip Bookings | `GET` | `/trip-bookings/{orderId}/participants/cancellation-preview` | User | Xem trước tiền hoàn khi hủy bớt hành khách | — | ✅ Done |
+| **26.16b**| Trip Bookings | `POST` | `/trip-bookings/{orderId}/participants/cancel` | User | Hủy bớt hành khách, hoàn theo số ghế | — | ✅ Done |
 | **26.17**| Trip Bookings | `GET` | `/trip-bookings/{orderId}/invite-link` | User | Lấy link mời người đi cùng | — | ✅ Done |
 | **26.18**| Trip Bookings | `POST` | `/trip-bookings/{orderId}/invite-link/rotate` | User | Tạo lại link mời (vô hiệu link cũ) | — | ✅ Done |
 | **26.19**| Payments | `POST` | `/payments/webhooks/sepay` | Public (SePay) | Webhook SePay báo giao dịch | — | ✅ Done |
@@ -846,6 +854,70 @@ Liệt kê mọi suất tham gia (`booking_participants`) đã liên kết tài 
 
 ---
 
+### 2.10. Danh sách phiên đăng nhập của tôi
+
+`GET /users/me/sessions` · **Auth:** User
+
+Mỗi phiên là một chuỗi refresh token (`familyId`) còn hiệu lực: chưa thu hồi và chưa hết hạn. Phiên hiện tại đứng đầu, các phiên còn lại xếp theo `lastActiveAt` mới nhất trước.
+
+- `createdAt`: lúc đăng nhập (token đầu tiên của chuỗi).
+- `lastActiveAt`: lần làm mới token gần nhất.
+- `expiresAt`: hạn của refresh token đang dùng.
+- `isCurrent`: `true` với phiên gắn access token của request này.
+- Không có thông tin thiết bị / IP (DB không lưu).
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách phiên đăng nhập thành công",
+  "data": [
+    {
+      "familyId": "5f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+      "createdAt": "2026-11-09T02:15:00Z",
+      "lastActiveAt": "2026-11-10T07:40:00Z",
+      "expiresAt": "2026-11-17T07:40:00Z",
+      "isCurrent": true
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED` khi chưa đăng nhập.
+
+---
+
+### 2.11. Đăng xuất một phiên khác
+
+`DELETE /users/me/sessions/{familyId}` · **Auth:** User
+
+Thu hồi mọi refresh token và access token của chuỗi `familyId`. Thiết bị đó phải đăng nhập lại.
+
+**Response `200 OK`:** `data: null`, `message: "Đã đăng xuất phiên đăng nhập"`.
+
+**Lỗi:**
+
+- `400 VALIDATION_ERROR` khi `familyId` là phiên hiện tại ("Không thể thu hồi phiên hiện tại, hãy dùng đăng xuất"). Dùng `POST /auth/logout` thay thế.
+- `404 NOT_FOUND` khi phiên không thuộc user này hoặc đã hết hiệu lực.
+
+---
+
+### 2.12. Đăng xuất mọi phiên khác
+
+`POST /users/me/sessions/revoke-others` · **Auth:** User
+
+Thu hồi mọi phiên của user, trừ phiên hiện tại. Không có request body.
+
+**Response `200 OK`:** `data: null`, `message: "Đã đăng xuất {n} phiên khác"` (`n` = số phiên đã thu hồi, có thể là 0).
+
+**Lỗi:** `401 UNAUTHORIZED` khi không xác định được phiên hiện tại (access token không còn trong DB). Khi đó BE không thu hồi gì, để tránh tự đăng xuất chính mình.
+
+---
+
 ## 3. Admin: Dashboard & Cảnh báo (Màn O01)
 
 ### 3.1. Số liệu đếm tổng hợp nhanh
@@ -905,6 +977,54 @@ Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental
 - Giá và số chỗ do server tính theo tổng số participant thực tế đi. Đơn giữ chỗ 15 phút khi chưa thanh toán.
 - `linkedUserId` của người đi cùng chỉ được tự động gán khi đơn `Confirmed` / `Paid`, chuyến chưa khởi hành (`trip.startAt > now`) và tài khoản trùng email **đã xác thực email** (xảy ra tại thời điểm webhook SePay xác nhận thanh toán hoặc khi người đó xác thực email sau đó). Sau khi thanh toán thành công, BE gửi email thông báo cho các người đi cùng có khai email.
 
+### 3.0. Chính sách huỷ & hoàn tiền của chuyến
+
+`GET /trips/{tripId}/refund-policy` · **Auth:** Public
+
+Ưu tiên chính sách Tour đã gắn với trip. Nếu không có bản gắn phù hợp, dùng chính sách Tour chung đang `Active` và trong khoảng hiệu lực. Trả `404` khi trip không tồn tại, đã xoá, đang `Draft` hoặc không tìm được chính sách theo cả hai cách.
+
+```json
+{
+  "refundPolicyId": "00000000-0000-0000-0000-000000000000",
+  "name": "Chính sách huỷ tour",
+  "version": 3,
+  "description": "Nội dung chi tiết...",
+  "rules": [
+    { "minHoursBefore": 168, "refundPercentage": 100 },
+    { "minHoursBefore": 72, "refundPercentage": 50 },
+    { "minHoursBefore": 0, "refundPercentage": 0 }
+  ],
+  "reschedule": { "minHoursBefore": 72, "fee": 100000, "maxTimes": 1 },
+  "noShowGraceMinutes": 30
+}
+```
+
+- `rules` sắp giảm dần theo `minHoursBefore`; luôn có mốc `0` (validator admin bắt buộc).
+- `reschedule` là `null` khi chính sách không cho đổi lịch (`maxReschedules = 0` hoặc chưa đặt `rescheduleMinHoursBefore`).
+- Admin nhập 4 field `rescheduleMinHoursBefore` (0–8760, null = không cho đổi), `rescheduleFee` (≥ 0), `maxReschedules` (0–10), `noShowGraceMinutes` (0–1440, mặc định 30) trong `POST/PUT /admin/refund-policies`; chỉ lưu với `policyType = Tour`, loại `Rental` luôn về null/0/0/30.
+
+### 3.0a. Combo thuê gợi ý cho chuyến
+
+`GET /trips/{tripId}/suggested-bundles` · **Auth:** Public
+
+Combo admin gắn cho tour (6.23a), kèm giá và tồn kho tính theo khoảng ngày của chuyến. Trả `404` khi trip không tồn tại, đã xoá hoặc đang `Draft`.
+
+```json
+{
+  "rentalFrom": "2026-12-01T01:00:00Z",
+  "rentalTo": "2026-12-03T10:00:00Z",
+  "providedVariantIds": ["00000000-0000-0000-0000-000000000000"],
+  "bundles": [
+    { "note": "Đủ cho 2 người", "bundle": { "id": "...", "name": "...", "components": [], "priceTiers": [], "availability": {} } }
+  ]
+}
+```
+
+- `rentalFrom` / `rentalTo` = `startAt` / `endAt` của chuyến.
+- `providedVariantIds`: biến thể tour đã cấp (`tour_provided_items.product_variant_id`), để FE đánh dấu thành phần combo bị trùng.
+- `bundle` có cùng dạng với `GET /bundles/{id}?from&to`. Combo đã ngừng bán bị bỏ qua. Chuyến đã khởi hành trả `bundles = []`.
+- Thuê combo dùng luồng thuê sẵn có (giỏ thuê, `POST /rentals`, nhận tại kho). Đây là giả định cho câu hỏi mở Q1 của plan, chưa có giao đồ theo đoàn.
+
 ### 3.1. Tạo booking chuyến đi
 
 `POST /trip-bookings` · **Auth:** User
@@ -916,6 +1036,7 @@ Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental
 ```json
 {
   "tripId": "00000000-0000-0000-0000-000000000000",
+  "acceptedRefundPolicyVersion": 3,
   "contactPhone": "0901234567",
   "buyerParticipates": true,
   "note": "Đi cùng nhóm bạn",
@@ -935,6 +1056,7 @@ Danh sách đơn của user đang đăng nhập, gồm cả đơn thuê (`Rental
 }
 ```
 
+- `acceptedRefundPolicyVersion`: số nguyên dương bắt buộc, lấy từ `version` trong `GET /trips/{tripId}/refund-policy` sau khi khách đã xem và tick đồng ý. Thiếu hoặc không hợp lệ trả `400`. Nếu gửi phiên bản khác bản đang áp dụng, API trả `409` với `errors.code = ["REFUND_POLICY_CHANGED"]` và phiên bản hiện hành trong `errors.acceptedRefundPolicyVersion`. FE tải lại chính sách và yêu cầu đồng ý lại. Đơn lưu ID của chính sách đã áp dụng trong `orders.refund_policy_id` và phiên bản khách đồng ý trong `orders.accepted_refund_policy_version`.
 - `contactPhone`: bắt buộc (tối đa 20 ký tự). Nếu `buyerParticipates = true`, chỗ của buyer dùng `contactPhone` làm `phone`.
 - `buyerParticipates`: mặc định `true`. Khi `false` (đặt giùm), `additionalParticipants` bắt buộc có ít nhất 1 người, và một người đi cùng được phép dùng trùng email với buyer.
 - `additionalParticipants`: tối đa 20 người đi cùng. `fullName` bắt buộc; `email` và `phone` đều **tuỳ chọn** (trẻ em / người lớn tuổi có thể để trống).
@@ -1108,7 +1230,74 @@ Hủy toàn bộ booking chuyến đi trước giờ khởi hành (`now < trip.s
 - Giữ nguyên `participant.tripGroupId` để truy vết lịch sử/audit, nhưng participant của đơn hủy không còn tính vào sức chứa group hiện tại và không xuất hiện trên manifest Staff, màn Guide hay màn Customer.
 - Không tự cân bằng lại các booking khác; đánh dấu `trip.providedItemsNeedsRecalc = true` và tăng `trip.rowVersion`.
 - **Response:** `200 OK`, `data` là `TripBookingResponse`.
-- **Lỗi:** `404` không tìm thấy hoặc không thuộc quyền; `409` chuyến đã khởi hành hoặc trạng thái đơn không cho hủy (`Completed` / `Expired`).
+- **Lỗi:** `404` không tìm thấy hoặc không thuộc quyền; `409` chuyến đã khởi hành hoặc trạng thái đơn không cho hủy (`Completed` / `Expired`); `409 ORDER_NOT_CANCELLABLE` khi đơn đang có RefundCase chưa đóng.
+
+### 3.7. Hủy bớt hành khách
+
+`GET /trip-bookings/{orderId}/participants/cancellation-preview?participantIds={id}&participantIds={id}` · **Auth:** Buyer — trả `CancellationPreviewResponse` như 3.6.
+
+`POST /trip-bookings/{orderId}/participants/cancel` · **Auth:** Buyer (chỉ chủ đơn)
+
+```json
+{
+  "participantIds": ["uuid"],
+  "reason": "Một bạn bận việc",
+  "expectedRefundAmount": 400000,
+  "bankAccount": { "bankCode": "VCB", "accountNumber": "0123456789", "accountHolder": "NGUYEN VAN A" },
+  "consentVersion": "refund-bank-data-v1",
+  "consentAccepted": true
+}
+```
+
+- Chỉ cho đơn `Confirmed` + `Paid`, trước giờ khởi hành. `participantIds` không rỗng, không trùng, đều là hành khách còn hiệu lực của đơn.
+- Không hủy được người đặt (`linkedUserId = customerUserId`) và phải còn ít nhất 1 hành khách; muốn hủy hết dùng 3.6.
+- Đơn đang có RefundCase chưa đóng (khác `Completed/Rejected/Failed/Cancelled`) ⇒ `409 ORDER_NOT_CANCELLABLE`.
+- `paidAmount` = tiền đã thu × số ghế hủy / số ghế còn hiệu lực; `estimatedRefundAmount` = `floor(paidAmount × %)` theo mốc chính sách hiện tại. Lệch preview ⇒ `409 REFUND_AMOUNT_CHANGED`.
+- Hành khách bị hủy chuyển `Cancelled`, `participantCount` giảm tương ứng, `trip.providedItemsNeedsRecalc = true`. Tiền hoàn > 0 mở RefundCase `source = TripPartialCancellation`.
+- Sau khi hủy bớt, preview/hủy toàn bộ (3.6) chỉ tính trên phần tiền của các ghế còn lại.
+- **Response:** `200 OK`, `data` là `TripBookingResponse` (kèm `refundCase` nếu có).
+
+### 3.8. Đổi lịch sang chuyến khác cùng tour
+
+`GET /trip-bookings/{orderId}/reschedule-options` · **Auth:** Buyer (chỉ chủ đơn)
+
+```json
+{
+  "canReschedule": true,
+  "blockedReason": null,
+  "fee": 50000,
+  "remainingTimes": 1,
+  "deadline": "2026-12-01T00:00:00Z",
+  "pending": null,
+  "trips": [
+    { "tripId": "uuid", "startAt": "...", "endAt": "...", "pricePerPerson": 1200000, "availableSlots": 6, "priceDiff": 450000 }
+  ]
+}
+```
+
+- Điều kiện: đơn `Confirmed` + `Paid`; chính sách của đơn có `rescheduleMinHoursBefore` và `maxReschedules > 0`; `rescheduleCount < maxReschedules`; `now ≤ startAt − rescheduleMinHoursBefore`; không có RefundCase `AwaitingBankInfo/Requested/Approved`. Không đạt ⇒ `canReschedule = false`, `blockedReason` là lý do, `trips` rỗng.
+- `trips`: chuyến khác cùng tour, `Open`, chưa khởi hành, còn đủ chỗ cho cả đơn. `priceDiff = (giá mới − unitPrice) × participantCount + fee`; dương = trả thêm, âm = được hoàn.
+- `pending`: lần đổi đang chờ trả chênh lệch (còn hạn giữ chỗ), dạng `RescheduleResultResponse`.
+- `companyCancelled = true`: chuyến của đơn bị công ty huỷ (đơn `Cancelled`, trip `Cancelled`). Khách được chuyển miễn phí thay cho hoàn 100%: không cần điều khoản đổi lịch, `fee = 0`, `remainingTimes = 1`, `deadline = null`, `priceDiff = min(0, chênh lệch)` (không thu thêm, chuyến rẻ hơn thì hoàn phần dư). Chỉ cho khi RefundCase `TripCancellation` còn `AwaitingBankInfo/Requested`. Chuyển xong: đơn về `Confirmed`, hành khách bị huỷ cùng đơn về `Pending`, RefundCase `TripCancellation` (và payment hoàn) chuyển `Cancelled`, không tăng `rescheduleCount`.
+
+`POST /trip-bookings/{orderId}/reschedule` · **Auth:** Buyer (chỉ chủ đơn)
+
+```json
+{ "toTripId": "uuid" }
+```
+
+**Response** `RescheduleResultResponse`:
+
+```json
+{ "rescheduleId": "uuid", "status": "Completed", "toTripId": "uuid", "priceDiff": -350000, "paymentId": null, "holdExpiresAt": null, "refundCase": { "...": "RefundCaseSummaryResponse" } }
+```
+
+- Khoá 2 chuyến theo thứ tự `tripId`; kiểm lại điều kiện như trên. Sai ⇒ `409 ORDER_NOT_CANCELLABLE` (điều kiện đơn) hoặc `409 VALIDATION_ERROR` (chuyến đích: khác tour, không `Open`, hết chỗ, trùng chuyến hiện tại).
+- `priceDiff ≤ 0`: đổi ngay (`status = Completed`). Booking + hành khách sang chuyến mới, `unitPrice` theo chuyến mới, `rescheduleCount + 1`, bỏ nhóm cũ và xếp nhóm tự động lại, cả 2 chuyến `providedItemsNeedsRecalc = true`, `order.totalAmount += priceDiff`, thông báo `TripScheduleChanged`. `priceDiff < 0` mở RefundCase `source = TripReschedule` ở `AwaitingBankInfo` (khách nhập STK như hồ sơ hoàn khác).
+- `priceDiff > 0`: tạo payment `Collection` `purpose = TripReschedule` `Pending`, giữ chỗ chuyến mới 15 phút (`status = PendingPayment`, `holdExpiresAt`). Lấy hướng dẫn chuyển khoản qua `POST /payments` như thu phí sau thanh toán. Gửi lại cùng `toTripId` khi còn hạn ⇒ trả lại lần đang chờ; chọn chuyến khác ⇒ lần cũ `Expired`, payment cũ `Cancelled`.
+- Webhook nhận đủ tiền ⇒ kiểm lại chỗ (không tính chỗ của chính lần đổi) rồi đổi như trên. Không đổi được (hết chỗ sau khi hết hạn giữ, booking đã đổi chuyến) ⇒ lần đổi `Failed`, mở RefundCase `TripReschedule` hoàn đúng khoản vừa trả, giữ chuyến cũ.
+- Hủy sau khi đổi sang chuyến rẻ hơn: tiền tính hoàn bị chặn bởi `order.totalAmount` (đã trừ phần chênh đã hoàn).
+- Chỗ đang giữ của lần đổi `PendingPayment` được tính vào `bookedSlots` của chuyến đích.
 
 ## 5. Products
 
@@ -1427,6 +1616,42 @@ Chỉ trả danh mục Active, chưa xoá và có sản phẩm công khai đủ 
 `GET /admin/users/{userId}/activities` · **Auth:** Admin
 
 - **Mục đích:** Tab Hoạt động màn O03 — hiển thị toàn bộ thao tác do user này thực hiện hoặc tác động lên user này.
+
+---
+
+### 4.12. Danh sách hướng dẫn viên (cho dropdown phân công)
+`GET /admin/users/guides` · **Auth:** Staff / Admin
+
+- **Mục đích:** Staff không gọi được `GET /admin/users` (chỉ Admin). Endpoint này trả gọn danh sách HDV để chọn khi chia nhóm chuyến (màn O12).
+- **Phạm vi:** tài khoản vai trò `Guide`, trạng thái `Active`, chưa xóa. Xếp theo họ tên. Không phân trang, không query param.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách hướng dẫn viên thành công",
+  "data": [
+    {
+      "userId": "11111111-2222-3333-4444-555555555555",
+      "userCode": "GD-0007",
+      "email": "toan.dinh@renttrek.vn",
+      "fullName": "Đinh Văn Toàn",
+      "phone": "0901234567",
+      "role": "Guide",
+      "status": "Active",
+      "avatarUrl": null,
+      "lastLoginAt": "2026-11-09T01:00:00Z",
+      "createdAt": "2026-10-01T03:00:00Z"
+    }
+  ],
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `401 UNAUTHORIZED`; `403 FORBIDDEN` khi không phải Staff/Admin.
 
 ---
 
@@ -1860,6 +2085,25 @@ HTTP 400 Bad Request
 
 ---
 
+### 6.23a – 6.23b. Combo gợi ý cho tour
+
+`GET /admin/tours/{tourId}/suggested-bundles` · **Auth:** Staff / Admin
+
+`PUT /admin/tours/{tourId}/suggested-bundles` · **Auth:** Admin
+
+GET trả danh sách sắp theo `sortOrder`, rồi theo tên:
+
+```json
+[{ "bundleId": "...", "name": "Combo lều 2 người", "status": "Active", "sortOrder": 0, "note": "Đủ cho 2 người" }]
+```
+
+- `status` là `Deleted` khi combo đã bị xoá mềm.
+- PUT nhận body `{ "items": [{ "bundleId": "...", "sortOrder": 0, "note": "..." }] }` và thay toàn bộ danh sách. Trả `data = null`; FE gọi lại GET.
+- Validate: không trùng `bundleId`, `sortOrder ≥ 0`, `note ≤ 500` ký tự. Mọi combo phải đang cho thuê, nếu không trả `400` "Có combo không tồn tại hoặc đã ngừng bán".
+- Khi tạo phiên bản tour mới, danh sách combo gợi ý được sao chép sang.
+
+---
+
 ### 6.24. Lịch sử các phiên bản của tour
 `GET /admin/tours/{tourId}/versions` · **Auth:** Staff / Admin
 
@@ -2135,7 +2379,7 @@ HTTP 400 Bad Request
 ### 8.6 – 8.9. Máy trạng thái vòng đời chuyến đi (Trip State Machine)
 Các API chuyển trạng thái có điều kiện kiểm tra nghiêm ngặt:
 
-- **`POST /admin/trips/{tripId}/open-booking`** · Admin/Staff: Chuyển từ `Draft` sang `Open` (bắt đầu mở bán trên cổng khách hàng).
+- **`POST /admin/trips/{tripId}/open-booking`** · Admin/Staff. Chuyển từ `Draft` hoặc `ClosedForBooking` sang `Open` nếu có chính sách hoàn tiền áp dụng theo mục 3.0. Thiếu chính sách trả `409 REFUND_POLICY_CHANGED`.
 - **`POST /admin/trips/{tripId}/close-booking`** · Admin/Staff: Chuyển từ `Open` sang `ClosedForBooking` (chốt danh sách, không nhận thêm khách).
 - **`POST /admin/trips/{tripId}/start`** · Admin/Staff: Chuyển từ `ClosedForBooking` sang `InProgress` khi đoàn bắt đầu xuất phát.
 - **`POST /admin/trips/{tripId}/complete`** · Admin/Staff: Chuyển từ `InProgress` sang `Completed` khi chuyến đi kết thúc. Hệ thống tự động kích hoạt quyền gửi review cho các hành khách đã tham gia.
@@ -2147,7 +2391,7 @@ Các API chuyển trạng thái có điều kiện kiểm tra nghiêm ngặt:
 
 - **Mục đích:** Xử lý hủy chuyến khẩn cấp do thiên tai, thời tiết hoặc không đủ số lượng người tối thiểu.
 - **Tại sao cần API riêng biệt:** Thao tác hủy chuyến kích hoạt một chuỗi hành động phức tạp của hệ thống:
-  1. Hủy toàn bộ booking của chuyến, tự động sinh các giao dịch hoàn tiền `Refund` ở trạng thái `PendingApproval`.
+  1. Hủy toàn bộ booking của chuyến. Mỗi đơn đã thu tiền được mở 1 hồ sơ hoàn tiền (`RefundCase`, `source = TripCancellation`, số tiền = toàn bộ tiền đã thu, trạng thái `AwaitingBankInfo`); khách nhập STK rồi hồ sơ đi luồng duyệt / kế toán ở mục 17. Không còn tạo `Payment` hoàn trực tiếp.
   2. Giải phóng toàn bộ thiết bị đang giữ kho (`asset_assignments`).
   3. Gửi thông báo khẩn cấp (Push / Email / SMS) cho toàn bộ khách hàng và Hướng dẫn viên.
   4. Bắt buộc nhập lý do hủy chuyến và ghi nhận `AUDIT_LOGS`.
@@ -2438,6 +2682,7 @@ HTTP 400 Bad Request
 
 - **Mục đích:** Bấm chọn trạng thái điểm danh cho một hoặc nhiều khách trong một hoạt động.
 - **Ràng buộc:** Nếu ô điểm danh đã có giá trị trước đó và người dùng bấm sửa lại: bắt buộc phải nhập lý do điều chỉnh (`reason`) và hệ thống tự động ghi nhật ký kiểm toán `AUDIT_LOGS`.
+- **NoShow:** Chỉ ở hoạt động đầu tiên của chuyến (theo ngày, thứ tự, giờ bắt đầu): `Absent` ⇒ hành khách `NoShow`; sửa lại `Present`/`Late` ⇒ trả về `Pending`; `Excused` không đổi. Không mở hồ sơ hoàn tiền. Khi hoàn tất chuyến, khách `NoShow` không chuyển `Completed`. Áp dụng cả `POST /guide/trips/{tripId}/attendances/batch`.
 
 **Request body**
 
@@ -2756,6 +3001,38 @@ HTTP 400 Bad Request
 `GET /admin/bundles` · **Auth:** Staff / Admin
 
 - **Mục đích:** Màn O19 — danh sách các gói combo (như Combo Lều Trại Cơ Bản, Combo Leo Núi Mùa Đông).
+- **Query params:** `pageNumber`, `pageSize` (tối đa 100), `search` (theo tên), `status` (`Active` | `Inactive`), `categoryId`.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy danh sách combo thành công",
+  "data": {
+    "items": [
+      {
+        "bundleId": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+        "name": "Combo Trekking Đầy Đủ 2 Người",
+        "categoryId": "22222222-3333-4444-5555-666666666666",
+        "categoryName": "Combo cắm trại",
+        "status": "Active",
+        "itemsCount": 4,
+        "createdAt": "2026-11-01T03:00:00Z"
+      }
+    ],
+    "pageNumber": 1,
+    "pageSize": 10,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasPrevious": false,
+    "hasNext": false
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
 
 ---
 
@@ -2773,29 +3050,89 @@ HTTP 400 Bad Request
 }
 ```
 
+- `name` bắt buộc, tối đa 255 ký tự. `description` tối đa 4000 ký tự.
+- `categoryId` phải tồn tại và không phải danh mục loại `TOUR`.
+- `status` mặc định `Draft`. Combo mới chưa có thành phần nên **không được tạo ở `Active`** (400: "Combo mới chưa có thành phần; tạo ở trạng thái Draft rồi thêm thành phần trước khi bán"). Mọi giá trị khác `Active` được lưu thành `Inactive`.
+
+**Response `201 Created`:** `data` là `bundleId` (Guid), `message: "Tạo combo thành công"`.
+
 ---
 
 ### 13.16. Chi tiết combo (Thành phần + Bảng giá)
 `GET /admin/bundles/{bundleId}` · **Auth:** Staff / Admin
 
 - **Mục đích:** Lấy toàn bộ cấu hình gói combo: thông tin, danh sách các biến thể thành phần (`product_bundle_items`) và các bậc giá thuê của combo.
+- `items[].isActive`: biến thể thành phần còn bán hay không. Combo có thành phần ngừng bán thì nên thay trước khi bật bán.
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy chi tiết combo thành công",
+  "data": {
+    "bundleId": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+    "name": "Combo Trekking Đầy Đủ 2 Người",
+    "categoryId": "22222222-3333-4444-5555-666666666666",
+    "categoryName": "Combo cắm trại",
+    "description": "Gồm 1 lều 2P, 2 túi ngủ, 2 đệm hơi và 2 đèn đội đầu",
+    "status": "Active",
+    "createdAt": "2026-11-01T03:00:00Z",
+    "updatedAt": "2026-11-05T09:30:00Z",
+    "items": [
+      {
+        "bundleItemId": "aaaa1111-2222-3333-4444-555566667777",
+        "productVariantId": "77777777-8888-9999-0000-111111111111",
+        "sku": "TENT-2P-GRN",
+        "productName": "Lều Naturehike Cloud Up 2",
+        "variantName": "2 người - Xanh lá",
+        "quantity": 1,
+        "isActive": true
+      }
+    ],
+    "priceTiers": [
+      { "priceTierId": "bbbb1111-2222-3333-4444-555566667777", "minDays": 1, "maxDays": 3, "dailyPrice": 250000 },
+      { "priceTierId": "bbbb1111-2222-3333-4444-555566668888", "minDays": 4, "maxDays": null, "dailyPrice": 200000 }
+    ]
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `404 NOT_FOUND` khi combo không tồn tại hoặc đã xóa.
 
 ---
 
 ### 13.17. Sửa thông tin combo
 `PUT /admin/bundles/{bundleId}` · **Auth:** Admin
 
+- **Request body:** giống 13.15 (`name`, `categoryId`, `description`, `status`).
+- Chuyển sang `Active` yêu cầu combo đã có ít nhất 1 thành phần (400: "Combo cần ít nhất 1 thành phần trước khi bán"). Giá trị khác `Active` lưu thành `Inactive` (ngừng bán).
+
+**Response `200 OK`:** `data: null`, `message: "Cập nhật combo thành công"`.
+
 ---
 
 ### 13.18. Xóa combo
 `DELETE /admin/bundles/{bundleId}` · **Auth:** Admin
+
+- Xóa mềm (`is_deleted = true`). Combo biến mất khỏi danh sách admin và trang khách.
+
+**Response `200 OK`:** `data: null`, `message: "Xoá combo thành công"`.
 
 ---
 
 ### 13.19. Cập nhật danh sách thành phần của combo
 `PUT /admin/bundles/{bundleId}/items` · **Auth:** Admin
 
-- **Ràng buộc:** Số lượng mỗi món phải `> 0`. Không được chọn trùng một biến thể 2 lần trong cùng 1 combo.
+- **Thay thế toàn bộ** thành phần: thành phần cũ bị xóa mềm, danh sách gửi lên là danh sách mới.
+- **Ràng buộc:**
+  - 1–50 thành phần.
+  - `productVariantId` bắt buộc, không trùng nhau trong cùng request.
+  - `quantity` phải `> 0`.
+  - Biến thể phải tồn tại và đang bán (400: "Biến thể không tồn tại hoặc ngừng bán: …").
 
 **Request body**
 
@@ -2814,11 +3151,35 @@ HTTP 400 Bad Request
 }
 ```
 
+**Response `200 OK`:** `data: null`, `message: "Cập nhật thành phần combo thành công"`.
+
 ---
 
 ### 13.20 – 13.21. Quản lý Bảng giá thuê Combo
-- `GET /admin/bundles/{bundleId}/price-tiers` · Lấy danh sách bậc giá thuê của combo.
-- `PUT /admin/bundles/{bundleId}/price-tiers` · Cập nhật bậc giá thuê combo (validate tương tự bậc giá variant).
+
+`GET /admin/bundles/{bundleId}/price-tiers` · **Auth:** Staff / Admin
+
+- Trả mảng `[{ priceTierId, minDays, maxDays, dailyPrice }]` theo `minDays` tăng dần, `message: "Lấy bảng giá combo thành công"`.
+
+`PUT /admin/bundles/{bundleId}/price-tiers` · **Auth:** Admin
+
+- **Thay thế toàn bộ** bậc giá. Validate giống bậc giá biến thể (13.12):
+  - 1–20 bậc, `minDays ≥ 1`, `maxDays ≥ minDays`, `dailyPrice ≥ 0`.
+  - Bậc đầu bắt đầu từ ngày 1, các bậc liền nhau, không chồng lấn.
+  - Chỉ bậc cuối được để `maxDays: null` (không giới hạn).
+
+**Request body**
+
+```json
+{
+  "tiers": [
+    { "minDays": 1, "maxDays": 3, "dailyPrice": 250000 },
+    { "minDays": 4, "maxDays": null, "dailyPrice": 200000 }
+  ]
+}
+```
+
+**Response `200 OK`:** `data: null`, `message: "Cập nhật bảng giá combo thành công"`.
 
 ---
 
@@ -3093,6 +3454,41 @@ Quy tắc chung 15.4–15.5: đơn `Confirmed` / `InFulfillment`, `paymentStatus
 
 ---
 
+### 17.1b. Thống kê giao dịch theo bộ lọc
+`GET /admin/payments/stats` · **Auth:** Staff (phụ trách) / Admin
+
+- **Mục đích:** Thẻ số liệu đầu màn O27. Tính trên **toàn bộ** giao dịch khớp bộ lọc, không bị giới hạn bởi trang hiện tại.
+- **Query params:** giống 17.1 (`paymentType`, `purpose`, `status`, `fromDate`, `toDate`, `search`). `pageNumber`, `pageSize`, `sortBy`, `sortOrder` bị bỏ qua.
+- **Phạm vi:** giống 17.1. Staff chỉ thấy số liệu đơn mình phụ trách.
+- **Trường dữ liệu:**
+  - `totalCollectionSucceeded`: tổng `Collection` ở trạng thái `Succeeded`.
+  - `totalRefundSucceeded`: tổng `Refund` ở trạng thái `Succeeded` (số dương).
+  - `netInflow` = `totalCollectionSucceeded` − `totalRefundSucceeded`.
+  - `pendingCount`, `pendingAmount`: số dòng và tổng tiền ở trạng thái `Pending` hoặc `PendingApproval` (cả thu và hoàn).
+
+**Response `200 OK`**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Lấy thống kê giao dịch thành công",
+  "data": {
+    "totalCollectionSucceeded": 185400000,
+    "totalRefundSucceeded": 12800000,
+    "netInflow": 172600000,
+    "pendingCount": 7,
+    "pendingAmount": 9350000
+  },
+  "errors": null,
+  "timestamp": "2026-11-10T08:00:00Z"
+}
+```
+
+**Lỗi:** `400 VALIDATION_ERROR` khi `status` sai giá trị; `403 FORBIDDEN` khi không phải Staff/Admin.
+
+---
+
 ### 17.2. Hàng đợi yêu cầu hoàn tiền & đối soát (Màn O28)
 `GET /admin/refunds` · **Auth:** Admin
 
@@ -3183,22 +3579,23 @@ HTTP 409 Conflict
 
 - **Mục đích:** Dành cho các khoản hoàn bị lỗi không thể hoàn qua SePay tự động, kế toán chuyển khoản trực tiếp qua Internet Banking doanh nghiệp. Bắt buộc nhập mã tham chiếu giao dịch ngân hàng (`manualReference`) và lưu audit log.
 
-**Request body**
+**Request:** `multipart/form-data`
 
-```json
-{
-  "manualReference": "VCB-REFUND-20261101-778899",
-  "note": "Đã chuyển khoản trực tiếp từ tài khoản VCB công ty tới STK của khách hàng"
-}
-```
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `manualReference` | Có | Tối đa 100 ký tự |
+| `note` | Không | Tối đa 500 ký tự |
+| `files` | Có | 1-3 ảnh chứng từ, JPG/PNG/WebP, tối đa 5MB mỗi ảnh (kiểm tra bằng magic bytes) |
 
 - `manualReference` bắt buộc, tối đa 100 ký tự; `note` tối đa 500 ký tự. **Rate limit:** `RefundSensitive`.
 - Chỉ áp dụng cho dòng hoàn `Pending` (đã duyệt) hoặc `Failed`. Dòng hoàn chuyển `Succeeded`, lưu `manualReference` vào `providerTransactionId`; đơn chuyển `paymentStatus` = `Refunded` (đã hoàn hết tiền thu) hoặc `PartiallyRefunded`. Ghi audit `RefundMarkedManual` kèm `note`.
 - Gọi lại với cùng `manualReference` sau khi đã thành công → `200` (idempotent, không ghi audit lần 2).
+- Ảnh lưu ở storage riêng tư, ghi vào `refund_proofs` (`payment_id`). Xem ảnh: `GET /admin/refunds/{paymentId}/proofs/{proofId}` (Admin) trả file thô, `Cache-Control: private, no-store` (không bọc `ApiResponse`).
+- Item của `GET /admin/refunds` có thêm `manualReference` (= `providerTransactionId` của khoản hoàn) và `proofs: [{ proofId, fileName, contentType, createdAt }]`. Tab hỗ trợ thêm `Succeeded` để xem khoản đã hoàn thủ công cùng chứng từ.
 
 | Status | Khi nào | Code |
 |---|---|---|
-| `400` | Thiếu / quá dài `manualReference` | `VALIDATION_ERROR` |
+| `400` | Thiếu / quá dài `manualReference`, hoặc thiếu / sai ảnh (`errors.files`) | `VALIDATION_ERROR` |
 | `404` | Không tìm thấy dòng hoàn | `NOT_FOUND` |
 | `409` | Dòng hoàn không ở `Pending` / `Failed`, hoặc đã có hồ sơ hoàn tiền | `REFUND_NOT_COMPLETABLE` |
 | `409` | Đơn đang `NeedsReconciliation` (đối soát trước bằng 17.6 / 17.7) | `ORDER_NOT_RECONCILABLE` |
@@ -3270,7 +3667,19 @@ Lỗi: `404 REFUND_CASE_NOT_FOUND` (không tồn tại hoặc không phải ch�
 
 ### 17.9. Hàng đợi hoàn tiền (Admin)
 
-`GET /admin/refund-cases` · **Auth:** Admin
+`GET /admin/refund-cases` · **Auth:** Admin, Staff
+
+Mỗi item có thêm `cancelReason` (lý do huỷ của khách), `appealReason` (lý do khiếu nại khi gửi lại), `rejectionReason`, `approvedAt`, `exportedAt` (`Approved` + `exportedAt = null` ⇒ đã duyệt, chờ xuất; có giá trị ⇒ đã gửi kế toán).
+
+### 17.9a. Duyệt hồ sơ hoàn tiền
+
+`POST /admin/refund-cases/{refundCaseId}/approve` · **Auth:** Admin, Staff
+
+```json
+{ "expectedRowVersion": 1, "note": null }
+```
+
+Chỉ `Requested` → `Approved` (set `approvedAt`, người duyệt, payment Refund → `Pending`, báo khách). Không được duyệt hồ sơ của chính mình (`403`). Lỗi: `409 REFUND_CASE_NOT_APPROVABLE`, `409 CONCURRENCY_CONFLICT`.
 
 Query: `status` (`Requested`, `Approved`, `Completed`, `Rejected`, `Failed`), `fromDate`, `toDate`, `pageNumber` (mặc định 1), `pageSize` (mặc định 10).
 
@@ -3327,21 +3736,20 @@ Lỗi: `403` khi email Admin chưa xác minh.
 ```
 
 - Trả file `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Cache-Control: no-store`) chứa số tài khoản đầy đủ. Không bọc trong Response wrapper.
-- `reExport = false`: xuất hồ sơ `Requested` và chuyển chúng sang `Approved`.
-- `reExport = true`: xuất lại hồ sơ `Approved` (khi mất file), không đổi trạng thái.
+- Chỉ xuất hồ sơ `Approved` (đã được duyệt ở 17.9a), gồm cả hồ sơ đã gửi kế toán mà chưa có kết quả. Hồ sơ `Requested` **không** được xuất. Lần xuất đầu set `exportedAt`; trạng thái giữ `Approved`. `reExport` bị bỏ qua.
 - Mỗi lần xuất cần một OTP mới.
 
 Lỗi: `400 REFUND_VERIFICATION_REQUIRED` / `REFUND_VERIFICATION_EXPIRED`, `409 REFUND_EXPORT_EMPTY`, `409 REFUND_SENSITIVE_DATA_PURGED`.
 
 ### 17.12. Từ chối hoàn tiền
 
-`POST /admin/refund-cases/{refundCaseId}/reject` · **Auth:** Admin
+`POST /admin/refund-cases/{refundCaseId}/reject` · **Auth:** Admin, Staff
 
 ```json
 { "reason": "Khách cung cấp sai tài khoản", "expectedRowVersion": 1 }
 ```
 
-Chỉ áp dụng cho hồ sơ `Requested` → `Rejected`. Trả `RefundCaseSummaryResponse`:
+Áp dụng cho hồ sơ `Requested` / `AwaitingBankInfo` → `Rejected`; `reason` bắt buộc, set `rejectedAt`. Khách khiếu nại (gửi lại) được 1 lần trong 7 ngày (xem `POST /refund-cases/{id}/resubmit`). Trả `RefundCaseSummaryResponse`:
 
 ```json
 { "refundCaseId": "guid", "amount": 1500000, "status": "Rejected", "bankCode": "VCB", "maskedAccount": "******6789", "rowVersion": 2 }
@@ -3351,14 +3759,55 @@ Lỗi: `409 REFUND_CASE_NOT_REJECTABLE`.
 
 ### 17.13. Ghi nhận chuyển khoản thành công
 
-`POST /admin/refund-cases/{refundCaseId}/complete` · **Auth:** Admin
+`POST /admin/refund-cases/{refundCaseId}/complete` · **Auth:** Admin · **Content-Type:** `multipart/form-data`
 
-```json
-{ "providerTransactionId": "FT26110512345", "expectedRowVersion": 2 }
-```
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `providerTransactionId` | Có | Tối đa 255 ký tự, duy nhất toàn hệ thống |
+| `expectedRowVersion` | Có | Số nguyên, khóa lạc quan |
+| `files` | Có | 1-3 ảnh chứng từ, JPG/PNG/WebP, tối đa 5MB mỗi ảnh (kiểm tra magic bytes) |
 
 Chỉ áp dụng cho hồ sơ `Approved` → `Completed`. Trả `RefundCaseSummaryResponse`.
-Lỗi: `409 REFUND_CASE_NOT_COMPLETABLE`, `409 REFUND_TRANSACTION_DUPLICATED` (mã giao dịch đã dùng).
+Lỗi: `400 VALIDATION_ERROR` (`errors.files` khi thiếu / sai ảnh), `409 REFUND_CASE_NOT_COMPLETABLE`, `409 REFUND_TRANSACTION_DUPLICATED` (mã giao dịch đã dùng).
+
+### 17.13b. Nhập kết quả chuyển khoản từ Excel
+
+`POST /admin/refund-cases/import-result` · **Auth:** Admin · **Content-Type:** `multipart/form-data` · **Rate limit:** `RefundSensitive`
+
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `file` | Có | `.xlsx`, tối đa 20MB: đúng file đã xuất, kế toán điền thêm 4 cột cuối |
+| `dryRun` | Không | Mặc định `true`: chỉ kiểm tra, không ghi DB. `false`: áp dụng |
+
+Cột đọc theo tên header: `Đã chuyển`, `Mã giao dịch`, `Lý do chưa chuyển`, `Hình ảnh minh chứng`, cột ẩn `RefundCaseId` (nếu thiếu thì khớp theo `Mã hồ sơ`, chỉ nhận khi khớp duy nhất một hồ sơ `Approved`). Ảnh chèn nổi hoặc "Place in Cell" đều được nhận, gán theo dòng.
+
+Quy tắc mỗi dòng: hồ sơ tồn tại, đang `Approved`, không phải hồ sơ của chính admin thao tác, không lặp trong file. `Có/Co/Yes/X/1` → `Complete` (cần mã giao dịch không trùng trong file và DB, 1-3 ảnh hợp lệ). `Không/Khong/No/0` → `Fail` (cần lý do tối đa 500 ký tự). Trống / giá trị khác → `Skip` với lỗi `Chưa điền trạng thái`. Dòng lỗi có `action = "Skip"`. Dòng trống hoàn toàn bị bỏ qua.
+
+```json
+{
+  "batchId": null,
+  "fileName": "ket-qua.xlsx",
+  "dryRun": true,
+  "totalRows": 3, "validRows": 2, "completedCount": 1, "failedCount": 1, "errorCount": 1,
+  "rows": [
+    {
+      "rowNumber": 2, "refundCaseId": "guid", "refundCode": "HT-1A2B3C4D", "customerName": "Nguyễn Văn A",
+      "amount": 500000, "action": "Complete", "transactionId": "FT26110512345", "reason": null,
+      "imageCount": 1, "errors": [], "applied": false, "resultStatus": null
+    }
+  ]
+}
+```
+
+- `dryRun=false`: mỗi dòng hợp lệ được áp dụng độc lập (một dòng lỗi không rollback dòng khác); trả `batchId`, `applied`, `resultStatus` (`Completed` | `Failed`) và lỗi phát sinh khi áp dụng. Audit có `importBatchId`, `importFileName`, `importRowNumber`.
+- `400`: file không phải `.xlsx`, không đọc được hoặc thiếu cột bắt buộc.
+
+### 17.13c. Xem ảnh chứng từ
+
+- `GET /admin/refund-cases/{refundCaseId}/proofs/{proofId}` · Admin.
+- `GET /refund-cases/{refundCaseId}/proofs/{proofId}` · Khách sở hữu hồ sơ đã `Completed`; mọi trường hợp khác `404`.
+
+Trả file thô (`Content-Type` của ảnh, `Cache-Control: private, no-store`), không bọc `ApiResponse`; FE gọi bằng axios `responseType: 'blob'`. Hàng đợi (17.9) có thêm `failureReason` (lý do khi `Failed`) và `proofs`; `GET /refund-cases/{id}` có `proofs` (chỉ khi `Completed`) và `failureReason`.
 
 ### 17.14. Ghi nhận chuyển khoản thất bại
 
@@ -3555,6 +4004,9 @@ Body giống 17.12. Chỉ áp dụng cho hồ sơ `Approved` → `Failed`. Trả
 }
 ```
 
+- `postType`: `Guide` | `Skill` | `Location` | `News` | `Blog` | `Recruitment` (Tuyển dụng).
+- Ảnh bìa không có cột riêng: `coverImageUrl` trong danh sách và chi tiết bài viết (public + admin) là ảnh Markdown đầu tiên `![..](url)` trong `content`; `null` nếu bài không có ảnh.
+
 ---
 
 ### 19.3. Chi tiết bài viết & trình soạn thảo
@@ -3593,122 +4045,132 @@ Body giống 17.12. Chỉ áp dụng cho hồ sơ `Approved` → `Failed`. Trả
 
 ---
 
-## 20. Admin: Chính sách Hoàn tiền (Màn O34)
+## 20. Admin: Chính sách Hoàn tiền (Màn O34) và Chính sách Thuê đồ
 
-### 20.1. Danh sách chính sách hoàn tiền
+Đọc: Staff / Admin. Ghi: chỉ Admin. Mọi thao tác ghi đều có audit log.
+
+**Trạng thái.** DB lưu `status` = `Draft | Active | Archived`. `displayStatus` do BE tính: `Draft`, `Scheduled` (`effectiveFrom > now`), `Active`, `Expired` (`effectiveUntil <= now`), `Archived`.
+
+**Mã lỗi:** `409 POLICY_ALREADY_IN_USE` (sửa/xoá chính sách đã có chuyến hoặc đơn dùng), `409 REFUND_POLICY_LAST_ACTIVE` (archive/xoá chính sách đang hiệu lực duy nhất của loại), `409 POLICY_NOT_LATEST_VERSION` (activate bản Archived không phải mới nhất), `409 INVALID_POLICY_STATE` (activate bản đang Active, archive bản không Active), `400` validation, `404 NOT_FOUND`.
+
+### 20.1. Danh sách chính sách hoàn tiền (phân trang)
 `GET /admin/refund-policies` · **Auth:** Staff / Admin
 
-- **Mục đích:** Màn O34 — danh sách các bộ chính sách hoàn tiền áp dụng cho Tour hoặc Đơn thuê.
-- **Thống kê:** Số chuyến đi và đơn hàng đang liên kết với chính sách này (`COUNT(TRIPS)` + `COUNT(ORDERS)`).
+Query: `pageNumber`, `pageSize`, `search` (tên, tối đa 200), `sortBy` (`createdAt|name|effectiveFrom|version`), `sortOrder` (`asc|desc`), `policyType` (`Tour|Rental`), `status` (`Draft|Scheduled|Active|Expired|Archived`, là displayStatus), `latestOnly` (mặc định `true`: mỗi họ chính sách chỉ hiện phiên bản mới nhất).
 
-**Response `200 OK`**
+**Response `200 OK`** — `data` là `PagedResponse`:
 
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Thành công",
-  "data": [
-    {
-      "policyId": "99999999-0000-1111-2222-333333333333",
-      "policyFamilyId": "99999999-0000-0000-0000-333333333333",
-      "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
-      "policyType": "Tour",
-      "version": 1,
-      "effectiveFrom": "2026-01-01",
-      "effectiveUntil": null,
-      "status": "Active",
-      "activeTripsCount": 35
-    }
-  ],
-  "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
+  "data": {
+    "items": [
+      {
+        "policyId": "99999999-0000-1111-2222-333333333333",
+        "policyFamilyId": "99999999-0000-0000-0000-333333333333",
+        "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
+        "description": null,
+        "policyType": "Tour",
+        "version": 2,
+        "versionsCount": 2,
+        "effectiveFrom": "2026-01-01",
+        "effectiveUntil": null,
+        "status": "Active",
+        "displayStatus": "Active",
+        "rulesCount": 4,
+        "tripsCount": 30,
+        "ordersCount": 5,
+        "usageCount": 35,
+        "createdByName": "Admin",
+        "createdAt": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "pageNumber": 1, "pageSize": 10, "totalItems": 1, "totalPages": 1, "hasPrevious": false, "hasNext": false
+  }
 }
 ```
+
+(`activeTripsCount` đã bỏ; dùng `tripsCount`, `ordersCount`, `usageCount = tripsCount + ordersCount`.)
 
 ---
 
 ### 20.2. Tạo chính sách hoàn tiền mới
-`POST /admin/refund-policies` · **Auth:** Admin
-
-**Request body**
+`POST /admin/refund-policies` · **Auth:** Admin · `201 Created`, `data` = `policyId` (Guid).
 
 ```json
 {
   "name": "Chính sách hoàn tiền Mùa Lễ Tết (Chặt chẽ)",
   "policyType": "Tour",
-  "effectiveFrom": "2026-12-20"
+  "description": "Áp dụng cho tour dịp Tết",
+  "effectiveFrom": "2026-12-20",
+  "effectiveUntil": null,
+  "rules": [
+    { "minHoursBefore": 168, "refundPercentage": 100 },
+    { "minHoursBefore": 24, "refundPercentage": 50 },
+    { "minHoursBefore": 0, "refundPercentage": 0 }
+  ],
+  "saveAsDraft": true
 }
 ```
+
+- Chính sách và rules được lưu trong **một transaction**.
+- `saveAsDraft = true` → `Draft`. `saveAsDraft = false` → `Active` và áp dụng hiệu ứng kích hoạt (xem 20.7).
+- Validation: `name` bắt buộc ≤ 200; `policyType` ∈ `Tour|Rental`; `description` ≤ 2000; `effectiveUntil > effectiveFrom` khi có; `rules` 1–20 bậc, `minHoursBefore` số nguyên 0–8760 không trùng, `refundPercentage` 0–100 và không tăng khi `minHoursBefore` giảm (càng gần giờ khởi hành).
 
 ---
 
 ### 20.3. Chi tiết chính sách & bảng quy tắc bậc thang
 `GET /admin/refund-policies/{policyId}` · **Auth:** Staff / Admin
 
-- **Mục đích:** Màn O34 — hiển thị bảng quy tắc hoàn tiền theo giờ và biểu đồ bậc thang trực quan ("Số giờ trước giờ khởi hành -> % tiền được hoàn").
-
-**Response `200 OK`**
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Thành công",
-  "data": {
-    "policyId": "99999999-0000-1111-2222-333333333333",
-    "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
-    "isLocked": true,
-    "rules": [
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667777",
-        "minHoursBefore": 168,
-        "refundPercentage": 100,
-        "description": "Trước 7 ngày (≥ 168h): Hoàn 100%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667778",
-        "minHoursBefore": 72,
-        "refundPercentage": 80,
-        "description": "Từ 3 đến 7 ngày (72h - 168h): Hoàn 80%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667779",
-        "minHoursBefore": 24,
-        "refundPercentage": 50,
-        "description": "Từ 24h đến 72h: Hoàn 50%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667780",
-        "minHoursBefore": 0,
-        "refundPercentage": 0,
-        "description": "Dưới 24h: Không hoàn tiền (0%)"
-      }
-    ]
-  },
-  "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
-}
-```
+`data` gồm mọi trường của một dòng danh sách, cộng: `updatedAt`, `isLocked`, các cờ `canEdit`, `canDelete`, `canArchive`, `canActivate`, `canClone` (BE tính theo vai trò, số lượng dùng, guard "hiệu lực duy nhất"), `rules[]` (`ruleId`, `minHoursBefore`, `refundPercentage`, `description`; sắp `minHoursBefore` giảm dần) và `versions[]` (`policyId`, `version`, `displayStatus`, `effectiveFrom`, `effectiveUntil`, `usageCount`; version giảm dần).
 
 ---
 
 ### 20.4. Sửa chính sách hoàn tiền
-`PUT /admin/refund-policies/{policyId}` · **Auth:** Admin
+`PUT /admin/refund-policies/{policyId}` · **Auth:** Admin · `data` = null
 
-- **Ràng buộc:** Nếu chính sách này đã được áp dụng vào bất kỳ chuyến đi (`TRIPS`) hoặc đơn hàng (`ORDERS`) nào, API từ chối sửa đổi trực tiếp (`POLICY_ALREADY_IN_USE`) để bảo vệ tính bất biến của hợp đồng pháp lý đã giao kết với khách hàng. Quản trị viên phải dùng API nhân bản phiên bản mới (`clone-version`).
+- Body như 20.2 (`policyType` phải bằng loại hiện tại, `saveAsDraft` bị bỏ qua); thay cả bảng rules.
+- **Ràng buộc:** nếu đã có chuyến (`TRIPS`) hoặc đơn (`ORDERS`) dùng → `409 POLICY_ALREADY_IN_USE`. Hãy dùng `clone-version`.
 
 ---
 
 ### 20.5. Cập nhật bảng quy tắc hoàn tiền
-`PUT /admin/refund-policies/{policyId}/rules` · **Auth:** Admin
+`PUT /admin/refund-policies/{policyId}/rules` · **Auth:** Admin · cùng ràng buộc và validator rules với 20.4.
 
 ---
 
-### 20.6. Nhân bản chính sách sang phiên bản mới (Clone Policy Version)
-`POST /admin/refund-policies/{policyId}/clone-version` · **Auth:** Admin
+### 20.6. Nhân bản sang phiên bản mới (Clone Policy Version)
+`POST /admin/refund-policies/{policyId}/clone-version` · **Auth:** Admin · `201 Created`, `data` = Guid bản mới.
 
-- **Mục đích:** Khi chính sách cũ đã có chuyến áp dụng nhưng cần điều chỉnh quy định mới: Đặt ngày `effectiveUntil = now` cho bản cũ và tạo một bản ghi mới với cùng `policyFamilyId`, `version = version_cũ + 1`.
+- Tạo một **bản nháp (`Draft`)** cùng `policyFamilyId`, `version = max + 1`, sao chép rules. **Bản gốc giữ nguyên**; bản cũ chỉ bị đóng khi bản mới được kích hoạt (20.7).
+
+---
+
+### 20.7. Kích hoạt
+`POST /admin/refund-policies/{policyId}/activate` · **Auth:** Admin · `data` = null
+
+- Cho phép từ `Draft` (cần ≥ 1 rule; nếu `effectiveFrom` trước hôm nay thì đặt bằng thời điểm hiện tại) hoặc từ `Archived` nếu là phiên bản mới nhất của họ (nếu không: `409 POLICY_NOT_LATEST_VERSION`).
+- Hiệu ứng: các phiên bản cũ cùng họ đang hiệu lực được đặt `effectiveUntil = effectiveFrom` của bản mới; với loại `Rental`, các họ Rental khác đang hiệu lực tại thời điểm đó cũng bị đóng (mỗi lúc chỉ một chính sách Rental hiệu lực).
+
+### 20.8. Ngừng áp dụng
+`POST /admin/refund-policies/{policyId}/archive` · **Auth:** Admin · chỉ từ `Active`. `409 REFUND_POLICY_LAST_ACTIVE` nếu là chính sách đang hiệu lực duy nhất của loại.
+
+### 20.9. Xoá
+`DELETE /admin/refund-policies/{policyId}` · **Auth:** Admin · xoá mềm chính sách và rules. `409 POLICY_ALREADY_IN_USE` nếu đã dùng; `409 REFUND_POLICY_LAST_ACTIVE` như 20.8.
+
+---
+
+### 20.10. Chính sách thuê đồ (Rental policy)
+
+| Method | Route | Auth | Ghi chú |
+|---|---|---|---|
+| GET | `/admin/rental-policies` | Staff / Admin | Mảng `AdminRentalPolicyResponse`, version giảm dần |
+| GET | `/admin/rental-policies/{id}` | Staff / Admin | Một version; `404` nếu không có |
+| POST | `/admin/rental-policies` | Admin | Tạo version mới và áp dụng ngay (version cũ thành `Archived`); body thêm `sourcePolicyId` (tuỳ chọn, chỉ ghi audit) |
+| GET | `/rental-policies/active` | Anonymous | Không lộ các trường admin |
+
+`AdminRentalPolicyResponse` = `RentalPolicyResponse` + `ordersCount` (số đơn thuê đã snapshot version này), `createdByName`, `createdAt`.
 
 ---
 
@@ -4256,7 +4718,7 @@ Admin được lưu Trip `Draft` khi `operationalCapacity < totalSlots`, nhưng 
 - `PUT /tours/{id}/group-settings` (`Admin`): `{ "groupMaxParticipants": 12 }` → cập nhật sức chứa chuẩn mỗi group trên Tour version.
 - `GET /tours/{id}/recurrence-rules` & `POST /tours/{id}/recurrence-rules` (`Admin`): cấu hình lịch lặp kèm `defaultGroupCount > 0`.
 - `POST /trips` (`Admin`), `PUT /trips/{tripId}` (`Admin`), `GET /trips/{tripId}` (`Staff/Admin`): tạo/sửa Trip `Draft` kèm `groupCount` (tự tạo/đồng bộ các group `Draft` trong cùng transaction; sau khi `Open` sửa `groupCount` trả `409 TRIP_GROUP_COUNT_LOCKED`).
-- `PATCH /trips/{tripId}/status` (`Staff/Admin`): `{ "status": "Open" | "ClosedForBooking" }` → mở bán kiểm tra `operationalCapacity >= totalSlots` (`409 TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT`).
+- `PATCH /trips/{tripId}/status` (`Staff/Admin`): `{ "status": "Open" | "ClosedForBooking" }`. Mở bán kiểm tra `operationalCapacity >= totalSlots` (`409 TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT`) và yêu cầu chính sách hoàn tiền áp dụng theo mục 3.0 (`409 REFUND_POLICY_CHANGED` nếu thiếu).
 - `POST /trips/generate-recurring` (`Admin`): `{ "recurrenceRuleId"?, "fromUtc", "toUtc" }` → sinh Trip và group idempotent theo `defaultGroupCount`; rule cũ thiếu `defaultGroupCount` không sinh Trip và trả `warnings`.
 
 ### 8.1. Lấy snapshot chia đoàn
@@ -4437,7 +4899,7 @@ Trước khi chốt, API trả `200` với `groupingStatus = "Pending"` và `gro
 
 **API bổ sung cho màn danh sách của Guide (`8.6b`):**
 
-- `GET /guide/trip-groups` · **Auth:** Guide (`TourGuide` / `Guide`) → danh sách tất cả group (cả `Draft` và `Published`) đang được gán cho guide đăng nhập.
+- `GET /guide/trip-groups` · **Auth:** Guide → danh sách tất cả group (cả `Draft` và `Published`) đang được gán cho guide đăng nhập.
 - `GET /guide/trip-groups/{groupId}` · **Auth:** Guide → chi tiết 1 group được giao kèm danh sách participant hợp lệ (bị đổi guide trả `404`).
 
 ```json
@@ -5151,7 +5613,7 @@ FE xử lý theo `errors.code`, không so khớp `message`. Lỗi validation the
 | `RENTAL_EXTENSION_PRICE_CHANGED` | 409 | 7.6 | Số tiền phụ phí gia hạn tính lại trong lock khác với acceptedExtraAmount |
 | `PROMOTION_INVALID` | 409 (7.3) | 7.2, 7.3 | Mã khuyến mãi không tồn tại, hết hiệu lực, không áp dụng cho đơn thuê, hoặc chưa đạt điều kiện. Ở 7.2 nằm trong `data.promotionError.code`, không làm API lỗi |
 | `PROMOTION_EXHAUSTED` | 409 (7.3) | 7.2, 7.3 | Mã hết lượt dùng (tổng hoặc theo user). Ở 7.2 nằm trong `data.promotionError.code` |
-| `REFUND_POLICY_CHANGED` | 409 | 7.3 | Chưa có chính sách hoàn tiền thuê hiệu lực, hoặc `acceptedRefundPolicyVersion` khác phiên bản hiện hành |
+| `REFUND_POLICY_CHANGED` | 409 | 3.1, 7.3 | Chưa có chính sách hoàn tiền (thuê hoặc của chuyến) hiệu lực, hoặc `acceptedRefundPolicyVersion` khác phiên bản hiện hành |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | 7.3 | `Idempotency-Key` đã dùng cho nội dung khác |
 
 > Các lỗi `401` / `403` (thiếu token, sai role `Customer`) do middleware xác thực trả về, không có `errors.code`.
@@ -5268,6 +5730,16 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 
 | Ngày | Người sửa | Endpoint | Thay đổi |
 |---|---|---|---|
+| 2026-11-15 | Tri Tin | `/trips/{tripId}/suggested-bundles`, `/admin/tours/{tourId}/suggested-bundles` | Thêm 3.0a và 6.23a–6.23b: combo thuê gợi ý theo tour, giá/tồn tính theo ngày chuyến. Khách thuê qua giỏ thuê sẵn có (giả định Q1). Migration `20261120_tour_suggested_bundles.sql`. |
+| 2026-11-15 | Tri Tin | `/trip-bookings/{orderId}/reschedule-options`, `/reschedule` | Thêm `companyCancelled`: đơn của chuyến bị công ty huỷ được chuyển miễn phí sang chuyến khác (không thu thêm), chuyển xong huỷ RefundCase `TripCancellation`. |
+| 2026-11-15 | Tri Tin | `/trip-bookings/{orderId}/reschedule-options`, `/reschedule` | Thêm 3.8 đổi lịch sang chuyến khác cùng tour theo điều khoản đổi lịch của chính sách. Chênh lệch âm mở RefundCase `TripReschedule`, dương thu qua payment `TripReschedule` giữ chỗ 15 phút. Migration `20261119_trip_reschedule.sql`. |
+| 2026-11-15 | Tri Tin | `/trip-bookings/{orderId}/participants/cancellation-preview`, `/participants/cancel` | Thêm 3.7 hủy bớt hành khách (RefundCase `TripPartialCancellation`). Quote hủy toàn bộ chỉ tính phần ghế còn hiệu lực; hủy toàn bộ bị chặn khi đã có RefundCase đang mở. |
+| 2026-11-15 | Tri Tin | `/admin/trips/{tripId}/attendances`, `/guide/.../attendances/batch` | Vắng ở hoạt động đầu tiên ⇒ hành khách `NoShow` (sửa lại có mặt ⇒ `Pending`). Không hoàn tiền. |
+| 2026-11-15 | Tri Tin | `/trip-bookings/{orderId}` | Đơn `PendingPayment` + `Unpaid` quá `holdExpiresAt` được job 5 phút chuyển `Expired`: nhả ghế, huỷ thu tiền chờ, hoàn khuyến mãi, thu hồi lời mời. Chuyển khoản tới sau đó vào luồng đối soát. |
+| 2026-11-15 | Tri Tin | `/admin/trips/{tripId}/cancel` | Công ty huỷ chuyến: mỗi đơn đã thu tiền mở `RefundCase` (`TripCancellation`, `AwaitingBankInfo`, 100% tiền đã thu) thay cho `Payment` hoàn `PendingApproval` |
+| 2026-11-15 | Tri Tin | `/admin/refund-cases*`, `/refund-cases/{id}/resubmit` | Thêm 17.9a `approve` (Admin/Staff). Export chỉ lấy `Approved`, set `exportedAt`. Hàng đợi, `reject`, `approve` mở cho Staff; export / import / complete / mark-failed vẫn chỉ Admin. `resubmit` có `reason` (bắt buộc khi `Rejected`), tối đa 1 lần trong 7 ngày, lỗi `409 REFUND_CASE_NOT_RESUBMITTABLE`; response khách thêm `resubmitDeadline`, `appealReason`. Migration `20261118_refund_approval_step.sql`. |
+| 2026-11-15 | Tri Tin | `/trips/{tripId}/refund-policy`, `/trip-bookings`, `/admin/refund-policies*` | Thêm 3.0 (chính sách công khai của trip). `POST /trip-bookings` bắt buộc `acceptedRefundPolicyVersion`, lệch ⇒ `409 REFUND_POLICY_CHANGED`. Chính sách phải có mốc `minHoursBefore = 0`; loại Tour có thêm điều khoản đổi lịch và thời gian chờ NoShow. Migration `20261117_trip_policy_terms.sql`. |
+| 2026-11-10 | Tri Tin | `/users/me/sessions*`, `/admin/users/guides`, `/admin/payments/stats`, `/admin/bundles*` | Thêm 2.10–2.12 (khách tự xem và đăng xuất phiên đăng nhập, phiên = chuỗi refresh token, không có thiết bị/IP); 4.12 danh sách HDV cho Staff/Admin để dropdown phân công không còn gọi `/admin/users` (chỉ Admin, Staff bị 403); 17.1b thống kê giao dịch tính trên toàn bộ dữ liệu khớp bộ lọc thay cho việc FE cộng 100 dòng gần nhất. Bổ sung đầy đủ query, response và ràng buộc cho 13.14–13.21 (combo) theo code hiện tại. |
 | 2026-11-08 | Antigravity | `/rental-orders/{orderId}/extensions/quote`, `/rental-orders/{orderId}/extensions`, `/rental-orders/{orderId}/adjustments`, `/admin/rental-orders/{orderId}/adjustments` | Triển khai T5 (FR-R09, UAT-19): tính năng gia hạn đơn thuê cho khách hàng (báo giá tính lại theo bậc giá mới, gia hạn nguyên tử kèm khóa advisory lock & variant lock, kiểm tra thiết bị không xung đột, ghi nhận điều chỉnh `rental_order_adjustments`, lập phụ phí `Extension` trạng thái `Assessed` và gửi thông báo in-app `RentalExtended`), kèm API xem lịch sử điều chỉnh cho khách và màn vận hành Staff/Admin. |
 | 2026-11-08 | Antigravity | `/admin/rental-orders/handover-list`, `/admin/rental-orders/return-list`, `/admin/reports/revenue`, `/admin/reports/refunds-and-charges` | Triển khai T4 (FR-O06, UAT-36): thêm danh sách thiết bị cần giao và nhận lại theo ngày giờ VN (JSON + `?format=csv` có UTF-8 BOM) cho Staff/Admin, và thêm `?format=csv` cho 2 báo cáo Admin-only (tái dùng dữ liệu JSON, giữ nguyên quyền `[Authorize(Roles = Admin)]`). Chuẩn hóa `CsvHelper` dùng chung với manifest chuyến đi. |
 | 2026-11-08 | Tri Tin | `/admin/payments`, `/admin/refunds*`, `/admin/orders/{orderId}/reconcile-*` | Triển khai 17.1–17.7 theo luồng hoàn tiền thủ công: duyệt chỉ chuyển `PendingApproval` → `Pending` (không gọi SePay, bỏ lỗi `502 PAYMENT_PROVIDER_ERROR`), thử lại tối đa 3 lần, `mark-manual` ghi `Succeeded` + cập nhật `Refunded` / `PartiallyRefunded` (mã lỗi mới `REFUND_NOT_COMPLETABLE`). Dòng hoàn đã có hồ sơ hoàn tiền trả `409` và xử lý ở `/admin/refund-cases`. Item danh sách thêm `orderId`, `orderPaymentStatus`, `hasRefundCase`. |
@@ -5289,3 +5761,4 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 | 2026-10-06 | Team | 1.1 – 2.3 | Khởi tạo skeleton cơ bản ban đầu |
 | 2026-11-01 | Antigravity Pair | 1.1 – 23.3 | Hoàn tất thiết kế toàn diện 176 API cho Phân hệ Quản trị (Admin & Vận hành) từ Màn O01 đến O39 theo RenTrekk Design System và DB Supabase Schema. Bổ sung mục tiêu, lý do phân rã chi tiết, bảng enum và mã lỗi nghiệp vụ. |
 | 2026-11-01 | Antigravity Pair | 24.1 – 24.6 | Bổ sung phân hệ API Hướng dẫn viên Thực địa (Màn G01 – G06) gồm 6 API chuyên biệt `/api/v1/guide/*`, bảo mật dữ liệu tài chính và hỗ trợ offline sync trên mobile. Nâng tổng số API lên 182 endpoints. |
+| 2026-11-15 | — | 19.x, bài viết public | Thêm `postType` `Blog`, `Recruitment`; trả `coverImageUrl` (ảnh đầu tiên trong nội dung) |

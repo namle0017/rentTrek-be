@@ -8,4 +8,7 @@ public sealed class SaveVariantRequest
     public string? Size { get; set; }
     public string? Color { get; set; }
     public string Status { get; set; } = "Active";
+
+    /// <summary>Giá trị thiết bị (VND) dùng để bồi thường khi mất / hư không dùng lại được; null = chưa nhập.</summary>
+    public decimal? ReplacementValue { get; set; }
 }

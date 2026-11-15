@@ -46,12 +46,19 @@ public class UnitOfWork : IUnitOfWork
     private IRefreshTokenRepository? _refreshTokens;
     private IRefundCaseRepository? _refundCases;
     private IRefundPolicyRepository? _refundPolicies;
+    private IRefundProofRepository? _refundProofs;
+    private ITripRescheduleRepository? _tripReschedules;
+    private ICustomerReportRepository? _customerReports;
     private IRefundPolicyRuleRepository? _refundPolicyRules;
     private IRentalBundleItemSnapshotRepository? _rentalBundleItemSnapshots;
     private IRentalChargeRepository? _rentalCharges;
     private IRentalOrderRepository? _rentalOrders;
     private IRentalOrderItemRepository? _rentalOrderItems;
     private IRentalPriceTierRepository? _rentalPriceTiers;
+    private IRentalPolicyRepository? _rentalPolicies;
+    private IRentalEvidencePhotoRepository? _rentalEvidencePhotos;
+    private IRentalReportRepository? _rentalReports;
+    private IRentalSettlementRepository? _rentalSettlements;
     private IReviewRepository? _reviews;
     private IRoleRepository? _roles;
     private ISoftSkillRepository? _softSkills;
@@ -105,6 +112,9 @@ public class UnitOfWork : IUnitOfWork
     public IPromotionTierRepository PromotionTiers => _promotionTiers ??= new PromotionTierRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
     public IRefundCaseRepository RefundCases => _refundCases ??= new RefundCaseRepository(_context);
+    public IRefundProofRepository RefundProofs => _refundProofs ??= new RefundProofRepository(_context);
+    public ITripRescheduleRepository TripReschedules => _tripReschedules ??= new TripRescheduleRepository(_context);
+    public ICustomerReportRepository CustomerReports => _customerReports ??= new CustomerReportRepository(_context);
     public IRefundPolicyRepository RefundPolicies => _refundPolicies ??= new RefundPolicyRepository(_context);
     public IRefundPolicyRuleRepository RefundPolicyRules => _refundPolicyRules ??= new RefundPolicyRuleRepository(_context);
     public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => _rentalBundleItemSnapshots ??= new RentalBundleItemSnapshotRepository(_context);
@@ -112,6 +122,10 @@ public class UnitOfWork : IUnitOfWork
     public IRentalOrderRepository RentalOrders => _rentalOrders ??= new RentalOrderRepository(_context);
     public IRentalOrderItemRepository RentalOrderItems => _rentalOrderItems ??= new RentalOrderItemRepository(_context);
     public IRentalPriceTierRepository RentalPriceTiers => _rentalPriceTiers ??= new RentalPriceTierRepository(_context);
+    public IRentalPolicyRepository RentalPolicies => _rentalPolicies ??= new RentalPolicyRepository(_context);
+    public IRentalEvidencePhotoRepository RentalEvidencePhotos => _rentalEvidencePhotos ??= new RentalEvidencePhotoRepository(_context);
+    public IRentalReportRepository RentalReports => _rentalReports ??= new RentalReportRepository(_context);
+    public IRentalSettlementRepository RentalSettlements => _rentalSettlements ??= new RentalSettlementRepository(_context);
     public IReviewRepository Reviews => _reviews ??= new ReviewRepository(_context);
     public IRoleRepository Roles => _roles ??= new RoleRepository(_context);
     public ISoftSkillRepository SoftSkills => _softSkills ??= new SoftSkillRepository(_context);
@@ -196,6 +210,8 @@ public class UnitOfWork : IUnitOfWork
         await _transaction.RollbackAsync(cancellationToken);
         await DisposeTransactionAsync();
     }
+
+    public void ClearChangeTracker() => _context.ChangeTracker.Clear();
 
     // AppDbContext do DI container quản lý vòng đời, UnitOfWork chỉ dọn transaction của mình
     public void Dispose()

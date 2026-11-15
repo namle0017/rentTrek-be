@@ -198,7 +198,9 @@ CREATE TABLE refund_policies (
     created_at          timestamptz  NOT NULL DEFAULT now(),
     updated_at          timestamptz  NOT NULL DEFAULT now(),
     is_deleted          boolean      NOT NULL DEFAULT false,
-    UNIQUE (policy_family_id, version)
+    UNIQUE (policy_family_id, version),
+    CONSTRAINT ck_refund_policies_policy_type CHECK (policy_type IN ('Tour', 'Rental')),
+    CONSTRAINT ck_refund_policies_status CHECK (status IN ('Draft', 'Active', 'Archived'))
 );
 
 CREATE TABLE refund_policy_rules (
@@ -662,6 +664,7 @@ CREATE TABLE rental_order_adjustments (
     created_at                  timestamptz   NOT NULL DEFAULT now()
 );
 
+CREATE INDEX ix_refund_policies_type_status ON refund_policies(policy_type, status) WHERE NOT is_deleted;
 CREATE INDEX ix_rental_order_adjustments_rental_order_id ON rental_order_adjustments(rental_order_id);
 CREATE INDEX ix_rental_order_adjustments_requested_by_user_id ON rental_order_adjustments(requested_by_user_id);
 

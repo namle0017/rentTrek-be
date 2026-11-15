@@ -69,6 +69,10 @@ public class ProductService : IProductService
         {
             Search = request.Search,
             CategoryId = request.CategoryId,
+            OfferingType = request.OfferingType,
+            MinPrice = request.MinPrice,
+            MaxPrice = request.MaxPrice,
+            InStockOnly = request.InStockOnly,
             SortBy = request.SortBy,
             IsDescending = request.IsDescending,
             PageNumber = request.PageNumber,
@@ -102,6 +106,7 @@ public class ProductService : IProductService
                     Name = variant.Name,
                     Size = variant.Size,
                     Color = variant.Color,
+                    ReplacementValue = variant.ReplacementValue,
                     Status = ToDisplay(variant.Status),
                     ImageUrls = variant.Images
                         .OrderByDescending(image => image.IsPrimary)
@@ -136,6 +141,18 @@ public class ProductService : IProductService
         var product = await _unitOfWork.Products.GetPublicDetailAsync(id, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy sản phẩm");
         return _mapper.Map<ProductDetailResponse>(product);
+    }
+
+    public async Task<IReadOnlyList<ProductResponse>> GetRelatedAsync(
+        Guid id,
+        int limit = 4,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _unitOfWork.Products.GetPublicDetailAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy sản phẩm");
+        var take = Math.Clamp(limit, 1, 12);
+        var related = await _unitOfWork.Products.GetRelatedPublicAsync(product.CategoryId, id, take, cancellationToken);
+        return _mapper.Map<List<ProductResponse>>(related);
     }
 
     public async Task<IReadOnlyList<ProductCategoryResponse>> GetCategoriesAsync(CancellationToken cancellationToken = default)

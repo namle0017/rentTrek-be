@@ -15,6 +15,14 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
     // Giá trị orders.order_type của đơn thuê (xem RenTrek.BLL.Constants.OrderTypes.Rental)
     private const string RentalOrderType = "Rental";
 
+    // Trùng giá trị RenTrek.BLL.Constants (OrderStatuses, OrderPaymentStatuses, AssignmentStatuses); DAL không tham chiếu BLL
+    private const string ConfirmedStatus = "Confirmed";
+    private const string InFulfillmentStatus = "InFulfillment";
+    private const string AwaitingSettlementStatus = "AwaitingSettlement";
+    private const string PaidStatus = "Paid";
+    private const string IssuedAssignmentStatus = "Issued";
+    private const int LifecycleBatchSize = 200;
+
     public RentalOrderRepository(AppDbContext context) : base(context)
     {
     }
@@ -110,6 +118,12 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
                 RentalStartAt = o.RentalOrder!.RentalStartAt,
                 RentalEndAt = o.RentalOrder.RentalEndAt,
                 DepositAmount = o.RentalOrder.DepositAmount,
+                CustomerUserId = o.CustomerUserId,
+                RentalPolicyId = o.RentalOrder.RentalPolicyId,
+                HandedOverAt = o.RentalOrder.HandedOverAt,
+                CustomerReceivedConfirmedAt = o.RentalOrder.CustomerReceivedConfirmedAt,
+                ReceiptConfirmSource = o.RentalOrder.ReceiptConfirmSource,
+                CancellationType = o.RentalOrder.CancellationType,
                 CustomerName = o.CustomerUser.FullName,
                 CustomerEmail = o.CustomerUser.Email,
                 CustomerPhone = o.CustomerUser.Phone,
@@ -352,6 +366,84 @@ public class RentalOrderRepository : GenericRepository<RentalOrder>, IRentalOrde
 
     public Task AddAdjustmentAsync(RentalOrderAdjustment adjustment, CancellationToken cancellationToken = default)
         => _context.RentalOrderAdjustments.AddAsync(adjustment, cancellationToken).AsTask();
+
+    public Task<RentalOrderAdjustment?> GetAdjustmentByPaymentAsync(Guid paymentId, CancellationToken cancellationToken = default)
+        => _context.RentalOrderAdjustments
+            .FirstOrDefaultAsync(a => a.PaymentId == paymentId, cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> GetPickupOverdueOrderIdsAsync(DateTime startedBeforeUtc, CancellationToken cancellationToken = default)
+        => await RentalOrdersQuery()
+            .Where(o => o.Status == ConfirmedStatus
+                        && o.PaymentStatus == PaidStatus
+                        && o.RentalOrder!.HandedOverAt == null
+                        && o.RentalOrder.RentalStartAt <= startedBeforeUtc)
+            .OrderBy(o => o.RentalOrder!.RentalStartAt)
+            .Select(o => o.OrderId)
+            .Take(LifecycleBatchSize)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> GetReturnDueOrderIdsAsync(DateTime endFromUtc, DateTime endToUtc, CancellationToken cancellationToken = default)
+        => await RentalOrdersQuery()
+            .Where(o => o.Status == InFulfillmentStatus
+                        && o.RentalOrder!.RentalEndAt >= endFromUtc
+                        && o.RentalOrder.RentalEndAt <= endToUtc)
+            .Select(o => o.OrderId)
+            .Take(LifecycleBatchSize)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> GetReturnOverdueOrderIdsAsync(DateTime endedBeforeUtc, CancellationToken cancellationToken = default)
+        => await RentalOrdersQuery()
+            .Where(o => o.Status == InFulfillmentStatus
+                        && o.RentalOrder!.RentalEndAt <= endedBeforeUtc
+                        && o.RentalOrder.RentalOrderItems.Any(i => !i.IsDeleted
+                            && i.AssetAssignments.Any(a => a.Status == IssuedAssignmentStatus)))
+            .OrderBy(o => o.RentalOrder!.RentalEndAt)
+            .Select(o => o.OrderId)
+            .Take(LifecycleBatchSize)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> GetAwaitingReceiptConfirmOrderIdsAsync(DateTime handedOverBeforeUtc, CancellationToken cancellationToken = default)
+        => await RentalOrdersQuery()
+            .Where(o => o.RentalOrder!.HandedOverAt != null
+                        && o.RentalOrder.HandedOverAt <= handedOverBeforeUtc
+                        && o.RentalOrder.CustomerReceivedConfirmedAt == null)
+            .Select(o => o.OrderId)
+            .Take(LifecycleBatchSize)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountCancellationsAsync(
+        Guid customerUserId,
+        IReadOnlyCollection<string> cancellationTypes,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken = default)
+        => RentalOrdersQuery()
+            .Where(o => o.CustomerUserId == customerUserId
+                        && o.CancelledAt != null
+                        && o.CancelledAt >= sinceUtc
+                        && o.RentalOrder!.CancellationType != null
+                        && cancellationTypes.Contains(o.RentalOrder.CancellationType))
+            .CountAsync(cancellationToken);
+
+    public Task<bool> HasOutstandingDebtAsync(Guid customerUserId, CancellationToken cancellationToken = default)
+        => RentalOrdersQuery()
+            .AnyAsync(o => o.CustomerUserId == customerUserId && o.Status == AwaitingSettlementStatus, cancellationToken);
+
+    public async Task<IReadOnlyList<RentalOrderAdjustment>> GetStalePendingAdjustmentsAsync(DateTime createdBeforeUtc, CancellationToken cancellationToken = default)
+        => await _context.RentalOrderAdjustments
+            .AsNoTracking()
+            .Where(a => a.Status == "Pending" && a.CreatedAt <= createdBeforeUtc)
+            .OrderBy(a => a.CreatedAt)
+            .Take(LifecycleBatchSize)
+            .ToListAsync(cancellationToken);
+
+    public Task<RentalOrderAdjustment?> GetPendingAdjustmentAsync(Guid orderId, CancellationToken cancellationToken = default)
+        => _context.RentalOrderAdjustments
+            .FirstOrDefaultAsync(a => a.RentalOrderId == orderId && a.Status == "Pending", cancellationToken);
+
+    private IQueryable<Order> RentalOrdersQuery()
+        => _context.Orders
+            .AsNoTracking()
+            .Where(o => !o.IsDeleted && o.OrderType == RentalOrderType && o.RentalOrder != null);
 
     public async Task<List<RentalOrderAdjustmentRow>?> GetAdjustmentsAsync(
         Guid orderId,

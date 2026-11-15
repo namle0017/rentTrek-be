@@ -15,4 +15,8 @@ public sealed class MyParticipationResponse
     public int UnreadPostCount { get; set; }
     public bool CanReview { get; set; }
     public bool HasReview { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid? ReviewId { get; set; }
+    public int? ReviewRating { get; set; }
+    public string? ReviewComment { get; set; }
 }

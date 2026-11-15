@@ -187,6 +187,14 @@ public class TourRepository : GenericRepository<Tour>, ITourRepository
             .Include(t => t.PreparationItems)
             .Include(t => t.ProvidedItems).ThenInclude(p => p.ProductVariant!).ThenInclude(v => v.Product)
             .Include(t => t.TourPosts).ThenInclude(tp => tp.Post)
+            .Include(t => t.SuggestedBundles).ThenInclude(sb => sb.Bundle)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(t => t.Id == tourId, cancellationToken);
+
+    public Task<Tour?> GetSuggestionsAsync(Guid tourId, CancellationToken cancellationToken = default)
+        => _dbSet.AsNoTracking()
+            .Include(t => t.SuggestedBundles)
+            .Include(t => t.ProvidedItems)
             .AsSplitQuery()
             .FirstOrDefaultAsync(t => t.Id == tourId, cancellationToken);
 
@@ -283,8 +291,13 @@ public class TourRepository : GenericRepository<Tour>, ITourRepository
             .GroupBy(x => x.TripId)
             .Select(g => new { TripId = g.Key, Count = g.Sum(x => x.ParticipantCount) })
             .ToDictionaryAsync(x => x.TripId, x => x.Count, cancellationToken);
+        var held = await TripBookingRepository.RescheduleHolds(_context, DateTimeOffset.UtcNow)
+            .Where(x => tripIds.Contains(x.ToTripId))
+            .GroupBy(x => x.ToTripId)
+            .Select(g => new { TripId = g.Key, Count = g.Sum(x => x.ParticipantCount) })
+            .ToDictionaryAsync(x => x.TripId, x => x.Count, cancellationToken);
 
         foreach (var trip in trips)
-            trip.BookedSlots = booked.GetValueOrDefault(trip.TripId);
+            trip.BookedSlots = booked.GetValueOrDefault(trip.TripId) + held.GetValueOrDefault(trip.TripId);
     }
 }

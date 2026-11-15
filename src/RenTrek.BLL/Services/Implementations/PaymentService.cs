@@ -12,6 +12,7 @@ using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
+using RenTrek.BLL.Services.Internal;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.UnitOfWorks;
 
@@ -28,7 +29,9 @@ public sealed partial class PaymentService(
     IOptions<EmailSettings> emailOptions,
     ITripGroupingService tripGroupingService,
     INotificationService notificationService,
-    ILogger<PaymentService> logger) : IPaymentService
+    ILogger<PaymentService> logger,
+    IRentalPostPaymentService? rentalPostPaymentService = null,
+    ITripReschedulePaymentHandler? tripRescheduleService = null) : IPaymentService
 {
     private const string PaymentTypeCollection = "Collection";
     private const string PaymentMethodBankTransfer = "BankTransfer";
@@ -58,6 +61,15 @@ public sealed partial class PaymentService(
             var order = await unitOfWork.Payments.GetOrderAsync(orderId, userId, cancellationToken)
                 ?? throw new NotFoundException("Không tìm thấy đơn", ErrorCodes.OrderNotFound);
 
+            var existing = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
+
+            // Khoản thu sau (gia hạn / phí vượt cọc) đã được tạo sẵn: trả lại hướng dẫn chuyển khoản của nó
+            if (existing is not null && PaymentPurposes.AfterOrderPaid.Contains(existing.Purpose))
+            {
+                await unitOfWork.CommitAsync(cancellationToken);
+                return (MapPayment(existing, order), false);
+            }
+
             if (order.Status != OrderStatuses.PendingPayment || order.PaymentStatus != OrderPaymentStatuses.Unpaid)
                 throw new ConflictException("Đơn không ở trạng thái chờ thanh toán", ErrorCodes.OrderNotPayable);
 
@@ -65,7 +77,6 @@ public sealed partial class PaymentService(
             if (order.HoldExpiresAt <= now)
                 throw new ConflictException("Thời gian giữ chỗ đã hết, vui lòng tạo lại đơn", ErrorCodes.HoldExpired);
 
-            var existing = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
             if (existing is not null)
             {
                 await unitOfWork.CommitAsync(cancellationToken);
@@ -77,7 +88,8 @@ public sealed partial class PaymentService(
                 PaymentId = Guid.NewGuid(),
                 OrderId = order.OrderId,
                 PaymentType = PaymentTypeCollection,
-                Amount = order.TotalAmount,
+                // Đơn thuê: tiền thuê + cọc trong một lần chuyển khoản
+                Amount = OrderPayableAmount.Of(order),
                 PaymentMethod = PaymentMethodBankTransfer,
                 Status = PaymentStatuses.Pending,
                 CreatedAt = now,
@@ -163,6 +175,55 @@ public sealed partial class PaymentService(
             }
 
             var now = timeProvider.GetUtcNow();
+            var isAfterPaidCollection = PaymentPurposes.AfterOrderPaid.Contains(payment.Purpose);
+
+            if (isAfterPaidCollection)
+            {
+                // Gia hạn / phí vượt cọc: đơn đã thanh toán từ trước, chỉ cần đúng khoản đang chờ và đúng số tiền
+                var afterPaidPayable = payment.Status == PaymentStatuses.Pending
+                                       && request.TransferAmount == payment.Amount
+                                       && order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Expired);
+                if (afterPaidPayable && payment.Purpose == PaymentPurposes.TripReschedule && tripRescheduleService is not null)
+                {
+                    payment.Status = PaymentStatuses.Succeeded;
+                    payment.ProviderTransactionId = providerTransactionId;
+                    payment.ProcessedAt = now;
+                    await tripRescheduleService.ApplySucceededPaymentAsync(payment, now, cancellationToken);
+                }
+                else if (afterPaidPayable && payment.Purpose != PaymentPurposes.TripReschedule && rentalPostPaymentService is not null)
+                {
+                    payment.Status = PaymentStatuses.Succeeded;
+                    payment.ProviderTransactionId = providerTransactionId;
+                    payment.ProcessedAt = now;
+                    await rentalPostPaymentService.ApplySucceededPaymentAsync(payment, order, now, cancellationToken);
+                }
+                else
+                {
+                    // Không đổi trạng thái thanh toán của đơn (đơn vẫn Paid); ghi dòng chờ đối soát cho admin
+                    await unitOfWork.Payments.AddAsync(new Payment
+                    {
+                        PaymentId = Guid.NewGuid(),
+                        OrderId = order.OrderId,
+                        PaymentType = PaymentTypeCollection,
+                        Amount = request.TransferAmount,
+                        PaymentMethod = PaymentMethodBankTransfer,
+                        ProviderTransactionId = providerTransactionId,
+                        Status = PaymentStatuses.PendingApproval,
+                        CreatedAt = now,
+                        Purpose = payment.Purpose
+                    }, cancellationToken);
+                    logger.LogWarning(
+                        "SePay giao dịch {TransactionId} ({Amount}) cho khoản thu sau của đơn {OrderCode} cần đối soát",
+                        request.Id,
+                        request.TransferAmount,
+                        order.OrderCode);
+                }
+
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.CommitAsync(cancellationToken);
+                return;
+            }
+
             var payable = payment.Status == PaymentStatuses.Pending
                           && order.Status == OrderStatuses.PendingPayment
                           && order.PaymentStatus == OrderPaymentStatuses.Unpaid
@@ -251,6 +312,16 @@ public sealed partial class PaymentService(
         if (bookingOrder?.TripBookingOrder is not { } booking || booking.Trip.StartAt <= now)
             return bookingOrder;
 
+        // Booking tạo trước khi gắn sẵn người đặt: email trùng người đặt thì gắn luôn, không cần xác thực
+        var buyerEmail = bookingOrder.CustomerUser?.Email?.Trim();
+        foreach (var participant in booking.Participants.Where(p => p.LinkedUserId is null &&
+                     !string.IsNullOrEmpty(buyerEmail) &&
+                     string.Equals(p.Email?.Trim(), buyerEmail, StringComparison.OrdinalIgnoreCase)))
+        {
+            participant.LinkedUserId = bookingOrder.CustomerUserId;
+            participant.UpdatedAt = now;
+        }
+
         var emails = booking.Participants
             .Where(p => p.LinkedUserId is null && !string.IsNullOrWhiteSpace(p.Email))
             .Select(p => p.Email!.Trim().ToLowerInvariant())
@@ -282,11 +353,21 @@ public sealed partial class PaymentService(
     private async Task NotifyTripParticipantsAsync(Order order, CancellationToken cancellationToken)
     {
         var settings = emailOptions.Value;
-        var buyerEmail = order.CustomerUser?.Email?.Trim();
-        var recipients = order.TripBookingOrder.Participants
-            .Where(p => !string.IsNullOrWhiteSpace(p.Email) &&
-                        !string.Equals(p.Email!.Trim(), buyerEmail, StringComparison.OrdinalIgnoreCase))
+        var booking = order.TripBookingOrder;
+        var activeParticipants = booking.Participants
+            .Where(p => !p.IsDeleted && !string.Equals(p.Status, BookingParticipantStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.CreatedAt)
             .ToList();
+
+        // Người đặt + mọi người tham gia có email đều nhận mail đặt thành công kèm bill
+        var recipients = new List<(string Email, string Name)>();
+        if (!string.IsNullOrWhiteSpace(order.CustomerUser?.Email))
+            recipients.Add((order.CustomerUser.Email.Trim(), order.CustomerUser.FullName?.Trim() ?? "bạn"));
+        foreach (var p in activeParticipants.Where(p => !string.IsNullOrWhiteSpace(p.Email)))
+        {
+            if (!recipients.Any(r => string.Equals(r.Email, p.Email!.Trim(), StringComparison.OrdinalIgnoreCase)))
+                recipients.Add((p.Email!.Trim(), p.FullName));
+        }
 
         if (recipients.Count == 0)
             return;
@@ -297,38 +378,49 @@ public sealed partial class PaymentService(
             return;
         }
 
-        var trip = order.TripBookingOrder.Trip;
+        var trip = booking.Trip;
         var tourName = trip.Tour?.Name ?? order.OrderCode;
-        var buyerName = !string.IsNullOrWhiteSpace(order.CustomerUser?.FullName) ? order.CustomerUser.FullName.Trim() : "Người đặt";
         var vn = TimeSpan.FromHours(7);
-        var bookingUrl = $"{settings.FrontendBaseUrl.TrimEnd('/')}/trip-bookings/{order.OrderId}";
+        var money = (decimal amount) => amount.ToString("N0", CultureInfo.GetCultureInfo("vi-VN")) + " ₫";
+        var td = "padding:6px 0;border-bottom:1px solid #e5e7eb";
+        var names = string.Join("", activeParticipants.Select((p, i) =>
+            $"<li>{i + 1}. {WebUtility.HtmlEncode(p.FullName)}</li>"));
+        var discountRow = order.DiscountAmount > 0
+            ? $"""<tr><td style="{td}">Giảm giá</td><td style="{td};text-align:right">-{money(order.DiscountAmount)}</td></tr>"""
+            : string.Empty;
 
-        foreach (var participant in recipients)
+        var body = $"""
+            <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2937">
+              <h2 style="color:#1f4d3a">Đặt chuyến thành công</h2>
+              <p>Thanh toán cho đơn <b>{WebUtility.HtmlEncode(order.OrderCode)}</b> đã được xác nhận. Tóm tắt chuyến đi:</p>
+              <table style="width:100%;border-collapse:collapse;font-size:14px">
+                <tr><td style="{td}">Tour</td><td style="{td};text-align:right"><b>{WebUtility.HtmlEncode(tourName)}</b></td></tr>
+                <tr><td style="{td}">Khởi hành</td><td style="{td};text-align:right">{trip.StartAt.ToOffset(vn):dd/MM/yyyy HH:mm}</td></tr>
+                <tr><td style="{td}">Kết thúc</td><td style="{td};text-align:right">{trip.EndAt.ToOffset(vn):dd/MM/yyyy HH:mm}</td></tr>
+                <tr><td style="{td}">Số người</td><td style="{td};text-align:right">{booking.ParticipantCount} × {money(booking.UnitPrice)}</td></tr>
+                <tr><td style="{td}">Tạm tính</td><td style="{td};text-align:right">{money(order.SubtotalAmount)}</td></tr>
+                {discountRow}
+                <tr><td style="padding:8px 0"><b>Đã thanh toán</b></td><td style="padding:8px 0;text-align:right;color:#1f4d3a"><b>{money(order.TotalAmount)}</b></td></tr>
+              </table>
+              <p style="margin-top:16px"><b>Người tham gia</b></p>
+              <ul style="list-style:none;padding:0;margin:0">{names}</ul>
+            </div>
+            """;
+
+        foreach (var (email, name) in recipients)
         {
-            var body = $"""
-                <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2937">
-                  <h2 style="color:#1f4d3a">Bạn đã được thêm vào chuyến đi</h2>
-                  <p>Xin chào <b>{WebUtility.HtmlEncode(participant.FullName)}</b>,</p>
-                  <p><b>{WebUtility.HtmlEncode(buyerName)}</b> đã thêm bạn vào chuyến đi
-                     <b>{WebUtility.HtmlEncode(tourName)}</b>
-                     ({trip.StartAt.ToOffset(vn):dd/MM/yyyy HH:mm} – {trip.EndAt.ToOffset(vn):dd/MM/yyyy HH:mm}).</p>
-                  <p>Đăng nhập hoặc đăng ký và xác thực bằng email này (<b>{WebUtility.HtmlEncode(participant.Email!)}</b>) để xem lịch chuyến đi.</p>
-                  <p><a href="{WebUtility.HtmlEncode(bookingUrl)}" style="display:inline-block;background:#1f4d3a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Xem chuyến đi</a></p>
-                </div>
-                """;
-
             try
             {
                 await emailSender.SendAsync(
-                    participant.Email!,
-                    participant.FullName,
-                    "Bạn đã được thêm vào chuyến đi trên RenTrek",
+                    email,
+                    name,
+                    $"Đặt chuyến thành công - {tourName}",
                     body,
                     cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Gửi email thông báo chuyến đi thất bại cho participant {ParticipantId}", participant.ParticipantId);
+                logger.LogWarning(ex, "Gửi email đặt chuyến thành công thất bại cho đơn {OrderCode}", order.OrderCode);
             }
         }
     }

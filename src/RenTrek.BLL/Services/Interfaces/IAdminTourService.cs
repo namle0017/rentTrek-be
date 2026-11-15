@@ -78,6 +78,12 @@ public interface IAdminTourService
     /// <summary>6.23. Thay toàn bộ bài viết gắn tour và thứ tự đọc; không bị khóa lịch trình chặn.</summary>
     Task SetPostsAsync(Guid tourId, TourPostsRequest request, CancellationToken cancellationToken);
 
+    /// <summary>6.23a. Combo thuê gợi ý của tour, theo thứ tự hiển thị.</summary>
+    Task<IReadOnlyList<AdminTourSuggestedBundleResponse>> GetSuggestedBundlesAsync(Guid tourId, CancellationToken cancellationToken);
+
+    /// <summary>6.23b. Thay toàn bộ combo gợi ý của tour; combo phải đang bán.</summary>
+    Task SetSuggestedBundlesAsync(Guid tourId, TourSuggestedBundlesRequest request, CancellationToken cancellationToken);
+
     /// <summary>6.24. Mọi phiên bản trong họ tour, mới nhất trước.</summary>
     Task<IReadOnlyList<AdminTourVersionResponse>> GetVersionsAsync(Guid tourId, CancellationToken cancellationToken);
 

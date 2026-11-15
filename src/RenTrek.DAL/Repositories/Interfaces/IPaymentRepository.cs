@@ -33,6 +33,9 @@ public interface IPaymentRepository : IGenericRepository<Payment>
     Task<(IReadOnlyList<AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
         AdminPaymentFilter filter, CancellationToken cancellationToken = default);
 
+    /// <summary>Tổng thu / hoàn thành công và số tiền đang chờ, cùng bộ lọc với <see cref="GetAdminPagedAsync"/>.</summary>
+    Task<AdminPaymentStatsRow> GetAdminStatsAsync(AdminPaymentFilter filter, CancellationToken cancellationToken = default);
+
     /// <summary>Id đơn của thanh toán (chỉ đọc, dùng để lấy khoá trước khi tải bản tracking); null nếu không có.</summary>
     Task<Guid?> GetOrderIdAsync(Guid paymentId, CancellationToken cancellationToken = default);
 

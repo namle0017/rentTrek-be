@@ -44,6 +44,7 @@ public class AppDbContext : DbContext
     public DbSet<PromotionTier> PromotionTiers => Set<PromotionTier>();
     public DbSet<RefundActionChallenge> RefundActionChallenges => Set<RefundActionChallenge>();
     public DbSet<RefundCase> RefundCases => Set<RefundCase>();
+    public DbSet<RefundProof> RefundProofs => Set<RefundProof>();
     public DbSet<RefundPolicy> RefundPolicies => Set<RefundPolicy>();
     public DbSet<RefundPolicyRule> RefundPolicyRules => Set<RefundPolicyRule>();
     public DbSet<RentalBundleItemSnapshot> RentalBundleItemSnapshots => Set<RentalBundleItemSnapshot>();
@@ -51,6 +52,12 @@ public class AppDbContext : DbContext
     public DbSet<RentalOrder> RentalOrders => Set<RentalOrder>();
     public DbSet<RentalOrderItem> RentalOrderItems => Set<RentalOrderItem>();
     public DbSet<RentalOrderAdjustment> RentalOrderAdjustments => Set<RentalOrderAdjustment>();
+    public DbSet<RentalPolicy> RentalPolicies => Set<RentalPolicy>();
+    public DbSet<RentalPolicyTier> RentalPolicyTiers => Set<RentalPolicyTier>();
+    public DbSet<RentalEvidencePhoto> RentalEvidencePhotos => Set<RentalEvidencePhoto>();
+    public DbSet<RentalReport> RentalReports => Set<RentalReport>();
+    public DbSet<CustomerReport> CustomerReports => Set<CustomerReport>();
+    public DbSet<RentalSettlement> RentalSettlements => Set<RentalSettlement>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<SoftSkill> SoftSkills => Set<SoftSkill>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
@@ -64,6 +71,7 @@ public class AppDbContext : DbContext
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<TripBookingOrder> TripBookingOrders => Set<TripBookingOrder>();
+    public DbSet<TripBookingReschedule> TripBookingReschedules => Set<TripBookingReschedule>();
     public DbSet<BookingParticipant> BookingParticipants => Set<BookingParticipant>();
     public DbSet<Payment> Payments => Set<Payment>();
 

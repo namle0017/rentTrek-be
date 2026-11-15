@@ -39,6 +39,9 @@ public static class ErrorCodes
     public const string TripOperationalCapacityInsufficient = "TRIP_OPERATIONAL_CAPACITY_INSUFFICIENT";
     public const string GroupCapacityExceeded = "GROUP_CAPACITY_EXCEEDED";
     public const string TripNotAssigned = "TRIP_NOT_ASSIGNED";
+    public const string TripNotInProgress = "TRIP_NOT_IN_PROGRESS";
+    public const string AttendanceNotEditable = "ATTENDANCE_NOT_EDITABLE";
+    public const string AttendanceReasonRequired = "REASON_REQUIRED_FOR_UPDATE";
     public const string GroupWrongTrip = "GROUP_WRONG_TRIP";
     public const string GuideScheduleConflict = "GUIDE_SCHEDULE_CONFLICT";
     public const string TripGroupingLocked = "TRIP_GROUPING_LOCKED";
@@ -52,6 +55,7 @@ public static class ErrorCodes
     // Hoàn tiền thủ công (05-MANUAL-REFUND-WORKFLOW.md §12)
     public const string RefundCaseNotFound = "REFUND_CASE_NOT_FOUND";
     public const string RefundCaseNotRejectable = "REFUND_CASE_NOT_REJECTABLE";
+    public const string RefundCaseNotApprovable = "REFUND_CASE_NOT_APPROVABLE";
     public const string RefundCaseNotCompletable = "REFUND_CASE_NOT_COMPLETABLE";
     public const string RefundExportEmpty = "REFUND_EXPORT_EMPTY";
     public const string RefundTransactionDuplicated = "REFUND_TRANSACTION_DUPLICATED";
@@ -59,12 +63,17 @@ public static class ErrorCodes
     public const string RefundVerificationInvalid = "REFUND_VERIFICATION_INVALID";
     public const string RefundVerificationExpired = "REFUND_VERIFICATION_EXPIRED";
     public const string RefundSensitiveDataPurged = "REFUND_SENSITIVE_DATA_PURGED";
+    public const string RefundPayoutDecryptFailed = "REFUND_PAYOUT_DECRYPT_FAILED";
     public const string TooManyRequests = "TOO_MANY_REQUESTS";
 
     // Danh mục admin: tour, sản phẩm, chính sách hoàn tiền (03-API-CONTRACT.md §6, §13, §20)
     public const string NotFound = "NOT_FOUND";
+    public const string CustomerReportNotFound = "CUSTOMER_REPORT_NOT_FOUND";
     public const string ItineraryLocked = "ITINERARY_LOCKED";
     public const string PolicyAlreadyInUse = "POLICY_ALREADY_IN_USE";
+    public const string RefundPolicyLastActive = "REFUND_POLICY_LAST_ACTIVE";
+    public const string PolicyNotLatestVersion = "POLICY_NOT_LATEST_VERSION";
+    public const string InvalidPolicyState = "INVALID_POLICY_STATE";
     public const string SkuAlreadyExists = "SKU_ALREADY_EXISTS";
 
     // Đánh giá sau chuyến đi (T2)
@@ -75,4 +84,16 @@ public static class ErrorCodes
     // Gia hạn đơn thuê (T5)
     public const string RentalNotExtendable = "RENTAL_NOT_EXTENDABLE";
     public const string RentalExtensionPriceChanged = "RENTAL_EXTENSION_PRICE_CHANGED";
+
+    // Cọc, huỷ đơn đã thanh toán, giao nhận có bằng chứng
+    public const string EmailNotVerified = "EMAIL_NOT_VERIFIED";
+    public const string RentalOutstandingDebt = "RENTAL_OUTSTANDING_DEBT";
+    public const string RentalEvidenceRequired = "RENTAL_EVIDENCE_REQUIRED";
+    public const string RentalNoShowNotReached = "RENTAL_NO_SHOW_NOT_REACHED";
+    public const string RentalReceiptNotConfirmable = "RENTAL_RECEIPT_NOT_CONFIRMABLE";
+    public const string RentalReportNotFound = "RENTAL_REPORT_NOT_FOUND";
+    public const string RentalReportNotReviewable = "RENTAL_REPORT_NOT_REVIEWABLE";
+    public const string RefundBankInfoNotRequired = "REFUND_BANK_INFO_NOT_REQUIRED";
+    public const string RefundCaseNotResubmittable = "REFUND_CASE_NOT_RESUBMITTABLE";
+    public const string RentalExtensionPending = "RENTAL_EXTENSION_PENDING";
 }

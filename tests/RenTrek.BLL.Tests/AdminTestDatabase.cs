@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using RenTrek.BLL.DTOs.RentalPolicy.Requests;
+using RenTrek.BLL.DTOs.RentalPolicy.Responses;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Implementations;
 using RenTrek.BLL.Services.Implementations;
 using RenTrek.BLL.Services.Interfaces;
@@ -45,8 +48,30 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
 
     public sealed record AdminServices(AdminUserService Users, AdminMasterDataService MasterData, AdminOrderService Orders,
         AdminPromotionService Promotions, AdminGovernanceService Governance, AdminReportService Reports);
+    /// <summary>
+    /// Dịch vụ vận hành ở chế độ cũ: không bắt buộc ảnh bằng chứng và đóng đơn không qua quyết toán cọc,
+    /// để các test giao / trả / phí hiện có vẫn kiểm tra đúng phần logic đó.
+    /// </summary>
     public RentalFulfillmentService Fulfillment(AppDbContext context, TimeProvider clock, Guid? actorId = null, string role = "Admin")
-        => new(new UnitOfWork(context), new Actor(actorId ?? AdminId, role), clock);
+    {
+        var unitOfWork = new UnitOfWork(context);
+        return new(unitOfWork, new Actor(actorId ?? AdminId, role), clock, new NoPhotoPolicyService(unitOfWork, clock));
+    }
+
+    private sealed class NoPhotoPolicyService(IUnitOfWork unitOfWork, TimeProvider clock) : IRentalPolicyService
+    {
+        private readonly RentalPolicyService _inner = new(unitOfWork, clock);
+        private static readonly RentalPolicySnapshot Snapshot = RentalPolicyService.Default with { MinPhotosPerAsset = 0 };
+
+        public Task<RentalPolicySnapshot> GetActiveSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(Snapshot);
+        public Task<RentalPolicySnapshot> GetSnapshotAsync(Guid? rentalPolicyId, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot);
+        public Task<RentalPolicyResponse> GetActiveAsync(CancellationToken cancellationToken = default) => Task.FromResult(ToResponse(Snapshot));
+        public Task<IReadOnlyList<AdminRentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default) => _inner.GetAllAsync(cancellationToken);
+        public Task<AdminRentalPolicyResponse> GetByIdAsync(Guid rentalPolicyId, CancellationToken cancellationToken = default) => _inner.GetByIdAsync(rentalPolicyId, cancellationToken);
+        public Task<RentalPolicyResponse> CreateVersionAsync(Guid adminUserId, CreateRentalPolicyVersionRequest request, CancellationToken cancellationToken = default)
+            => _inner.CreateVersionAsync(adminUserId, request, cancellationToken);
+        public RentalPolicyResponse ToResponse(RentalPolicySnapshot snapshot) => _inner.ToResponse(snapshot);
+    }
 
     public async Task InitializeAsync()
     {

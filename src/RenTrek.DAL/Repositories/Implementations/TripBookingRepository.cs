@@ -65,14 +65,21 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
         => x => x.Order.Status == "Confirmed" ||
                 (x.Order.Status == "PendingPayment" && x.Order.HoldExpiresAt > utcNow);
 
+    // Đổi lịch đang chờ trả chênh lệch: giữ chỗ ở chuyến mới đến hết hạn
+    internal static IQueryable<TripBookingReschedule> RescheduleHolds(AppDbContext context, DateTimeOffset utcNow)
+        => context.TripBookingReschedules.Where(x => x.Status == "PendingPayment" && x.HoldExpiresAt > utcNow);
+
     public async Task<int> GetReservedParticipantCountAsync(
         Guid tripId,
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
-        => await context.TripBookingOrders
-            .Where(x => x.TripId == tripId)
-            .Where(HoldsSeats(utcNow))
-            .SumAsync(x => (int?)x.ParticipantCount, cancellationToken) ?? 0;
+        => (await context.TripBookingOrders
+                .Where(x => x.TripId == tripId)
+                .Where(HoldsSeats(utcNow))
+                .SumAsync(x => (int?)x.ParticipantCount, cancellationToken) ?? 0)
+           + (await RescheduleHolds(context, utcNow)
+                .Where(x => x.ToTripId == tripId)
+                .SumAsync(x => (int?)x.ParticipantCount, cancellationToken) ?? 0);
 
     public Task<Order?> GetByIdempotencyKeyAsync(
         Guid customerUserId,
@@ -109,6 +116,19 @@ public sealed class TripBookingRepository(AppDbContext context) : ITripBookingRe
 
     public Task AddOrderAsync(Order order, CancellationToken cancellationToken = default)
         => context.Orders.AddAsync(order, cancellationToken).AsTask();
+
+    public async Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default)
+        => await context.Orders
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted
+                        && x.OrderType == "TripBooking"
+                        && x.Status == "PendingPayment"
+                        && x.PaymentStatus == "Unpaid"
+                        && x.HoldExpiresAt < utcNow)
+            .OrderBy(x => x.HoldExpiresAt)
+            .Select(x => x.OrderId)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 
     private IQueryable<Order> BookingGraph()
         => context.Orders

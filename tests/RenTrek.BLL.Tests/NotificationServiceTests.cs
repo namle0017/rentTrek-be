@@ -1,3 +1,4 @@
+using RenTrek.BLL.Services.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -187,6 +188,14 @@ public sealed class NotificationServiceTests
             ("RollbackAsync", _ => Task.CompletedTask),
             ("SaveChangesAsync", _ => Task.FromResult(1)),
             ("get_Tours", _ => TestProxy.Create<ITourRepository>(("GetByIdAsync", _ => Task.FromResult<Tour?>(tour)))),
+            ("get_RefundPolicies", _ => TestProxy.Create<IRefundPolicyRepository>(
+                ("GetDetailAsync", _ => Task.FromResult<RefundPolicy?>(new RefundPolicy
+                {
+                    RefundPolicyId = trip.RefundPolicyId,
+                    PolicyType = RefundPolicyTypes.Tour,
+                    Status = RefundPolicyStatuses.Active,
+                    Version = 1
+                })))),
             ("get_TripGroups", _ => TestProxy.Create<ITripGroupRepository>(("AcquireTripLockAsync", _ => Task.CompletedTask))),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(
                 ("AcquireOrderLockAsync", _ => Task.CompletedTask),
@@ -222,6 +231,7 @@ public sealed class NotificationServiceTests
 
         var created = await service.CreateAsync(new CreateTripBookingRequest
         {
+            AcceptedRefundPolicyVersion = 1,
             TripId = tripId,
             ContactPhone = "0901234567"
         }, "idem-1");
@@ -276,7 +286,7 @@ public sealed class NotificationServiceTests
         var promotion = TestProxy.Create<IPromotionService>(
             ("EvaluateAsync", _ => Task.FromResult(new PromotionEvaluationResult { IsApplied = false })));
 
-        var uow = TestProxy.Create<IUnitOfWork>(
+        var uow = TestProxy.Create<IUnitOfWork>([
             ("BeginTransactionAsync", _ => Task.CompletedTask),
             ("CommitAsync", _ => Task.CompletedTask),
             ("RollbackAsync", _ => Task.CompletedTask),
@@ -299,6 +309,7 @@ public sealed class NotificationServiceTests
                 ("GetValueAsync", _ => Task.FromResult<string?>("15")))),
             ("get_RentalOrders", _ => TestProxy.Create<IRentalOrderRepository>(
                 ("GetByIdempotencyKeyAsync", _ => Task.FromResult<Order?>(null)),
+                ("HasOutstandingDebtAsync", _ => Task.FromResult(false)),
                 ("AcquireIdempotencyLockAsync", _ => Task.CompletedTask),
                 ("OrderCodeExistsAsync", _ => Task.FromResult(false)),
                 ("AddOrderAsync", args => { storedOrder = (Order)args[0]!; return Task.CompletedTask; }
@@ -319,7 +330,8 @@ public sealed class NotificationServiceTests
                     RefundPolicyId = storedOrder.RefundPolicyId,
                     RefundPolicyName = "Chính sách thuê",
                     RefundPolicyVersion = 1
-                })))));
+                })))),
+            .. RentalDepositTestDefaults.UnitOfWorkHandlers()]);
 
         var service = new RentalOrderService(uow, availability, promotion, harness.Clock, harness.Service);
 
@@ -434,6 +446,8 @@ public sealed class NotificationServiceTests
             ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>(("AddAsync", _ => Task.CompletedTask))),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(("AddAsync", args => { order.Payments.Add((Payment)args[0]!); return Task.CompletedTask; }))),
             ("get_Notifications", _ => harness.Repo),
+            // Đơn thuê không có cọc trong test này
+            ("get_RentalOrders", _ => TestProxy.Create<IRentalOrderRepository>(("GetByIdAsync", _ => Task.FromResult<RentalOrder?>(null)))),
             ("get_Orders", _ => TestProxy.Create<IOrderRepository>(
                 ("GetAdminForUpdateAsync", _ => Task.FromResult<Order?>(order)),
                 ("GetManualCollectionAsync", _ => Task.FromResult<Payment?>(null)),
@@ -498,7 +512,7 @@ public sealed class NotificationServiceTests
                 ("GetTripProvidedItemsForUpdateAsync", _ => Task.FromResult<IReadOnlyList<TripProvidedItem>>([])),
                 ("AddAuditLogAsync", _ => Task.CompletedTask))));
 
-        var service = new AdminTripService(uow, harness.CurrentUser, harness.Clock, harness.Service);
+        var service = new AdminTripService(uow, harness.CurrentUser, harness.Clock, harness.Service, TestProxy.Create<IRentalRefundOpener>());
 
         // 1. Đổi lịch khi chưa có booking -> không tạo thông báo
         var shiftedStart = Now.AddDays(11);
@@ -630,6 +644,7 @@ public sealed class NotificationServiceTests
                 ("ProviderTransactionExistsAsync", _ => Task.FromResult(false)))),
             ("get_TripBookings", _ => TestProxy.Create<ITripBookingRepository>(
                 ("GetSucceededPaymentTotalAsync", _ => Task.FromResult(500_000m)))),
+            ("get_RefundProofs", _ => TestProxy.Create<IRefundProofRepository>(("AddRangeAsync", _ => Task.CompletedTask))),
             ("get_RefundCases", _ => TestProxy.Create<IRefundCaseRepository>(
                 ("GetForUpdateAsync", _ => Task.FromResult<RefundCase?>(refund)),
                 ("ReloadOrderAsync", _ => Task.CompletedTask),
@@ -647,19 +662,30 @@ public sealed class NotificationServiceTests
             TestProxy.Create<IRefundVerificationService>(),
             TestProxy.Create<IEmailSender>(),
             NullLogger<RefundCaseService>.Instance,
-            harness.Service);
+            harness.Service,
+            privateStorage: ProofStorage.Create());
 
         if (action == "Reject")
             await service.RejectAsync(refundCaseId, new RefundDecisionRequest { Reason = "Sai thông tin", ExpectedRowVersion = 1 });
         else if (action == "Complete")
-            await service.CompleteAsync(refundCaseId, new CompleteRefundRequest { ProviderTransactionId = "BANK-TX-1", ExpectedRowVersion = 1 });
+            await service.CompleteAsync(refundCaseId, new CompleteRefundRequest { ProviderTransactionId = "BANK-TX-1", ExpectedRowVersion = 1 }, ProofStorage.Files());
         else
             await service.MarkFailedAsync(refundCaseId, new RefundDecisionRequest { Reason = "Ngân hàng hoàn trả", ExpectedRowVersion = 1 });
 
         var notification = Assert.Single(harness.Repo.Items);
         Assert.Equal(customerId, notification.RecipientUserId);
-        Assert.Equal(NotificationTypes.RefundResult, notification.NotificationType);
-        Assert.Equal($"RefundResult:{refundCaseId}:{refund.Status}", notification.EventKey);
+        if (action == "Fail")
+        {
+            // Báo thất bại trả hồ sơ về cho khách nhập lại STK
+            Assert.Equal(RefundCaseStatuses.AwaitingBankInfo, refund.Status);
+            Assert.Equal(NotificationTypes.RefundBankInfoRequired, notification.NotificationType);
+            Assert.Equal($"RefundBankInfoRequired:{refundCaseId}:{refund.RowVersion}", notification.EventKey);
+        }
+        else
+        {
+            Assert.Equal(NotificationTypes.RefundResult, notification.NotificationType);
+            Assert.Equal($"RefundResult:{refundCaseId}:{refund.Status}", notification.EventKey);
+        }
         Assert.Contains("RT-REF-99", notification.Content);
         Assert.DoesNotContain("6789", notification.Content);
         Assert.DoesNotContain("0123456789", notification.Content);

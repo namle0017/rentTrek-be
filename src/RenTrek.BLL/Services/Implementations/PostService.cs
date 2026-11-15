@@ -56,6 +56,7 @@ public class PostService : IPostService
             Slug = p.Slug,
             PostType = p.PostType,
             Content = p.Content,
+            CoverImageUrl = MarkdownHelper.FirstImageUrl(p.Content),
             PublishedAt = p.PublishedAt,
             AuthorName = p.CreatedByUser?.FullName ?? string.Empty,
             Tags = ActiveTags(p).Select(t => new PostTagResponse(t.Name, t.Slug)).ToList(),
@@ -83,7 +84,7 @@ public class PostService : IPostService
         var softSkills = await _unitOfWork.SoftSkills.GetActiveAsync(cancellationToken);
 
         return new PostTaxonomyResponse(
-            tags.Select(t => new PostTagResponse(t.Name, t.Slug)).ToList(),
+            tags.Select(t => new PostTagResponse(t.Name, t.Slug, t.TagId)).ToList(),
             softSkills.Select(s => new PostSoftSkillResponse(s.SoftSkillId, s.Name)).ToList());
     }
 
@@ -277,6 +278,7 @@ public class PostService : IPostService
         Slug = p.Slug,
         PostType = p.PostType,
         Excerpt = MakeExcerpt(p.ContentPreview),
+        CoverImageUrl = MarkdownHelper.FirstImageUrl(p.ImageSnippet),
         PublishedAt = p.PublishedAt,
         AuthorName = p.AuthorName,
         Tags = p.Tags.Select(t => new PostTagResponse(t.Name, t.Slug)).ToList(),

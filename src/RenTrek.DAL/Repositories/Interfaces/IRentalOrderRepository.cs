@@ -61,6 +61,37 @@ public interface IRentalOrderRepository : IGenericRepository<RentalOrder>
     /// <summary>Thêm một dòng lịch sử điều chỉnh đơn thuê vào context; chưa SaveChanges.</summary>
     Task AddAdjustmentAsync(RentalOrderAdjustment adjustment, CancellationToken cancellationToken = default);
 
+    /// <summary>Điều chỉnh (gia hạn) gắn với payment này, có tracking; null nếu không có.</summary>
+    Task<RentalOrderAdjustment?> GetAdjustmentByPaymentAsync(Guid paymentId, CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn đã thanh toán, đã Confirmed nhưng chưa giao, có giờ nhận trước <paramref name="startedBeforeUtc"/> (tối đa 200).</summary>
+    Task<IReadOnlyList<Guid>> GetPickupOverdueOrderIdsAsync(DateTime startedBeforeUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn đang thuê có hạn trả trong khoảng UTC (để nhắc trả).</summary>
+    Task<IReadOnlyList<Guid>> GetReturnDueOrderIdsAsync(DateTime endFromUtc, DateTime endToUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn đang thuê đã quá hạn trả và còn thiết bị Issued.</summary>
+    Task<IReadOnlyList<Guid>> GetReturnOverdueOrderIdsAsync(DateTime endedBeforeUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn đã giao trước mốc mà khách chưa xác nhận đã nhận.</summary>
+    Task<IReadOnlyList<Guid>> GetAwaitingReceiptConfirmOrderIdsAsync(DateTime handedOverBeforeUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Số đơn thuê của khách đã huỷ với các loại huỷ cho trước kể từ mốc.</summary>
+    Task<int> CountCancellationsAsync(
+        Guid customerUserId,
+        IReadOnlyCollection<string> cancellationTypes,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Gia hạn đang chờ thanh toán tạo trước mốc (để huỷ khi hết hạn giữ chỗ).</summary>
+    Task<IReadOnlyList<RentalOrderAdjustment>> GetStalePendingAdjustmentsAsync(DateTime createdBeforeUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Gia hạn đang chờ thanh toán của đơn (có tracking); null nếu không có.</summary>
+    Task<RentalOrderAdjustment?> GetPendingAdjustmentAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Khách còn đơn thuê đang nợ phí (AwaitingSettlement) hay không.</summary>
+    Task<bool> HasOutstandingDebtAsync(Guid customerUserId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Lịch sử điều chỉnh của đơn thuê (cũ nhất trước). Trả null nếu đơn không tồn tại, đã xoá, không phải đơn thuê
     /// hoặc không thuộc khách khi truyền <paramref name="customerUserId"/> (null = màn vận hành đọc mọi đơn).

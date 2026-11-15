@@ -7,4 +7,7 @@ public sealed class SaveBundleRequest
     public Guid CategoryId { get; set; }
     public string? Description { get; set; }
     public string Status { get; set; } = "Draft";
+
+    /// <summary>Giá trị combo (VND) để bồi thường; null = tính theo tổng giá trị các thành phần.</summary>
+    public decimal? ReplacementValue { get; set; }
 }

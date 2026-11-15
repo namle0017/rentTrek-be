@@ -138,6 +138,10 @@ public class TripProvidedItemServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotImplementedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotImplementedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotImplementedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotImplementedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotImplementedException();
+        public IRentalReportRepository RentalReports => throw new NotImplementedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotImplementedException();
         public IReviewRepository Reviews => throw new NotImplementedException();
         public IRoleRepository Roles => throw new NotImplementedException();
         public ISoftSkillRepository SoftSkills => throw new NotImplementedException();

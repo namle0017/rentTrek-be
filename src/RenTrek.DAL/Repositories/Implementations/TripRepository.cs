@@ -117,11 +117,16 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
     public Task<RefundPolicy?> GetActiveRefundPolicyAsync(
         Guid refundPolicyId,
         CancellationToken cancellationToken = default)
-        => _context.RefundPolicies
+    {
+        var now = DateTime.UtcNow;
+        return _context.RefundPolicies
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                x => x.RefundPolicyId == refundPolicyId && !x.IsDeleted && x.Status == "Active",
+                x => x.RefundPolicyId == refundPolicyId && !x.IsDeleted && x.Status == "Active"
+                     && x.PolicyType == "Tour"
+                     && x.EffectiveFrom <= now && (x.EffectiveUntil == null || x.EffectiveUntil > now),
                 cancellationToken);
+    }
 
     public Task<Account?> GetAccountByIdAsync(Guid userId, CancellationToken cancellationToken = default)
         => _context.Accounts

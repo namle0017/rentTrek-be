@@ -9,6 +9,7 @@ using RenTrek.BLL.DTOs.Refund.Internal;
 using RenTrek.BLL.DTOs.TripBooking.Requests;
 using RenTrek.BLL.DTOs.TripBooking.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;
@@ -27,7 +28,8 @@ public sealed class TripBookingService(
     IInviteTokenHelper inviteTokenHelper,
     IOptions<EmailSettings> emailOptions,
     INotificationService notificationService,
-    IRefundCaseService? refundCaseService = null) : ITripBookingService
+    IRefundCaseService? refundCaseService = null,
+    IEmailService? emailService = null) : ITripBookingService
 {
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
@@ -67,8 +69,154 @@ public sealed class TripBookingService(
 
         var utcNow = timeProvider.GetUtcNow();
         var quote = await refunds.QuoteAsync(RefundOrderInput.From(order), utcNow, cancellationToken);
-        var blockedReason = GetCancelBlockedReason(order, utcNow);
+        return ToPreview(order, quote, GetCancelBlockedReason(order, utcNow));
+    }
 
+    public async Task<CancellationPreviewResponse> GetParticipantCancellationPreviewAsync(
+        Guid orderId,
+        IReadOnlyCollection<Guid> participantIds,
+        CancellationToken cancellationToken = default)
+    {
+        var refunds = refundCaseService ?? throw new InvalidOperationException("Refund service is not configured");
+        var order = await unitOfWork.TripBookings.GetOwnedBookingAsync(orderId, currentUser.RequiredUserId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy booking", ErrorCodes.OrderNotFound);
+
+        var utcNow = timeProvider.GetUtcNow();
+        var blockedReason = await GetParticipantCancelBlockedReasonAsync(order, participantIds, refunds, utcNow, cancellationToken);
+        var quote = await QuoteParticipantsAsync(refunds, order, participantIds.Count, utcNow, cancellationToken);
+        return ToPreview(order, quote, blockedReason);
+    }
+
+    public async Task<TripBookingResponse> CancelParticipantsAsync(
+        Guid orderId,
+        CancelTripParticipantsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var refunds = refundCaseService ?? throw new InvalidOperationException("Refund service is not configured");
+        var actorUserId = currentUser.RequiredUserId;
+        var utcNow = timeProvider.GetUtcNow();
+
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.Payments.AcquireOrderLockAsync(orderId, cancellationToken);
+            await unitOfWork.TripBookings.AcquireBookingLockAsync(orderId, cancellationToken);
+            var order = await unitOfWork.TripBookings.GetOwnedBookingAsync(orderId, actorUserId, cancellationToken);
+            if (order?.TripBookingOrder is null || order.IsDeleted)
+                throw new NotFoundException("Không tìm thấy booking", ErrorCodes.OrderNotFound);
+
+            var ids = request.ParticipantIds ?? [];
+            var blockedReason = await GetParticipantCancelBlockedReasonAsync(order, ids, refunds, utcNow, cancellationToken);
+            if (blockedReason is not null)
+                throw new ConflictException(blockedReason, ErrorCodes.OrderNotCancellable);
+
+            var trip = order.TripBookingOrder.Trip;
+            await unitOfWork.TripGroups.AcquireTripLockAsync(trip.TripId, cancellationToken);
+
+            // Quote trước khi đổi trạng thái: tính trên số ghế còn hiệu lực hiện tại
+            var quote = await QuoteParticipantsAsync(refunds, order, ids.Count, utcNow, cancellationToken);
+            EnsureRefundRequestValid(quote, request, isStaffOrAdmin: false);
+
+            var cancelled = order.TripBookingOrder.Participants.Where(p => ids.Contains(p.ParticipantId)).ToList();
+            foreach (var participant in cancelled)
+            {
+                participant.Status = BookingParticipantStatuses.Cancelled;
+                participant.UpdatedAt = utcNow;
+            }
+
+            order.TripBookingOrder.ParticipantCount -= cancelled.Count;
+            order.UpdatedAt = utcNow;
+            trip.ProvidedItemsNeedsRecalc = true;
+            trip.RowVersion++;
+            trip.UpdatedAt = utcNow;
+
+            await unitOfWork.AuditLogs.AddAsync(new AuditLog
+            {
+                AuditLogId = Guid.NewGuid(),
+                ActorUserId = actorUserId,
+                Action = "CancelTripParticipants",
+                EntityType = "TripBookingOrder",
+                EntityId = order.OrderId,
+                Details = JsonSerializer.Serialize(new
+                {
+                    tripId = trip.TripId,
+                    reason = NormalizeOptionalText(request.Reason),
+                    refundAmount = quote.RefundAmount,
+                    participants = cancelled.Select(p => new { p.ParticipantId, p.TripGroupId })
+                }),
+                CreatedAt = utcNow.UtcDateTime
+            }, cancellationToken);
+
+            var refundCase = quote.RefundAmount > 0
+                ? await refunds.OpenForCancellationAsync(
+                    RefundOrderInput.From(order),
+                    quote,
+                    request.BankAccount!,
+                    request.ConsentVersion!,
+                    utcNow,
+                    cancellationToken,
+                    RefundCaseSources.TripPartialCancellation)
+                : null;
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+
+            var response = MapResponse(order, actorUserId);
+            response.RefundCase = refundCase;
+            return response;
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    private static async Task<RefundQuoteResult> QuoteParticipantsAsync(
+        IRefundCaseService refunds, Order order, int count, DateTimeOffset utcNow, CancellationToken cancellationToken)
+    {
+        var input = RefundOrderInput.From(order);
+        var quote = await refunds.QuoteAsync(input, utcNow, cancellationToken);
+        var share = input.ActiveParticipants > 0 ? Math.Floor(quote.PaidAmount * count / input.ActiveParticipants) : 0m;
+        return new RefundQuoteResult
+        {
+            PaidAmount = share,
+            RefundAmount = quote.Rule is null ? 0m : Math.Floor(share * quote.Rule.RefundPercentage / 100m),
+            AppliedCase = quote.AppliedCase,
+            Policy = quote.Policy,
+            Rule = quote.Rule
+        };
+    }
+
+    private static async Task<string?> GetParticipantCancelBlockedReasonAsync(
+        Order order, IReadOnlyCollection<Guid> ids, IRefundCaseService refunds, DateTimeOffset utcNow, CancellationToken cancellationToken)
+    {
+        if (!IsPaid(order))
+            return "Chỉ hủy bớt hành khách khi đơn đã xác nhận và thanh toán";
+        if (order.TripBookingOrder.Trip.StartAt <= utcNow)
+            return "Chuyến đi đã bắt đầu, không thể hủy hành khách";
+
+        var active = order.TripBookingOrder.Participants
+            .Where(p => !p.IsDeleted && p.Status != BookingParticipantStatuses.Cancelled)
+            .ToList();
+        if (ids.Count == 0 || ids.Distinct().Count() != ids.Count || ids.Any(id => active.All(p => p.ParticipantId != id)))
+            return "Danh sách hành khách không hợp lệ";
+        if (active.Any(p => ids.Contains(p.ParticipantId) && p.LinkedUserId == order.CustomerUserId))
+            return "Không thể hủy người đặt; hãy hủy toàn bộ đơn";
+        if (active.Count - ids.Count < 1)
+            return "Phải còn ít nhất 1 hành khách; hãy hủy toàn bộ đơn";
+        if (await HasOpenRefundAsync(refunds, order.OrderId, cancellationToken))
+            return "Đơn đang có yêu cầu hoàn tiền chưa xử lý xong";
+        return null;
+    }
+
+    private static async Task<bool> HasOpenRefundAsync(IRefundCaseService refunds, Guid orderId, CancellationToken cancellationToken)
+        => (await refunds.GetSummaryByOrderAsync(orderId, cancellationToken))?.Status
+            is { } status and not (RefundCaseStatuses.Completed or RefundCaseStatuses.Rejected
+                or RefundCaseStatuses.Failed or RefundCaseStatuses.Cancelled);
+
+    private static CancellationPreviewResponse ToPreview(Order order, RefundQuoteResult quote, string? blockedReason)
+    {
         return new CancellationPreviewResponse
         {
             CanCancel = blockedReason is null,
@@ -90,6 +238,7 @@ public sealed class TripBookingService(
                         .ToList()
                 },
             AppliedCase = quote.AppliedCase,
+            IsPaid = IsPaid(order),
             PaidAmount = quote.PaidAmount,
             EstimatedRefundAmount = quote.RefundAmount,
             ConsentVersion = RefundBankCodes.ConsentVersion
@@ -148,6 +297,9 @@ public sealed class TripBookingService(
             if (tour is null || tour.Status is not (TourStatuses.Active or TourStatuses.Published))
                 throw new ConflictException("Tour đã ngừng nhận booking");
 
+            var refundPolicy = await ResolveAcceptedRefundPolicyAsync(
+                trip.RefundPolicyId, request.AcceptedRefundPolicyVersion, utcNow, cancellationToken);
+
             var participantCount = drafts.Count;
             var reserved = await unitOfWork.TripBookings.GetReservedParticipantCountAsync(
                 trip.TripId,
@@ -176,6 +328,8 @@ public sealed class TripBookingService(
                     DateOfBirth = draft.DateOfBirth,
                     EmergencyContactName = draft.EmergencyContactName,
                     EmergencyContactPhone = draft.EmergencyContactPhone,
+                    // Người đặt tự đi thì gắn luôn tài khoản của họ, không chờ xác thực email
+                    LinkedUserId = request.BuyerParticipates && idx == 0 ? account.UserId : null,
                     Status = BookingParticipantStatuses.Pending,
                     TripId = trip.TripId,
                     CreatedAt = utcNow.AddTicks(idx),
@@ -198,7 +352,8 @@ public sealed class TripBookingService(
                 OrderCode = $"RT-{utcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..32].ToUpperInvariant(),
                 Note = NormalizeOptionalText(request.Note),
                 HoldExpiresAt = utcNow.AddMinutes(15),
-                RefundPolicyId = trip.RefundPolicyId,
+                RefundPolicyId = refundPolicy.RefundPolicyId,
+                AcceptedRefundPolicyVersion = request.AcceptedRefundPolicyVersion,
                 IdempotencyKey = normalizedKey,
                 TripBookingOrder = booking
             };
@@ -221,6 +376,31 @@ public sealed class TripBookingService(
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
+
+            if (emailService is not null)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(account.Email))
+                    {
+                        var tripDate = $"{trip.StartAt.ToOffset(VietnamOffset):dd/MM/yyyy HH:mm}";
+                        await emailService.SendTourBookingConfirmationAsync(
+                            account.Email,
+                            account.FullName,
+                            order.OrderCode,
+                            trip.Tour.Name,
+                            tripDate,
+                            subtotal,
+                            booking.Participants.Count,
+                            cancellationToken);
+                    }
+                }
+                catch
+                {
+                    // Ignore email failure so booking creation succeeds
+                }
+            }
+
             return MapResponse(order, account.UserId);
         }
         catch
@@ -347,6 +527,8 @@ public sealed class TripBookingService(
             var quote = wasPaid ? await refunds.QuoteAsync(RefundOrderInput.From(order), utcNow, cancellationToken) : null;
             if (quote is not null)
                 EnsureRefundRequestValid(quote, request, isStaffOrAdmin);
+            if (quote?.RefundAmount > 0 && await HasOpenRefundAsync(refunds, orderId, cancellationToken))
+                throw new ConflictException("Đơn đang có yêu cầu hoàn tiền chưa xử lý xong", ErrorCodes.OrderNotCancellable);
 
             var pendingCollection = await unitOfWork.Payments.GetLatestPendingCollectionAsync(orderId, cancellationToken);
             if (pendingCollection is not null)
@@ -594,6 +776,24 @@ public sealed class TripBookingService(
             throw new RenTrek.BLL.Exceptions.ValidationException(errors);
     }
 
+    private async Task<RefundPolicy> ResolveAcceptedRefundPolicyAsync(
+        Guid refundPolicyId, int acceptedVersion, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var policy = await TripRefundPolicyResolver.ResolveAsync(unitOfWork.RefundPolicies, refundPolicyId, now, cancellationToken)
+            ?? throw new ConflictException("Chuyến đi chưa có chính sách hoàn tiền", ErrorCodes.RefundPolicyChanged);
+        if (policy.Version != acceptedVersion)
+        {
+            throw new ConflictException(
+                "Chính sách hoàn tiền đã được cập nhật, vui lòng xem lại và đồng ý với phiên bản mới",
+                ErrorCodes.RefundPolicyChanged,
+                new Dictionary<string, string[]>
+                {
+                    ["acceptedRefundPolicyVersion"] = [$"Phiên bản hiện hành là {policy.Version}"]
+                });
+        }
+        return policy;
+    }
+
     private static bool IsPaid(Order order)
         => string.Equals(order.Status, OrderStatuses.Confirmed, StringComparison.OrdinalIgnoreCase) &&
            string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase);
@@ -657,6 +857,8 @@ public sealed class TripBookingService(
     {
         if (request.TripId == Guid.Empty)
             throw new BadRequestException("TripId là bắt buộc");
+        if (request.AcceptedRefundPolicyVersion <= 0)
+            throw new BadRequestException("Phiên bản chính sách hoàn tiền là bắt buộc", ErrorCodes.ValidationError);
 
         var contactPhone = NormalizeOptionalText(request.ContactPhone);
         if (contactPhone is null || contactPhone.Length > 20)
@@ -744,6 +946,8 @@ public sealed class TripBookingService(
             .ToArray();
 
         var sameRequest = existing.TripBookingOrder.TripId == request.TripId
+            && (existing.AcceptedRefundPolicyVersion is null ||
+                existing.AcceptedRefundPolicyVersion == request.AcceptedRefundPolicyVersion)
             && string.Equals(NormalizeOptionalText(existing.Note), NormalizeOptionalText(request.Note), StringComparison.Ordinal)
             && requested.SequenceEqual(persisted);
 

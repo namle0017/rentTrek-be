@@ -137,7 +137,9 @@ public sealed class PaymentServiceTests
         Assert.Equal(confirmedUser.UserId, verifiedSeat.LinkedUserId);
         Assert.Null(unverifiedSeat.LinkedUserId);
         Assert.Null(childSeat.LinkedUserId);
-        Assert.Equal(2, fixture.EmailSender.Sent.Count);
+        // Người đặt cũng nhận mail đặt thành công kèm bill
+        Assert.Equal(3, fixture.EmailSender.Sent.Count);
+        Assert.Contains(fixture.EmailSender.Sent, m => m.To == "buyer@example.com");
         Assert.Contains(fixture.EmailSender.Sent, m => m.To == "verified@example.com");
         Assert.Contains(fixture.EmailSender.Sent, m => m.To == "unverified@example.com");
     }
@@ -316,6 +318,7 @@ public sealed class PaymentServiceTests
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Order? BookingOrder { get; set; }
         public List<Account> Accounts { get; } = [];
 
@@ -369,6 +372,7 @@ public sealed class PaymentServiceTests
         public Task<bool> ProviderTransactionExistsAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Payments.Any(p => p.ProviderTransactionId == providerTransactionId));
 
+        public Task<RenTrek.DAL.Models.AdminPaymentStatsRow> GetAdminStatsAsync(RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<(IReadOnlyList<RenTrek.DAL.Models.AdminPaymentRow> Items, int TotalCount)> GetAdminPagedAsync(
             RenTrek.DAL.Models.AdminPaymentFilter filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
@@ -434,6 +438,10 @@ public sealed class PaymentServiceTests
         public IRentalOrderRepository RentalOrders => throw new NotSupportedException();
         public IRentalOrderItemRepository RentalOrderItems => throw new NotSupportedException();
         public IRentalPriceTierRepository RentalPriceTiers => throw new NotSupportedException();
+        public IRentalPolicyRepository RentalPolicies => throw new NotSupportedException();
+        public IRentalEvidencePhotoRepository RentalEvidencePhotos => throw new NotSupportedException();
+        public IRentalReportRepository RentalReports => throw new NotSupportedException();
+        public IRentalSettlementRepository RentalSettlements => throw new NotSupportedException();
         public IReviewRepository Reviews => throw new NotSupportedException();
         public ISoftSkillRepository SoftSkills => throw new NotSupportedException();
         public ISystemConfigurationRepository SystemConfigurations => throw new NotSupportedException();

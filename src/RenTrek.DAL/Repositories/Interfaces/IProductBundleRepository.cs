@@ -38,4 +38,7 @@ public interface IProductBundleRepository : IGenericRepository<ProductBundle>
     Task<(IReadOnlyList<AdminBundleRow> Items, int TotalCount)> GetAdminPagedAsync(
         string? search, string? status, Guid? categoryId, int pageNumber, int pageSize,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Giá trị combo (đền bù mất) theo combo; null nếu chưa nhập (khi đó tính từ thành phần).</summary>
+    Task<Dictionary<Guid, decimal?>> GetReplacementValuesAsync(IReadOnlyCollection<Guid> bundleIds, CancellationToken cancellationToken = default);
 }
