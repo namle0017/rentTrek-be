@@ -97,6 +97,35 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
         if (filter.CategoryId.HasValue)
             query = query.Where(product => product.CategoryId == filter.CategoryId.Value);
 
+        if (!string.IsNullOrWhiteSpace(filter.OfferingType))
+        {
+            var offeringType = filter.OfferingType.Trim();
+            if (!string.Equals(offeringType, "Rental", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(_ => false);
+        }
+
+        if (filter.MinPrice.HasValue)
+        {
+            var minPrice = filter.MinPrice.Value;
+            query = query.Where(product =>
+                product.Variants
+                    .Where(v => v.Status == CatalogStatus.Active)
+                    .SelectMany(v => v.RentalPriceTiers)
+                    .Select(t => (decimal?)t.DailyPrice)
+                    .Min() >= minPrice);
+        }
+
+        if (filter.MaxPrice.HasValue)
+        {
+            var maxPrice = filter.MaxPrice.Value;
+            query = query.Where(product =>
+                product.Variants
+                    .Where(v => v.Status == CatalogStatus.Active)
+                    .SelectMany(v => v.RentalPriceTiers)
+                    .Select(t => (decimal?)t.DailyPrice)
+                    .Min() <= maxPrice);
+        }
+
         // Giá ngày thấp nhất của các biến thể đang bán; null (không có bậc giá) xếp cuối
         IOrderedQueryable<Product> sorted = (filter.SortBy ?? string.Empty).ToLowerInvariant() switch
         {
