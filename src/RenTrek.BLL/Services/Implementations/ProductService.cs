@@ -72,6 +72,7 @@ public class ProductService : IProductService
             OfferingType = request.OfferingType,
             MinPrice = request.MinPrice,
             MaxPrice = request.MaxPrice,
+            InStockOnly = request.InStockOnly,
             SortBy = request.SortBy,
             IsDescending = request.IsDescending,
             PageNumber = request.PageNumber,

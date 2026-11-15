@@ -89,13 +89,21 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
         var query = PublicProducts;
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var search = filter.Search.Trim();
-            query = query.Where(product => product.Name.Contains(search)
-                || (product.Description != null && product.Description.Contains(search)));
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(product => product.Name.ToLower().Contains(search)
+                || (product.Description != null && product.Description.ToLower().Contains(search))
+                || product.Variants.Any(variant => variant.Status == CatalogStatus.Active && variant.Sku.ToLower().Contains(search)));
         }
 
         if (filter.CategoryId.HasValue)
             query = query.Where(product => product.CategoryId == filter.CategoryId.Value);
+
+        if (filter.InStockOnly == true)
+        {
+            query = query.Where(product => product.Variants.Any(variant =>
+                variant.Status == CatalogStatus.Active
+                && variant.EquipmentAssets.Any(asset => !asset.IsDeleted && asset.AssetStatus == AvailableAssetStatus)));
+        }
 
         if (!string.IsNullOrWhiteSpace(filter.OfferingType))
         {

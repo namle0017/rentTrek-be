@@ -11,6 +11,7 @@ public class ProductFilter
     public string? OfferingType { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
+    public bool? InStockOnly { get; set; }
 
     /// <summary>"name", "priceperday" (giá ngày thấp nhất, null cuối) hoặc mặc định CreatedAt.</summary>
     public string? SortBy { get; set; }
