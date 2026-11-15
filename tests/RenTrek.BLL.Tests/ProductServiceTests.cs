@@ -1,6 +1,7 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.AdminCatalog.Requests;
 using RenTrek.BLL.DTOs.Product.Requests;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Mappings;
@@ -103,6 +104,7 @@ public sealed class ProductServiceTests
             OfferingType = "Rental",
             MinPrice = 50000m,
             MaxPrice = 150000m,
+            InStockOnly = true,
             SortBy = "pricePerDay",
             SortOrder = "asc",
             PageNumber = 1,
@@ -115,6 +117,7 @@ public sealed class ProductServiceTests
         Assert.Equal("Rental", capturedFilter.OfferingType);
         Assert.Equal(50000m, capturedFilter.MinPrice);
         Assert.Equal(150000m, capturedFilter.MaxPrice);
+        Assert.True(capturedFilter.InStockOnly);
         Assert.Equal("pricePerDay", capturedFilter.SortBy);
         Assert.False(capturedFilter.IsDescending);
 
@@ -122,6 +125,155 @@ public sealed class ProductServiceTests
         Assert.Equal(productId, item.Id);
         Assert.Equal(95000m, item.PricePerDay);
         Assert.True(item.IsRentable);
+    }
+
+    [Fact]
+    public async Task GetRelatedAsync_ReturnsSameCategoryProductsAndClampsLimit()
+    {
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var relatedId = Guid.NewGuid();
+        var capturedLimit = 0;
+
+        var currentProduct = new Product
+        {
+            Id = productId,
+            CategoryId = categoryId,
+            Name = "Lều 2 người",
+            Category = new Category { Id = categoryId, Name = "Lều trại" },
+            Status = CatalogStatus.Active
+        };
+
+        var relatedProducts = new List<Product>
+        {
+            new()
+            {
+                Id = relatedId,
+                CategoryId = categoryId,
+                Name = "Lều 4 người",
+                Category = new Category { Id = categoryId, Name = "Lều trại" },
+                Status = CatalogStatus.Active,
+                Variants =
+                [
+                    new ProductVariant
+                    {
+                        Id = Guid.NewGuid(),
+                        Status = CatalogStatus.Active,
+                        RentalPriceTiers = [new RentalPriceTier { MinDays = 1, MaxDays = 3, DailyPrice = 140000m }]
+                    }
+                ]
+            }
+        };
+
+        var productRepo = TestProxy.Create<IProductRepository>(
+            ("GetPublicDetailAsync", args =>
+            {
+                var id = (Guid)args[0]!;
+                return Task.FromResult(id == productId ? currentProduct : null);
+            }),
+            ("GetRelatedPublicAsync", args =>
+            {
+                capturedLimit = (int)args[2]!;
+                return Task.FromResult(relatedProducts);
+            }));
+
+        var unitOfWork = TestProxy.Create<IUnitOfWork>(("get_Products", _ => productRepo));
+        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<ProductProfile>(), NullLoggerFactory.Instance)
+            .CreateMapper();
+        var service = new ProductService(unitOfWork, mapper);
+
+        var result = await service.GetRelatedAsync(productId, limit: 50);
+
+        Assert.Equal(12, capturedLimit);
+        var item = Assert.Single(result);
+        Assert.Equal(relatedId, item.Id);
+        Assert.Equal(140000m, item.PricePerDay);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetRelatedAsync(Guid.NewGuid(), 4));
+    }
+
+    [Fact]
+    public async Task UpdateProductStatusAsync_TogglesStatusAndRejectsInvalidStatus()
+    {
+        var productId = Guid.NewGuid();
+        var product = new Product
+        {
+            Id = productId,
+            Name = "Bếp gas dã ngoại",
+            Status = CatalogStatus.Active
+        };
+
+        var uow = TestProxy.Create<IUnitOfWork>(
+            ("BeginTransactionAsync", _ => Task.CompletedTask),
+            ("CommitAsync", _ => Task.CompletedTask),
+            ("RollbackAsync", _ => Task.CompletedTask),
+            ("SaveChangesAsync", _ => Task.FromResult(1)),
+            ("get_AdminOperations", _ => TestProxy.Create<IAdminOperationRepository>(("AcquireLockAsync", _ => Task.CompletedTask))),
+            ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>(("AddAsync", _ => Task.CompletedTask))),
+            ("get_Products", _ => TestProxy.Create<IProductRepository>(
+                ("GetByIdAsync", _ => Task.FromResult<Product?>(product)))));
+
+        var currentUser = TestProxy.Create<ICurrentUserService>(
+            ("get_Role", _ => RoleNames.Admin),
+            ("get_RequiredUserId", _ => Guid.NewGuid()),
+            ("get_UserId", _ => (Guid?)Guid.NewGuid()));
+
+        var service = new AdminProductCatalogService(uow, currentUser, TimeProvider.System);
+
+        await service.UpdateProductStatusAsync(productId, new UpdateProductStatusRequest { Status = "Inactive" }, CancellationToken.None);
+        Assert.Equal(CatalogStatus.Inactive, product.Status);
+
+        await service.UpdateProductStatusAsync(productId, new UpdateProductStatusRequest { Status = "Active" }, CancellationToken.None);
+        Assert.Equal(CatalogStatus.Active, product.Status);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => service.UpdateProductStatusAsync(productId, new UpdateProductStatusRequest { Status = "Archived" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteProductAsync_CascadesSoftDeleteToChildVariants()
+    {
+        var productId = Guid.NewGuid();
+        var product = new Product
+        {
+            Id = productId,
+            Name = "Đèn pin đội đầu",
+            Status = CatalogStatus.Active
+        };
+        var variants = new List<ProductVariant>
+        {
+            new() { Id = Guid.NewGuid(), ProductId = productId, Sku = "LAMP-01", Name = "Bản tiêu chuẩn", Status = CatalogStatus.Active },
+            new() { Id = Guid.NewGuid(), ProductId = productId, Sku = "LAMP-02", Name = "Bản pin lớn", Status = CatalogStatus.Active }
+        };
+
+        var uow = TestProxy.Create<IUnitOfWork>(
+            ("BeginTransactionAsync", _ => Task.CompletedTask),
+            ("CommitAsync", _ => Task.CompletedTask),
+            ("RollbackAsync", _ => Task.CompletedTask),
+            ("SaveChangesAsync", _ => Task.FromResult(1)),
+            ("get_AdminOperations", _ => TestProxy.Create<IAdminOperationRepository>(("AcquireLockAsync", _ => Task.CompletedTask))),
+            ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>(("AddAsync", _ => Task.CompletedTask))),
+            ("get_Products", _ => TestProxy.Create<IProductRepository>(
+                ("GetByIdAsync", _ => Task.FromResult<Product?>(product)))),
+            ("get_ProductVariants", _ => TestProxy.Create<IProductVariantRepository>(
+                ("GetByProductForUpdateAsync", _ => Task.FromResult(variants)))));
+
+        var currentUser = TestProxy.Create<ICurrentUserService>(
+            ("get_Role", _ => RoleNames.Admin),
+            ("get_RequiredUserId", _ => Guid.NewGuid()),
+            ("get_UserId", _ => (Guid?)Guid.NewGuid()));
+
+        var service = new AdminProductCatalogService(uow, currentUser, TimeProvider.System);
+
+        await service.DeleteProductAsync(productId, CancellationToken.None);
+
+        Assert.True(product.IsDeleted);
+        Assert.Equal(CatalogStatus.Inactive, product.Status);
+        Assert.All(variants, variant =>
+        {
+            Assert.True(variant.IsDeleted);
+            Assert.Equal(CatalogStatus.Inactive, variant.Status);
+        });
     }
 
     [Fact]
