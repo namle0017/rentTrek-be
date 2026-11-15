@@ -56,6 +56,7 @@ public class AppDbContext : DbContext
     public DbSet<RentalPolicyTier> RentalPolicyTiers => Set<RentalPolicyTier>();
     public DbSet<RentalEvidencePhoto> RentalEvidencePhotos => Set<RentalEvidencePhoto>();
     public DbSet<RentalReport> RentalReports => Set<RentalReport>();
+    public DbSet<CustomerReport> CustomerReports => Set<CustomerReport>();
     public DbSet<RentalSettlement> RentalSettlements => Set<RentalSettlement>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<SoftSkill> SoftSkills => Set<SoftSkill>();

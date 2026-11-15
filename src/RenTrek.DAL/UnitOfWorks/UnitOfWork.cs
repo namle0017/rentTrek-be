@@ -48,6 +48,7 @@ public class UnitOfWork : IUnitOfWork
     private IRefundPolicyRepository? _refundPolicies;
     private IRefundProofRepository? _refundProofs;
     private ITripRescheduleRepository? _tripReschedules;
+    private ICustomerReportRepository? _customerReports;
     private IRefundPolicyRuleRepository? _refundPolicyRules;
     private IRentalBundleItemSnapshotRepository? _rentalBundleItemSnapshots;
     private IRentalChargeRepository? _rentalCharges;
@@ -113,6 +114,7 @@ public class UnitOfWork : IUnitOfWork
     public IRefundCaseRepository RefundCases => _refundCases ??= new RefundCaseRepository(_context);
     public IRefundProofRepository RefundProofs => _refundProofs ??= new RefundProofRepository(_context);
     public ITripRescheduleRepository TripReschedules => _tripReschedules ??= new TripRescheduleRepository(_context);
+    public ICustomerReportRepository CustomerReports => _customerReports ??= new CustomerReportRepository(_context);
     public IRefundPolicyRepository RefundPolicies => _refundPolicies ??= new RefundPolicyRepository(_context);
     public IRefundPolicyRuleRepository RefundPolicyRules => _refundPolicyRules ??= new RefundPolicyRuleRepository(_context);
     public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => _rentalBundleItemSnapshots ??= new RentalBundleItemSnapshotRepository(_context);

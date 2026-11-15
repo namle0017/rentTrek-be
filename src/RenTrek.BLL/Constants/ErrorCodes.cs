@@ -67,6 +67,7 @@ public static class ErrorCodes
 
     // Danh mục admin: tour, sản phẩm, chính sách hoàn tiền (03-API-CONTRACT.md §6, §13, §20)
     public const string NotFound = "NOT_FOUND";
+    public const string CustomerReportNotFound = "CUSTOMER_REPORT_NOT_FOUND";
     public const string ItineraryLocked = "ITINERARY_LOCKED";
     public const string PolicyAlreadyInUse = "POLICY_ALREADY_IN_USE";
     public const string RefundPolicyLastActive = "REFUND_POLICY_LAST_ACTIVE";

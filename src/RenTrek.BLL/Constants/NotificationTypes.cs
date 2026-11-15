@@ -20,4 +20,6 @@ public static class NotificationTypes
     public const string RentalSettlement = "RentalSettlement";
     public const string RefundBankInfoRequired = "RefundBankInfoRequired";
     public const string RentalReportSubmitted = "RentalReportSubmitted";
+    public const string CustomerReportSubmitted = "CustomerReportSubmitted";
+    public const string CustomerReportUpdated = "CustomerReportUpdated";
 }

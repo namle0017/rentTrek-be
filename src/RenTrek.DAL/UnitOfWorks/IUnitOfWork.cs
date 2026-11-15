@@ -38,6 +38,7 @@ public interface IUnitOfWork : IDisposable
     // Mặc định ném lỗi để các UnitOfWork giả trong test không cần cài đặt; UnitOfWork thật override
     IRefundProofRepository RefundProofs => throw new NotSupportedException();
     ITripRescheduleRepository TripReschedules => throw new NotSupportedException();
+    ICustomerReportRepository CustomerReports => throw new NotSupportedException();
     IRefundPolicyRuleRepository RefundPolicyRules { get; }
     IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots { get; }
     IRentalChargeRepository RentalCharges { get; }

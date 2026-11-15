@@ -35,5 +35,5 @@ public class PostListRow
     /// <summary>Số lượt người tham gia đã đọc.</summary>
     public int ReadCount { get; set; }
 
-    public const int PreviewLength = 440;
+    public const int PreviewLength = 1200;
 }

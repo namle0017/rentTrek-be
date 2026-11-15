@@ -102,6 +102,7 @@ public static class DependencyInjection
         services.AddScoped<ITripBookingExpiryService, TripBookingExpiryService>();
         services.AddScoped<IRentalEvidenceService, RentalEvidenceService>();
         services.AddScoped<IRentalReportService, RentalReportService>();
+        services.AddScoped<ICustomerReportService, CustomerReportService>();
         // Một instance cho cả quyết toán và xử lý khoản thu sau (webhook) trong cùng scope
         services.AddScoped<RentalSettlementService>();
         services.AddScoped<IRentalSettlementService>(sp => sp.GetRequiredService<RentalSettlementService>());
