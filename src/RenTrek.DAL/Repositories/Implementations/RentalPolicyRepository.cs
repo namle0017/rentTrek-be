@@ -41,8 +41,31 @@ public class RentalPolicyRepository : GenericRepository<RentalPolicy>, IRentalPo
             .AsNoTracking()
             .Include(p => p.Tiers)
             .Where(p => !p.IsDeleted)
-            .OrderByDescending(p => p.CreatedAt)
+            .OrderByDescending(p => p.Version).ThenByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetOrderCountsAsync(
+        IReadOnlyCollection<Guid> rentalPolicyIds, CancellationToken cancellationToken = default)
+    {
+        var ids = rentalPolicyIds.ToArray();
+        return await _context.RentalOrders
+            .AsNoTracking()
+            .Where(o => o.RentalPolicyId != null && ids.Contains(o.RentalPolicyId.Value))
+            .GroupBy(o => o.RentalPolicyId!.Value)
+            .Select(g => new { PolicyId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PolicyId, x => x.Count, cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, string>> GetCreatorNamesAsync(
+        IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default)
+    {
+        var ids = userIds.ToArray();
+        return await _context.Accounts
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(a => ids.Contains(a.UserId))
+            .ToDictionaryAsync(a => a.UserId, a => a.FullName, cancellationToken);
+    }
 
     public async Task<int> GetMaxVersionAsync(Guid policyFamilyId, CancellationToken cancellationToken = default)
         => await _context.Set<RentalPolicy>()

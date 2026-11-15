@@ -4,6 +4,10 @@ namespace RenTrek.BLL.DTOs.RentalPolicy.Requests;
 public class CreateRentalPolicyVersionRequest
 {
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Version dùng làm mẫu khi tạo (chỉ ghi vào audit log, không ảnh hưởng dữ liệu).</summary>
+    public Guid? SourcePolicyId { get; set; }
+
     public decimal DepositPercent { get; set; }
     public int FreeCancelLimit { get; set; }
     public int FreeCancelWindowDays { get; set; }

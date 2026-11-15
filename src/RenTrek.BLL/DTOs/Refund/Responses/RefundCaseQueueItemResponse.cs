@@ -29,4 +29,9 @@ public sealed class RefundCaseQueueItemResponse
     public string? ProviderTransactionId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public int RowVersion { get; set; }
+
+    /// <summary>RejectionReason khi Status = Failed, ngược lại null.</summary>
+    public string? FailureReason { get; set; }
+
+    public IReadOnlyList<RefundProofResponse> Proofs { get; set; } = [];
 }

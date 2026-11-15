@@ -56,7 +56,16 @@ public sealed class AdminReportService(
 
     private (DateTime From, DateTime To) ReportPeriod(AdminQueryRequest request)
     {
-        var from = request.From ?? Now.AddDays(-30); var to = request.To ?? Now;
+        var from = request.From.HasValue
+            ? (request.From.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(request.From.Value, DateTimeKind.Utc)
+                : request.From.Value.ToUniversalTime())
+            : Now.AddDays(-30);
+        var to = request.To.HasValue
+            ? (request.To.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(request.To.Value, DateTimeKind.Utc)
+                : request.To.Value.ToUniversalTime())
+            : Now;
         Check(from.Kind == DateTimeKind.Utc && to.Kind == DateTimeKind.Utc && to > from && (to - from).TotalDays <= 731,
             "from", "Khoảng báo cáo phải là giờ UTC, tối đa 2 năm");
         return (from, to);
@@ -69,7 +78,11 @@ public sealed class AdminReportService(
         DateTime Period(DateTimeOffset date)
         {
             var day = date.ToOffset(TimeSpan.FromHours(7)).Date;
-            var localPeriod = request.GroupBy == "week" ? day.AddDays(-((int)day.DayOfWeek + 6) % 7) : new(day.Year, day.Month, 1);
+            var localPeriod = string.Equals(request.GroupBy, "day", StringComparison.OrdinalIgnoreCase)
+                ? day
+                : string.Equals(request.GroupBy, "week", StringComparison.OrdinalIgnoreCase)
+                    ? day.AddDays(-((int)day.DayOfWeek + 6) % 7)
+                    : new(day.Year, day.Month, 1);
             return DateTime.SpecifyKind(localPeriod.AddHours(-7), DateTimeKind.Utc);
         }
         return rows.GroupBy(x => new { Period = Period(x.ProcessedAt!.Value), x.OrderType }).Select(g =>

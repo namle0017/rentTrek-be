@@ -37,4 +37,5 @@ public sealed class RefundCase
     public Payment RefundPayment { get; set; } = null!;
     public Account CustomerUser { get; set; } = null!;
     public RefundPolicyRule? RefundPolicyRule { get; set; }
+    public ICollection<RefundProof> Proofs { get; set; } = new List<RefundProof>();
 }

@@ -30,6 +30,7 @@ public sealed class RefundCaseService(
     IEmailSender emailSender,
     ILogger<RefundCaseService> logger,
     INotificationService notificationService,
+    IPrivateFileStorage? privateStorage = null,
     IOptions<RefundSettings>? refundOptions = null) : IRefundCaseService, IRentalRefundOpener
 {
     private const string PaymentTypeRefund = "Refund";
@@ -38,6 +39,14 @@ public sealed class RefundCaseService(
     private const string PurposeRentalFee = "RentalFee";
     private const string EntityType = "RefundCase";
     private const int MaxPageSize = 100;
+    private const long MaxImportBytes = 20 * 1024 * 1024;
+    private const int MaxFailureReasonLength = 500;
+    private static readonly string[] ExportableStatuses = [RefundCaseStatuses.Requested, RefundCaseStatuses.Approved];
+    private const string ImportActionComplete = "Complete";
+    private const string ImportActionFail = "Fail";
+    private const string ImportActionSkip = "Skip";
+
+    private sealed record ImportContext(Guid BatchId, string FileName, int RowNumber, int TotalRows);
 
     private static readonly string[] AdminOnly = [RoleNames.Admin];
     private TimeSpan PayoutRetention => TimeSpan.FromDays(refundOptions?.Value.PayoutRetentionDays ?? 30);
@@ -209,6 +218,7 @@ public sealed class RefundCaseService(
                 throw new ValidationException(errors);
 
             ApplyBankAccount(refund, request.BankAccount!, RefundBankCodes.ConsentVersion, utcNow);
+            refund.RejectionReason = null;
             refund.RowVersion++;
             await AuditAsync(refund.CustomerUserId, "RefundBankInfoSubmitted", refund, utcNow, cancellationToken);
             await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {refund.Order.OrderCode} đã có STK, chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
@@ -255,6 +265,76 @@ public sealed class RefundCaseService(
         EnsureOwned(refund);
         return MapCustomer(refund!);
     }
+
+    public async Task<PagedResponse<RefundCaseResponse>> GetMineAsync(
+        RefundCaseQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 1, 50);
+        IReadOnlyCollection<string> statuses = string.IsNullOrWhiteSpace(request.Status)
+            ? []
+            : request.Status.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var (items, total) = await unitOfWork.RefundCases.SearchByCustomerAsync(
+            currentUser.RequiredUserId, statuses, pageNumber, pageSize, cancellationToken);
+        return new PagedResponse<RefundCaseResponse>
+        {
+            Items = items.Select(MapCustomer).ToList(),
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalItems = total
+        };
+    }
+
+    /// <summary>
+    /// Hồ sơ bị từ chối (vd. chưa có STK) hoặc thất bại: khách nhập STK mới và gửi lại. Hồ sơ quay về Requested,
+    /// vào lần xuất Excel tiếp theo; admin vẫn có thể từ chối lại.
+    /// </summary>
+    public Task<RefundCaseSummaryResponse> ResubmitAsync(
+        Guid refundCaseId,
+        SubmitRefundBankInfoRequest request,
+        CancellationToken cancellationToken = default)
+        => MutateAsync(refundCaseId, async (refund, utcNow) =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            EnsureOwned(refund);
+            if (refund.Status is not (RefundCaseStatuses.Rejected or RefundCaseStatuses.Failed))
+                throw new ConflictException("Chỉ gửi lại được hồ sơ bị từ chối hoặc thất bại", ErrorCodes.RefundCaseNotResubmittable);
+            if (await unitOfWork.RefundCases.HasOtherOpenCaseAsync(refund.OrderId, refund.RefundCaseId, cancellationToken))
+                throw new ConflictException("Đơn này đang có hồ sơ hoàn tiền khác đang xử lý", ErrorCodes.RefundCaseNotResubmittable);
+
+            var errors = new Dictionary<string, string[]>();
+            if (request.BankAccount is null)
+                errors["bankAccount"] = ["Cần cung cấp tài khoản nhận hoàn"];
+            if (!request.ConsentAccepted || request.ConsentVersion != RefundBankCodes.ConsentVersion)
+                errors["consentAccepted"] = ["Bạn cần đồng ý xử lý dữ liệu ngân hàng"];
+            if (errors.Count > 0)
+                throw new ValidationException(errors);
+
+            var previousStatus = refund.Status;
+            var previousReason = refund.RejectionReason;
+            ApplyBankAccount(refund, request.BankAccount!, RefundBankCodes.ConsentVersion, utcNow);
+            refund.SensitiveDataPurgedAt = null;
+            refund.RejectionReason = null;
+            refund.ApprovedAt = null;
+            refund.ApprovedByAdminUserId = null;
+            refund.ProviderTransactionId = null;
+            refund.CompletedAt = null;
+            refund.RefundPayment.Status = PaymentStatuses.PendingApproval;
+            refund.RefundPayment.ProviderTransactionId = null;
+            refund.RefundPayment.ProcessedAt = null;
+            refund.RowVersion++;
+            await AuditAsync(refund.CustomerUserId, "RefundResubmitted", refund, utcNow, cancellationToken);
+            await NotifyRolesAsync(
+                AdminOnly,
+                "Khách gửi lại yêu cầu hoàn tiền",
+                $"Đơn {refund.Order.OrderCode} ({previousStatus}: {previousReason}) đã có STK mới, chờ xuất cho kế toán.",
+                refund,
+                utcNow,
+                cancellationToken);
+            return MapSummary(refund);
+        }, cancellationToken);
 
     public Task<PagedResponse<RefundCaseQueueItemResponse>> GetAdminQueueAsync(
         RefundCaseQueryRequest request,
@@ -304,15 +384,18 @@ public sealed class RefundCaseService(
         {
             await VerifyOtpAsync(adminId, request, cancellationToken);
 
-            var status = request.ReExport ? RefundCaseStatuses.Approved : RefundCaseStatuses.Requested;
-            var refunds = await unitOfWork.RefundCases.GetForExportAsync(status, adminId, request.FromDate, request.ToDate, cancellationToken);
+            // Một lần xuất gồm hồ sơ mới (Requested) và hồ sơ đã gửi kế toán nhưng chưa có kết quả (Approved)
+            var refunds = await unitOfWork.RefundCases.GetForExportAsync(
+                ExportableStatuses, adminId, request.FromDate, request.ToDate, cancellationToken);
             if (refunds.Count == 0)
-                throw new ConflictException("Không có hồ sơ nào để xuất", ErrorCodes.RefundExportEmpty);
+                throw new ConflictException(
+                    "Chưa có hồ sơ nào có số tài khoản để chuyển khoản. Hồ sơ đang chờ khách nhập STK sẽ được xuất sau khi khách cung cấp.",
+                    ErrorCodes.RefundExportEmpty);
 
             var rows = refunds.Select(x => (x, ReadPayoutDetails(x))).ToList();
             foreach (var refund in refunds)
             {
-                if (!request.ReExport)
+                if (refund.Status == RefundCaseStatuses.Requested)
                 {
                     Transition(refund, RefundCaseStatuses.Approved, utcNow);
                     refund.ApprovedByAdminUserId = adminId;
@@ -363,90 +446,415 @@ public sealed class RefundCaseService(
             return MapSummary(refund);
         }, cancellationToken);
 
-    public Task<RefundCaseSummaryResponse> CompleteAsync(
+    public async Task<RefundCaseSummaryResponse> CompleteAsync(
         Guid refundCaseId,
         CompleteRefundRequest request,
+        IReadOnlyList<ProofFileInput> files,
         CancellationToken cancellationToken = default)
-        => MutateAsync(refundCaseId, async (refund, utcNow) =>
+    {
+        var proofs = await RefundProofFiles.ReadAsync(files, cancellationToken);
+        return await CompleteCoreAsync(
+            refundCaseId, request.ProviderTransactionId, request.ExpectedRowVersion, proofs, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lõi hoàn tất hồ sơ dùng chung cho thao tác thủ công và nhập Excel. Ảnh được upload trước transaction;
+    /// transaction lỗi thì xóa file vừa upload. expectedRowVersion null = dùng rowVersion hiện tại (trạng thái Approved đóng vai trò khóa).
+    /// </summary>
+    private async Task<RefundCaseSummaryResponse> CompleteCoreAsync(
+        Guid refundCaseId,
+        string? providerTransactionId,
+        int? expectedRowVersion,
+        IReadOnlyList<RefundProofFile> proofs,
+        ImportContext? import,
+        CancellationToken cancellationToken)
+    {
+        var storage = privateStorage ?? throw new InvalidOperationException("Chưa cấu hình storage chứng từ");
+        var uploaded = new List<(string Path, RefundProofFile File)>();
+        try
         {
-            var adminId = currentUser.RequiredUserId;
-            EnsureNotOwnRefund(refund, adminId);
-            if (refund.Status != RefundCaseStatuses.Approved)
-                throw new ConflictException("Hồ sơ chưa được xuất cho kế toán", ErrorCodes.RefundCaseNotCompletable);
-            EnsureRowVersion(refund, request.ExpectedRowVersion);
-
-            await unitOfWork.Payments.AcquireOrderLockAsync(refund.OrderId, cancellationToken);
-            await unitOfWork.RefundCases.ReloadOrderAsync(refund.Order, cancellationToken);
-            if (refund.Order.PaymentStatus == OrderPaymentStatuses.NeedsReconciliation)
+            foreach (var proof in proofs)
             {
-                throw new ConflictException(
-                    "Đơn đang chờ đối soát thanh toán",
-                    ErrorCodes.OrderNotReconcilable);
+                using var content = new MemoryStream(proof.Data);
+                uploaded.Add((await storage.SaveAsync(content, proof.FileName, proof.ContentType, cancellationToken), proof));
             }
 
-            if (string.IsNullOrWhiteSpace(request.ProviderTransactionId))
-                throw new BadRequestException("Cần nhập mã giao dịch ngân hàng");
-
-            var transactionId = request.ProviderTransactionId.Trim();
-            if (await unitOfWork.RefundCases.ProviderTransactionUsedAsync(transactionId, cancellationToken) ||
-                await unitOfWork.Payments.ProviderTransactionExistsAsync(transactionId, cancellationToken))
+            return await MutateAsync(refundCaseId, async (refund, utcNow) =>
             {
-                throw new ConflictException("Mã giao dịch đã được dùng cho hồ sơ khác", ErrorCodes.RefundTransactionDuplicated);
-            }
+                var adminId = currentUser.RequiredUserId;
+                EnsureNotOwnRefund(refund, adminId);
+                if (refund.Status != RefundCaseStatuses.Approved)
+                    throw new ConflictException("Hồ sơ chưa được xuất cho kế toán", ErrorCodes.RefundCaseNotCompletable);
+                if (expectedRowVersion is { } version)
+                    EnsureRowVersion(refund, version);
 
-            refund.ProviderTransactionId = transactionId;
-            refund.RefundPayment.ProviderTransactionId = transactionId;
-            Transition(refund, RefundCaseStatuses.Completed, utcNow);
-            refund.CompletedAt = utcNow;
-            refund.RefundPayment.Status = PaymentStatuses.Succeeded;
-            refund.RefundPayment.ProcessedAt = utcNow;
+                await unitOfWork.Payments.AcquireOrderLockAsync(refund.OrderId, cancellationToken);
+                await unitOfWork.RefundCases.ReloadOrderAsync(refund.Order, cancellationToken);
+                if (refund.Order.PaymentStatus == OrderPaymentStatuses.NeedsReconciliation)
+                {
+                    throw new ConflictException(
+                        "Đơn đang chờ đối soát thanh toán",
+                        ErrorCodes.OrderNotReconcilable);
+                }
 
-            // Payment hiện tại chưa được lưu nên cộng tay vào tổng đã hoàn
-            var refunded = refund.Amount + await unitOfWork.RefundCases.GetSucceededRefundTotalAsync(refund.OrderId, cancellationToken);
-            var collected = await unitOfWork.TripBookings.GetSucceededPaymentTotalAsync(refund.OrderId, cancellationToken);
-            refund.Order.PaymentStatus = refunded >= collected ? OrderPaymentStatuses.Refunded : OrderPaymentStatuses.PartiallyRefunded;
-            refund.Order.UpdatedAt = utcNow;
+                if (string.IsNullOrWhiteSpace(providerTransactionId))
+                    throw new BadRequestException("Cần nhập mã giao dịch ngân hàng");
 
-            await AuditAsync(adminId, "RefundCompleted", refund, utcNow, cancellationToken);
-            await notificationService.QueueAsync(
-                refund.CustomerUserId,
-                NotificationTypes.RefundResult,
-                "Hoàn tiền hoàn tất",
-                $"Tiền hoàn cho đơn {refund.Order.OrderCode} đã được chuyển thành công.",
-                EntityType,
-                refund.RefundCaseId,
-                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
-                cancellationToken);
-            return MapSummary(refund);
-        }, cancellationToken);
+                var transactionId = providerTransactionId.Trim();
+                if (await unitOfWork.RefundCases.ProviderTransactionUsedAsync(transactionId, cancellationToken) ||
+                    await unitOfWork.Payments.ProviderTransactionExistsAsync(transactionId, cancellationToken))
+                {
+                    throw new ConflictException("Mã giao dịch đã được dùng cho hồ sơ khác", ErrorCodes.RefundTransactionDuplicated);
+                }
+
+                refund.ProviderTransactionId = transactionId;
+                refund.RefundPayment.ProviderTransactionId = transactionId;
+                Transition(refund, RefundCaseStatuses.Completed, utcNow);
+                refund.CompletedAt = utcNow;
+                refund.RefundPayment.Status = PaymentStatuses.Succeeded;
+                refund.RefundPayment.ProcessedAt = utcNow;
+
+                await unitOfWork.RefundProofs.AddRangeAsync(
+                    uploaded.Select(item => new RefundProof
+                    {
+                        RefundProofId = Guid.NewGuid(),
+                        RefundCaseId = refund.RefundCaseId,
+                        StoragePath = item.Path,
+                        ContentType = item.File.ContentType,
+                        FileName = item.File.FileName,
+                        SizeBytes = item.File.Data.Length,
+                        UploadedByUserId = adminId,
+                        Source = import is null ? "Manual" : "ExcelImport",
+                        CreatedAt = utcNow.UtcDateTime
+                    }).ToList(),
+                    cancellationToken);
+
+                // Payment hiện tại chưa được lưu nên cộng tay vào tổng đã hoàn
+                var refunded = refund.Amount + await unitOfWork.RefundCases.GetSucceededRefundTotalAsync(refund.OrderId, cancellationToken);
+                var collected = await unitOfWork.TripBookings.GetSucceededPaymentTotalAsync(refund.OrderId, cancellationToken);
+                refund.Order.PaymentStatus = refunded >= collected ? OrderPaymentStatuses.Refunded : OrderPaymentStatuses.PartiallyRefunded;
+                refund.Order.UpdatedAt = utcNow;
+
+                await AuditAsync(adminId, "RefundCompleted", refund, utcNow, cancellationToken, import, uploaded.Count);
+                await notificationService.QueueAsync(
+                    refund.CustomerUserId,
+                    NotificationTypes.RefundResult,
+                    "Hoàn tiền hoàn tất",
+                    $"Tiền hoàn cho đơn {refund.Order.OrderCode} đã được chuyển thành công.",
+                    EntityType,
+                    refund.RefundCaseId,
+                    $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                    cancellationToken);
+                return MapSummary(refund);
+            }, cancellationToken);
+        }
+        catch
+        {
+            foreach (var (path, _) in uploaded)
+                await storage.DeleteAsync(path, CancellationToken.None);
+            throw;
+        }
+    }
 
     public Task<RefundCaseSummaryResponse> MarkFailedAsync(
         Guid refundCaseId,
         RefundDecisionRequest request,
         CancellationToken cancellationToken = default)
+        => MarkFailedCoreAsync(refundCaseId, request.Reason, request.ExpectedRowVersion, null, cancellationToken);
+
+    /// <summary>
+    /// "Báo thất bại": chưa chuyển được tiền (sai STK, tài khoản đóng...). Hồ sơ quay về chờ khách nhập lại STK:
+    /// xoá STK cũ, lưu lý do, thông báo cho khách. Nhận hồ sơ chờ xuất, đã gửi kế toán, hoặc đang chờ khách (nhắc lại).
+    /// Từ file Excel kế toán chỉ nhận hồ sơ Approved (đã kiểm ở bước validate dòng).
+    /// </summary>
+    private Task<RefundCaseSummaryResponse> MarkFailedCoreAsync(
+        Guid refundCaseId,
+        string reason,
+        int? expectedRowVersion,
+        ImportContext? import,
+        CancellationToken cancellationToken)
         => MutateAsync(refundCaseId, async (refund, utcNow) =>
         {
             EnsureNotOwnRefund(refund, currentUser.RequiredUserId);
-            if (refund.Status != RefundCaseStatuses.Approved)
+            if (refund.Status is not (RefundCaseStatuses.Approved or RefundCaseStatuses.Requested or RefundCaseStatuses.AwaitingBankInfo))
+                throw new ConflictException("Hồ sơ đã kết thúc, không thể báo thất bại", ErrorCodes.RefundCaseNotCompletable);
+            if (import is not null && refund.Status != RefundCaseStatuses.Approved)
                 throw new ConflictException("Hồ sơ chưa được xuất cho kế toán", ErrorCodes.RefundCaseNotCompletable);
-            EnsureRowVersion(refund, request.ExpectedRowVersion);
+            if (expectedRowVersion is { } version)
+                EnsureRowVersion(refund, version);
 
-            Transition(refund, RefundCaseStatuses.Failed, utcNow);
-            refund.RejectionReason = request.Reason.Trim();
-            refund.RefundPayment.Status = PaymentStatuses.Failed;
-            refund.RefundPayment.ProcessedAt = utcNow;
-            await AuditAsync(currentUser.RequiredUserId, "RefundMarkedFailed", refund, utcNow, cancellationToken);
+            Transition(refund, RefundCaseStatuses.AwaitingBankInfo, utcNow);
+            refund.RejectionReason = reason.Trim();
+            // Xoá STK cũ để khách nhập lại; hồ sơ vào lại lần xuất Excel sau khi khách gửi STK mới
+            refund.BankCode = null;
+            refund.BankAccountLast4 = null;
+            refund.PayoutDetailsCiphertext = null;
+            refund.PayoutDetailsNonce = null;
+            refund.PayoutDetailsTag = null;
+            refund.BankInfoSubmittedAt = null;
+            refund.BankInfoRequestedAt = utcNow;
+            refund.ApprovedAt = null;
+            refund.ApprovedByAdminUserId = null;
+            refund.RefundPayment.Status = PaymentStatuses.PendingApproval;
+            refund.RefundPayment.ProcessedAt = null;
+            await AuditAsync(currentUser.RequiredUserId, "RefundMarkedFailed", refund, utcNow, cancellationToken, import);
             await notificationService.QueueAsync(
                 refund.CustomerUserId,
-                NotificationTypes.RefundResult,
-                "Chuyển khoản hoàn tiền thất bại",
-                $"Chuyển khoản hoàn tiền cho đơn {refund.Order.OrderCode} thất bại. Vui lòng liên hệ hỗ trợ để được xử lý.",
+                NotificationTypes.RefundBankInfoRequired,
+                "Cần nhập lại tài khoản nhận hoàn tiền",
+                $"Chưa chuyển được tiền hoàn cho đơn {refund.Order.OrderCode}: {refund.RejectionReason}. Vui lòng nhập lại số tài khoản để hệ thống chuyển tiền.",
                 EntityType,
                 refund.RefundCaseId,
-                $"RefundResult:{refund.RefundCaseId}:{refund.Status}",
+                $"RefundBankInfoRequired:{refund.RefundCaseId}:{refund.RowVersion}",
                 cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
+
+    public async Task<(Stream Content, string ContentType, string FileName)> OpenProofAsync(
+        Guid refundCaseId,
+        Guid proofId,
+        bool asAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var proof = await unitOfWork.RefundProofs.GetByIdAsync(proofId, cancellationToken);
+        if (proof is null || proof.RefundCaseId != refundCaseId)
+            throw new NotFoundException("Không tìm thấy chứng từ", ErrorCodes.NotFound);
+
+        if (!asAdmin)
+        {
+            // Khách chỉ thấy chứng từ của hồ sơ mình đã hoàn tất; mọi trường hợp khác trả 404
+            var refund = await unitOfWork.RefundCases.GetDetailAsync(refundCaseId, cancellationToken);
+            EnsureOwned(refund);
+            if (refund!.Status != RefundCaseStatuses.Completed)
+                throw new NotFoundException("Không tìm thấy chứng từ", ErrorCodes.NotFound);
+        }
+
+        var storage = privateStorage ?? throw new InvalidOperationException("Chưa cấu hình storage chứng từ");
+        var stream = await storage.OpenReadAsync(proof.StoragePath, cancellationToken);
+        return (stream, proof.ContentType, proof.FileName);
+    }
+
+    public async Task<RefundImportResultResponse> ImportResultAsync(
+        Stream file,
+        string fileName,
+        bool dryRun,
+        CancellationToken cancellationToken = default)
+    {
+        var adminId = currentUser.RequiredUserId;
+        var safeName = Path.GetFileName((fileName ?? string.Empty).Replace('\\', '/'));
+        if (!safeName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            throw new BadRequestException("Chỉ nhận file Excel .xlsx");
+
+        using var memory = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await file.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            memory.Write(chunk, 0, read);
+            if (memory.Length > MaxImportBytes)
+                throw new ValidationException("file", "File Excel tối đa 20MB");
+        }
+
+        if (memory.Length == 0)
+            throw new ValidationException("file", "File Excel rỗng");
+
+        memory.Position = 0;
+        RefundResultWorkbook workbook;
+        try
+        {
+            workbook = RefundResultWorkbookReader.Read(memory);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not AppException)
+        {
+            logger.LogWarning(ex, "Không đọc được file kết quả hoàn tiền {FileName}", safeName);
+            throw new BadRequestException("Không đọc được file Excel, vui lòng dùng đúng file đã xuất");
+        }
+
+        if (workbook.MissingHeaders.Count > 0)
+        {
+            throw new BadRequestException("File thiếu cột bắt buộc: " + string.Join(", ", workbook.MissingHeaders));
+        }
+
+        var result = new RefundImportResultResponse
+        {
+            BatchId = dryRun ? null : Guid.NewGuid(),
+            FileName = safeName,
+            DryRun = dryRun,
+            TotalRows = workbook.Rows.Count
+        };
+
+        var plans = new List<(RefundResultRow Source, RefundImportRowResponse Row)>();
+        var seenCases = new HashSet<Guid>();
+        var seenTransactions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in workbook.Rows)
+        {
+            var row = await AnalyzeImportRowAsync(source, adminId, seenCases, seenTransactions, cancellationToken);
+            plans.Add((source, row));
+        }
+
+        result.ValidRows = plans.Count(x => x.Row.Errors.Count == 0 && x.Row.Action != ImportActionSkip);
+
+        foreach (var (source, row) in plans)
+        {
+            if (!dryRun && row.Errors.Count == 0 && row.Action != ImportActionSkip && row.RefundCaseId is { } id)
+            {
+                var import = new ImportContext(result.BatchId!.Value, safeName, source.RowNumber, workbook.Rows.Count);
+                try
+                {
+                    if (row.Action == ImportActionComplete)
+                    {
+                        await CompleteCoreAsync(
+                            id,
+                            row.TransactionId,
+                            null,
+                            source.Images.Select(x => new RefundProofFile(
+                                x.Data, RefundProofFiles.SafeName(x.FileName, x.ContentType), RefundProofFiles.Sniff(x.Data)!)).ToList(),
+                            import,
+                            cancellationToken);
+                        row.ResultStatus = RefundCaseStatuses.Completed;
+                    }
+                    else
+                    {
+                        await MarkFailedCoreAsync(id, row.Reason!, null, import, cancellationToken);
+                        row.ResultStatus = RefundCaseStatuses.AwaitingBankInfo;
+                    }
+
+                    row.Applied = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Mỗi dòng độc lập: dòng lỗi không rollback các dòng đã áp dụng
+                    unitOfWork.ClearChangeTracker();
+                    row.Applied = false;
+                    row.ResultStatus = null;
+                    row.Errors.Add(ex is AppException ? ex.Message : "Lỗi hệ thống khi xử lý dòng này");
+                    if (ex is not AppException)
+                        logger.LogError(ex, "Nhập kết quả hoàn tiền lỗi ở dòng {RowNumber}", source.RowNumber);
+                }
+            }
+
+            result.Rows.Add(row);
+        }
+
+        result.ErrorCount = result.Rows.Count(x => x.Errors.Count > 0);
+        if (dryRun)
+        {
+            result.CompletedCount = result.Rows.Count(x => x.Errors.Count == 0 && x.Action == ImportActionComplete);
+            result.FailedCount = result.Rows.Count(x => x.Errors.Count == 0 && x.Action == ImportActionFail);
+        }
+        else
+        {
+            result.CompletedCount = result.Rows.Count(x => x.Applied && x.ResultStatus == RefundCaseStatuses.Completed);
+            result.FailedCount = result.Rows.Count(x => x.Applied && x.ResultStatus == RefundCaseStatuses.AwaitingBankInfo);
+        }
+
+        return result;
+    }
+
+    private async Task<RefundImportRowResponse> AnalyzeImportRowAsync(
+        RefundResultRow source,
+        Guid adminId,
+        HashSet<Guid> seenCases,
+        HashSet<string> seenTransactions,
+        CancellationToken cancellationToken)
+    {
+        var row = new RefundImportRowResponse
+        {
+            RowNumber = source.RowNumber,
+            RefundCode = source.RefundCode,
+            ImageCount = source.Images.Count,
+            Action = ImportActionSkip
+        };
+
+        // Khớp hồ sơ: GUID ẩn trước, không có thì dùng mã hồ sơ và chỉ nhận khi khớp duy nhất
+        var caseId = source.RefundCaseId;
+        if (caseId is null && !string.IsNullOrWhiteSpace(source.RefundCode))
+        {
+            var matches = await unitOfWork.RefundCases.FindApprovedIdsByCodeAsync(source.RefundCode, cancellationToken);
+            if (matches.Count == 1)
+                caseId = matches[0];
+            else
+                row.Errors.Add(matches.Count > 1 ? "Mã hồ sơ trùng nhiều hồ sơ, cần cột RefundCaseId" : "Không tìm thấy hồ sơ theo mã hồ sơ");
+        }
+        else if (caseId is null)
+        {
+            row.Errors.Add("Không xác định được hồ sơ (thiếu RefundCaseId / Mã hồ sơ)");
+        }
+
+        RefundCase? refund = null;
+        if (caseId is { } id)
+        {
+            row.RefundCaseId = id;
+            refund = await unitOfWork.RefundCases.GetDetailAsync(id, cancellationToken);
+            if (refund is null)
+            {
+                row.Errors.Add("Không tìm thấy hồ sơ hoàn tiền");
+            }
+            else
+            {
+                row.CustomerName = refund.CustomerUser?.FullName ?? string.Empty;
+                row.Amount = refund.Amount;
+                if (string.IsNullOrEmpty(row.RefundCode))
+                    row.RefundCode = $"HT-{refund.RefundCaseId:N}"[..11].ToUpperInvariant();
+                if (refund.Status != RefundCaseStatuses.Approved)
+                    row.Errors.Add($"Hồ sơ không ở trạng thái Approved (hiện là {refund.Status})");
+                if (refund.CustomerUserId == adminId)
+                    row.Errors.Add("Không được xử lý hồ sơ hoàn tiền của chính mình");
+                if (!seenCases.Add(id))
+                    row.Errors.Add("Hồ sơ xuất hiện nhiều lần trong file");
+            }
+        }
+
+        if (source.Transferred is null)
+        {
+            row.Errors.Add("Chưa điền trạng thái");
+            return row;
+        }
+
+        if (row.Errors.Count > 0 && refund is null)
+            return row;
+
+        if (source.Transferred == true)
+        {
+            row.TransactionId = source.TransactionId.Trim();
+            if (row.TransactionId.Length == 0)
+                row.Errors.Add("Thiếu mã giao dịch");
+            else if (row.TransactionId.Length > 255)
+                row.Errors.Add("Mã giao dịch không vượt quá 255 ký tự");
+            else if (!seenTransactions.Add(row.TransactionId))
+                row.Errors.Add("Mã giao dịch bị trùng trong file");
+            else if (await unitOfWork.RefundCases.ProviderTransactionUsedAsync(row.TransactionId, cancellationToken) ||
+                     await unitOfWork.Payments.ProviderTransactionExistsAsync(row.TransactionId, cancellationToken))
+                row.Errors.Add("Mã giao dịch đã được dùng cho hồ sơ khác");
+
+            if (source.Images.Count == 0)
+                row.Errors.Add("Thiếu hình ảnh minh chứng");
+            else if (source.Images.Count > RefundProofFiles.MaxFiles)
+                row.Errors.Add($"Tối đa {RefundProofFiles.MaxFiles} ảnh minh chứng mỗi dòng");
+            else
+            {
+                for (var i = 0; i < source.Images.Count; i++)
+                {
+                    var error = RefundProofFiles.Validate(source.Images[i].Data, $"Ảnh {i + 1}");
+                    if (error is not null)
+                        row.Errors.Add(error);
+                }
+            }
+
+            row.Action = row.Errors.Count == 0 ? ImportActionComplete : ImportActionSkip;
+        }
+        else
+        {
+            row.Reason = source.Reason.Trim();
+            if (row.Reason.Length == 0)
+                row.Errors.Add("Thiếu lý do chưa chuyển");
+            else if (row.Reason.Length > MaxFailureReasonLength)
+                row.Errors.Add($"Lý do tối đa {MaxFailureReasonLength} ký tự");
+            row.Action = row.Errors.Count == 0 ? ImportActionFail : ImportActionSkip;
+        }
+
+        return row;
+    }
 
     public async Task PurgeSensitiveDataAsync(CancellationToken cancellationToken = default)
     {
@@ -590,25 +998,45 @@ public sealed class RefundCaseService(
             throw new NotFoundException("Không tìm thấy hồ sơ hoàn tiền", ErrorCodes.RefundCaseNotFound);
     }
 
-    private Task AuditAsync(Guid? actorUserId, string action, RefundCase refund, DateTimeOffset utcNow, CancellationToken cancellationToken)
-        => unitOfWork.AuditLogs.AddAsync(new AuditLog
+    private Task AuditAsync(
+        Guid? actorUserId,
+        string action,
+        RefundCase refund,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken,
+        ImportContext? import = null,
+        int proofCount = 0)
+    {
+        // Chỉ ID, trạng thái, số tiền, last4, mã giao dịch; không bao giờ có số tài khoản đầy đủ
+        var details = new Dictionary<string, object?>
+        {
+            ["OrderId"] = refund.OrderId,
+            ["Status"] = refund.Status,
+            ["Amount"] = refund.Amount,
+            ["BankAccountLast4"] = refund.BankAccountLast4,
+            ["ProviderTransactionId"] = refund.ProviderTransactionId
+        };
+        if (proofCount > 0)
+            details["ProofCount"] = proofCount;
+        if (import is not null)
+        {
+            details["ImportBatchId"] = import.BatchId;
+            details["ImportFileName"] = import.FileName;
+            details["ImportRowNumber"] = import.RowNumber;
+            details["ImportTotalRows"] = import.TotalRows;
+        }
+
+        return unitOfWork.AuditLogs.AddAsync(new AuditLog
         {
             AuditLogId = Guid.NewGuid(),
             ActorUserId = actorUserId,
             Action = action,
             EntityType = EntityType,
             EntityId = refund.RefundCaseId,
-            // Chỉ ID, trạng thái, số tiền, last4, mã giao dịch; không bao giờ có số tài khoản đầy đủ
-            Details = JsonSerializer.Serialize(new
-            {
-                refund.OrderId,
-                refund.Status,
-                refund.Amount,
-                refund.BankAccountLast4,
-                refund.ProviderTransactionId
-            }),
+            Details = JsonSerializer.Serialize(details),
             CreatedAt = utcNow.UtcDateTime
         }, cancellationToken);
+    }
 
     private Task NotifyAsync(Guid recipientUserId, string title, string content, RefundCase refund, DateTimeOffset utcNow, CancellationToken cancellationToken)
         => unitOfWork.Notifications.AddAsync(new Notification
@@ -661,8 +1089,35 @@ public sealed class RefundCaseService(
             BankCode = refund.BankCode,
             MaskedAccount = Mask(refund),
             Timeline = BuildTimeline(refund),
-            CompletedAt = refund.CompletedAt
+            CompletedAt = refund.CompletedAt,
+            // Khách chỉ thấy chứng từ khi hồ sơ đã hoàn tất
+            Proofs = refund.Status == RefundCaseStatuses.Completed ? MapProofs(refund) : [],
+            FailureReason = FailureReasonOf(refund),
+            RejectionReason = refund.Status == RefundCaseStatuses.Rejected ? refund.RejectionReason : null,
+            OrderType = refund.Order.OrderType,
+            Source = refund.Source,
+            TourName = refund.Order.TripBookingOrder?.Trip?.Tour?.Name,
+            CreatedAt = refund.CreatedAt,
+            UpdatedAt = refund.UpdatedAt,
+            CanSubmitBankInfo = refund.Status == RefundCaseStatuses.AwaitingBankInfo,
+            CanResubmit = refund.Status is RefundCaseStatuses.Rejected or RefundCaseStatuses.Failed
         };
+
+    private static List<RefundProofResponse> MapProofs(RefundCase refund)
+        => refund.Proofs
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => new RefundProofResponse
+            {
+                ProofId = x.RefundProofId,
+                FileName = x.FileName,
+                ContentType = x.ContentType,
+                CreatedAt = DateTime.SpecifyKind(x.CreatedAt, DateTimeKind.Utc)
+            })
+            .ToList();
+
+    private static string? FailureReasonOf(RefundCase refund)
+        => refund.Status is RefundCaseStatuses.Failed or RefundCaseStatuses.AwaitingBankInfo ? refund.RejectionReason : null;
 
     private static List<RefundTimelineEventResponse> BuildTimeline(RefundCase refund)
     {
@@ -708,7 +1163,9 @@ public sealed class RefundCaseService(
             CancelReason = refund.Order.CancelReason,
             ProviderTransactionId = refund.ProviderTransactionId,
             CreatedAt = refund.CreatedAt,
-            RowVersion = refund.RowVersion
+            RowVersion = refund.RowVersion,
+            FailureReason = FailureReasonOf(refund),
+            Proofs = MapProofs(refund)
         };
     }
 }

@@ -18,6 +18,17 @@ public interface IRefundCaseRepository
 
     Task<RefundCase?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
 
+    /// <summary>Hồ sơ hoàn tiền của một khách (mới nhất trước); statuses rỗng = mọi trạng thái.</summary>
+    Task<(IReadOnlyList<RefundCase> Items, int TotalItems)> SearchByCustomerAsync(
+        Guid customerUserId,
+        IReadOnlyCollection<string> statuses,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn còn hồ sơ khác chưa kết thúc (unique index ux_refund_cases_open_order).</summary>
+    Task<bool> HasOtherOpenCaseAsync(Guid orderId, Guid excludedRefundCaseId, CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<RefundCase> Items, int TotalItems)> SearchAsync(
         IReadOnlyCollection<string> statuses,
         DateTimeOffset? fromDate,
@@ -31,11 +42,14 @@ public interface IRefundCaseRepository
     /// Hai Admin xuất cùng lúc không thể nhận trùng hồ sơ. BẮT BUỘC gọi trong transaction đã mở.
     /// </summary>
     Task<IReadOnlyList<RefundCase>> GetForExportAsync(
-        string status,
+        IReadOnlyCollection<string> statuses,
         Guid excludedCustomerUserId,
         DateTimeOffset? fromDate,
         DateTimeOffset? toDate,
         CancellationToken cancellationToken = default);
+
+    /// <summary>ID các hồ sơ Approved có mã hiển thị (HT-xxxxxxxx) khớp; dùng khi file Excel không có cột RefundCaseId.</summary>
+    Task<IReadOnlyList<Guid>> FindApprovedIdsByCodeAsync(string code, CancellationToken cancellationToken = default);
 
     Task<bool> ProviderTransactionUsedAsync(string providerTransactionId, CancellationToken cancellationToken = default);
 

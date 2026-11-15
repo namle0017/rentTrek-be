@@ -35,6 +35,8 @@ public interface IUnitOfWork : IDisposable
     IRefreshTokenRepository RefreshTokens { get; }
     IRefundCaseRepository RefundCases { get; }
     IRefundPolicyRepository RefundPolicies { get; }
+    // Mặc định ném lỗi để các UnitOfWork giả trong test không cần cài đặt; UnitOfWork thật override
+    IRefundProofRepository RefundProofs => throw new NotSupportedException();
     IRefundPolicyRuleRepository RefundPolicyRules { get; }
     IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots { get; }
     IRentalChargeRepository RentalCharges { get; }
@@ -79,4 +81,7 @@ public interface IUnitOfWork : IDisposable
     Task CommitAsync(CancellationToken cancellationToken = default);
 
     Task RollbackAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Bỏ mọi thực thể đang tracking (dùng khi một đơn vị công việc độc lập thất bại giữa vòng lặp xử lý hàng loạt).</summary>
+    void ClearChangeTracker() { }
 }

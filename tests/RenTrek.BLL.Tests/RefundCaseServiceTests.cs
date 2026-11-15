@@ -187,24 +187,103 @@ public sealed class RefundCaseServiceTests
     }
 
     [Fact]
-    public async Task Export_DoesNotRepeatExportedCases_ButReExportDoes()
+    public async Task Export_IncludesAlreadyExportedCasesWithoutChangingThem()
     {
         var fixture = new Fixture();
         var refund = fixture.Seed(RefundCaseStatuses.Approved);
         fixture.ActAs(fixture.Admin);
 
-        var empty = await Assert.ThrowsAsync<ConflictException>(async () =>
-            await fixture.Service.ExportAsync(await fixture.NewExportRequestAsync()));
-        Assert.Equal(ErrorCodes.RefundExportEmpty, empty.ErrorCode);
-
-        var request = await fixture.NewExportRequestAsync();
-        request.ReExport = true;
-        var file = await fixture.Service.ExportAsync(request);
+        var file = await fixture.Service.ExportAsync(await fixture.NewExportRequestAsync());
 
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
         Assert.Equal("0123456789", workbook.Worksheet(1).Cell(2, 7).GetString());
         Assert.Equal(RefundCaseStatuses.Approved, refund.Status);
         Assert.Equal(1, refund.RowVersion);
+    }
+
+    [Fact]
+    public async Task Export_WithOnlyCasesAwaitingBankInfo_IsEmpty()
+    {
+        var fixture = new Fixture();
+        fixture.Seed(RefundCaseStatuses.AwaitingBankInfo);
+        fixture.ActAs(fixture.Admin);
+
+        var empty = await Assert.ThrowsAsync<ConflictException>(async () =>
+            await fixture.Service.ExportAsync(await fixture.NewExportRequestAsync()));
+        Assert.Equal(ErrorCodes.RefundExportEmpty, empty.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetMine_ReturnsOnlyOwnCasesWithActionFlags()
+    {
+        var fixture = new Fixture();
+        var rejected = fixture.Seed(RefundCaseStatuses.Rejected);
+        rejected.RejectionReason = "Chưa cung cấp STK";
+        var awaiting = fixture.Seed(RefundCaseStatuses.AwaitingBankInfo);
+        var other = fixture.Seed(RefundCaseStatuses.Requested);
+        other.CustomerUserId = Guid.NewGuid();
+        fixture.ActAs(fixture.Customer);
+
+        var page = await fixture.Service.GetMineAsync(new RefundCaseQueryRequest());
+
+        Assert.Equal(2, page.TotalItems);
+        var rejectedItem = Assert.Single(page.Items, x => x.RefundCaseId == rejected.RefundCaseId);
+        Assert.True(rejectedItem.CanResubmit);
+        Assert.Equal("Chưa cung cấp STK", rejectedItem.RejectionReason);
+        Assert.True(Assert.Single(page.Items, x => x.RefundCaseId == awaiting.RefundCaseId).CanSubmitBankInfo);
+    }
+
+    [Fact]
+    public async Task Resubmit_RejectedCase_ReturnsToRequestedWithNewBankAccount()
+    {
+        var fixture = new Fixture();
+        var refund = fixture.Seed(RefundCaseStatuses.Rejected);
+        refund.RejectionReason = "Chưa cung cấp STK";
+        refund.RefundPayment.Status = PaymentStatuses.Cancelled;
+        fixture.ActAs(fixture.Customer);
+
+        await fixture.Service.ResubmitAsync(refund.RefundCaseId, new SubmitRefundBankInfoRequest
+        {
+            BankAccount = new RefundBankAccountRequest { BankCode = "TCB", AccountNumber = "1900123456", AccountHolder = "Nguyen Van B" },
+            ConsentAccepted = true,
+            ConsentVersion = RefundBankCodes.ConsentVersion
+        });
+
+        Assert.Equal(RefundCaseStatuses.Requested, refund.Status);
+        Assert.Null(refund.RejectionReason);
+        Assert.Equal("TCB", refund.BankCode);
+        Assert.Equal("3456", refund.BankAccountLast4);
+        Assert.Equal(PaymentStatuses.PendingApproval, refund.RefundPayment.Status);
+    }
+
+    [Theory]
+    [InlineData(RefundCaseStatuses.Requested)]
+    [InlineData(RefundCaseStatuses.Completed)]
+    public async Task Resubmit_NonClosedOrCompletedCase_IsRejected(string status)
+    {
+        var fixture = new Fixture();
+        var refund = fixture.Seed(status);
+        fixture.ActAs(fixture.Customer);
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.ResubmitAsync(refund.RefundCaseId,
+            new SubmitRefundBankInfoRequest
+            {
+                BankAccount = new RefundBankAccountRequest { BankCode = "TCB", AccountNumber = "1900123456", AccountHolder = "Nguyen Van B" },
+                ConsentAccepted = true,
+                ConsentVersion = RefundBankCodes.ConsentVersion
+            }));
+        Assert.Equal(ErrorCodes.RefundCaseNotResubmittable, error.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Resubmit_OtherCustomerSeesNotFound()
+    {
+        var fixture = new Fixture();
+        var refund = fixture.Seed(RefundCaseStatuses.Rejected);
+        fixture.ActAs(Guid.NewGuid());
+
+        await Assert.ThrowsAsync<NotFoundException>(() => fixture.Service.ResubmitAsync(refund.RefundCaseId,
+            new SubmitRefundBankInfoRequest { ConsentAccepted = true, ConsentVersion = RefundBankCodes.ConsentVersion }));
     }
 
     [Fact]
@@ -230,7 +309,7 @@ public sealed class RefundCaseServiceTests
         {
             ProviderTransactionId = $"BANK-{collected}",
             ExpectedRowVersion = 1
-        });
+        }, ProofStorage.Files());
 
         Assert.Equal(RefundCaseStatuses.Completed, result.Status);
         Assert.Equal(PaymentStatuses.Succeeded, refund.RefundPayment.Status);
@@ -249,7 +328,7 @@ public sealed class RefundCaseServiceTests
 
         var error = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CompleteAsync(
             refund.RefundCaseId,
-            new CompleteRefundRequest { ProviderTransactionId = "BANK-RECON", ExpectedRowVersion = 1 }));
+            new CompleteRefundRequest { ProviderTransactionId = "BANK-RECON", ExpectedRowVersion = 1 }, ProofStorage.Files()));
 
         Assert.Equal(ErrorCodes.OrderNotReconcilable, error.ErrorCode);
         Assert.Equal(RefundCaseStatuses.Approved, refund.Status);
@@ -263,7 +342,7 @@ public sealed class RefundCaseServiceTests
         fixture.ActAs(fixture.Admin);
 
         var error = await Assert.ThrowsAsync<ConflictException>(() =>
-            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 1 }));
+            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 1 }, ProofStorage.Files()));
 
         Assert.Equal(ErrorCodes.RefundCaseNotCompletable, error.ErrorCode);
         Assert.Equal(OrderPaymentStatuses.Paid, refund.Order.PaymentStatus);
@@ -278,7 +357,7 @@ public sealed class RefundCaseServiceTests
 
         await Assert.ThrowsAsync<BadRequestException>(() => fixture.Service.CompleteAsync(
             refund.RefundCaseId,
-            new CompleteRefundRequest { ExpectedRowVersion = 1 }));
+            new CompleteRefundRequest { ExpectedRowVersion = 1 }, ProofStorage.Files()));
     }
 
     [Fact]
@@ -289,7 +368,7 @@ public sealed class RefundCaseServiceTests
         fixture.ActAs(fixture.Admin);
 
         var error = await Assert.ThrowsAsync<ConflictException>(() =>
-            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 9 }));
+            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 9 }, ProofStorage.Files()));
 
         Assert.Equal(ErrorCodes.ConcurrencyConflict, error.ErrorCode);
     }
@@ -304,7 +383,7 @@ public sealed class RefundCaseServiceTests
 
         var error = await Assert.ThrowsAsync<ConflictException>(() => fixture.Service.CompleteAsync(
             refund.RefundCaseId,
-            new CompleteRefundRequest { ProviderTransactionId = "BANK-1", ExpectedRowVersion = 1 }));
+            new CompleteRefundRequest { ProviderTransactionId = "BANK-1", ExpectedRowVersion = 1 }, ProofStorage.Files()));
 
         Assert.Equal(ErrorCodes.RefundTransactionDuplicated, error.ErrorCode);
     }
@@ -317,7 +396,7 @@ public sealed class RefundCaseServiceTests
         fixture.ActAs(fixture.Customer);
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
-            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 1 }));
+            fixture.Service.CompleteAsync(refund.RefundCaseId, new CompleteRefundRequest { ExpectedRowVersion = 1 }, ProofStorage.Files()));
     }
 
     [Fact]
@@ -483,6 +562,7 @@ public sealed class RefundCaseServiceTests
                 }
                 ))),
                 ("get_Notifications", _ => TestProxy.Create<INotificationRepository>(("AddAsync", _ => Task.CompletedTask))),
+                ("get_RefundProofs", _ => TestProxy.Create<IRefundProofRepository>(("AddRangeAsync", _ => Task.CompletedTask))),
                 ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(
                     ("AddAsync", args =>
                     {
@@ -535,7 +615,8 @@ public sealed class RefundCaseServiceTests
                 new RefundVerificationService(unitOfWork, hasher, Time),
                 email,
                 NullLogger<RefundCaseService>.Instance,
-                TestProxy.Create<INotificationService>());
+                TestProxy.Create<INotificationService>(),
+                privateStorage: ProofStorage.Create());
         }
 
         public Guid Customer { get; } = Guid.NewGuid();
@@ -677,6 +758,23 @@ public sealed class RefundCaseServiceTests
         public Task<RefundCase?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
             => Task.FromResult(Cases.LastOrDefault(x => x.OrderId == orderId));
 
+        public Task<(IReadOnlyList<RefundCase> Items, int TotalItems)> SearchByCustomerAsync(
+            Guid customerUserId,
+            IReadOnlyCollection<string> statuses,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<RefundCase> items = Cases
+                .Where(x => x.CustomerUserId == customerUserId && (statuses.Count == 0 || statuses.Contains(x.Status)))
+                .ToList();
+            return Task.FromResult((items, items.Count));
+        }
+
+        public Task<bool> HasOtherOpenCaseAsync(Guid orderId, Guid excludedRefundCaseId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Cases.Any(x => x.OrderId == orderId && x.RefundCaseId != excludedRefundCaseId
+                && x.Status is not (RefundCaseStatuses.Completed or RefundCaseStatuses.Rejected or RefundCaseStatuses.Failed or RefundCaseStatuses.Cancelled)));
+
         public Task<(IReadOnlyList<RefundCase> Items, int TotalItems)> SearchAsync(
             IReadOnlyCollection<string> statuses,
             DateTimeOffset? fromDate,
@@ -690,13 +788,16 @@ public sealed class RefundCaseServiceTests
         }
 
         public Task<IReadOnlyList<RefundCase>> GetForExportAsync(
-            string status,
+            IReadOnlyCollection<string> statuses,
             Guid excludedCustomerUserId,
             DateTimeOffset? fromDate,
             DateTimeOffset? toDate,
             CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<RefundCase>>(
-                Cases.Where(x => x.Status == status && x.CustomerUserId != excludedCustomerUserId).ToList());
+                Cases.Where(x => statuses.Contains(x.Status) && x.CustomerUserId != excludedCustomerUserId).ToList());
+
+        public Task<IReadOnlyList<Guid>> FindApprovedIdsByCodeAsync(string code, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Guid>>([]);
 
         public Task<bool> ProviderTransactionUsedAsync(string providerTransactionId, CancellationToken cancellationToken = default)
             => Task.FromResult(Cases.Any(x => x.ProviderTransactionId == providerTransactionId));
@@ -767,5 +868,19 @@ public class TestProxy : DispatchProxy
         if (targetMethod.ReturnType == typeof(Task))
             return Task.CompletedTask;
         throw new NotSupportedException(targetMethod.Name);
+    }
+}
+
+/// <summary>Storage chứng từ giả và file PNG hợp lệ cho các test hoàn tất hồ sơ.</summary>
+internal static class ProofStorage
+{
+    public static IPrivateFileStorage Create() => TestProxy.Create<IPrivateFileStorage>(
+        ("SaveAsync", _ => Task.FromResult($"test/{Guid.NewGuid():N}.png")),
+        ("DeleteAsync", _ => Task.CompletedTask));
+
+    public static IReadOnlyList<ProofFileInput> Files()
+    {
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+        return [new ProofFileInput(new MemoryStream(png), "proof.png", "image/png", png.Length)];
     }
 }

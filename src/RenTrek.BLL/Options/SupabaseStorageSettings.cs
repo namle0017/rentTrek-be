@@ -16,5 +16,8 @@ public class SupabaseStorageSettings
 
     public string Bucket { get; set; } = "uploads";
 
+    /// <summary>Bucket PRIVATE chứa chứng từ hoàn tiền; BE tải về bằng service key rồi stream cho người có quyền.</summary>
+    public string PrivateBucket { get; set; } = "refund-proofs";
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Url) && !string.IsNullOrWhiteSpace(ServiceKey);
 }

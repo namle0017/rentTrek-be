@@ -56,8 +56,35 @@ public sealed class RentalPolicyService(IUnitOfWork unitOfWork, TimeProvider tim
         return policy is null ? ToResponse(Default) : Map(policy);
     }
 
-    public async Task<IReadOnlyList<RentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default)
-        => (await unitOfWork.RentalPolicies.GetAllWithTiersAsync(cancellationToken)).Select(Map).ToList();
+    public async Task<IReadOnlyList<AdminRentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await ToAdminResponsesAsync(await unitOfWork.RentalPolicies.GetAllWithTiersAsync(cancellationToken), cancellationToken);
+
+    public async Task<AdminRentalPolicyResponse> GetByIdAsync(Guid rentalPolicyId, CancellationToken cancellationToken = default)
+    {
+        var policy = await unitOfWork.RentalPolicies.GetWithTiersAsync(rentalPolicyId, cancellationToken);
+        if (policy is null || policy.IsDeleted)
+            throw new NotFoundException("Không tìm thấy chính sách thuê đồ", ErrorCodes.NotFound);
+        return (await ToAdminResponsesAsync([policy], cancellationToken)).Single();
+    }
+
+    private async Task<IReadOnlyList<AdminRentalPolicyResponse>> ToAdminResponsesAsync(
+        IReadOnlyCollection<RentalPolicy> policies, CancellationToken cancellationToken)
+    {
+        if (policies.Count == 0) return [];
+        var counts = await unitOfWork.RentalPolicies.GetOrderCountsAsync(
+            policies.Select(p => p.RentalPolicyId).ToArray(), cancellationToken);
+        var names = await unitOfWork.RentalPolicies.GetCreatorNamesAsync(
+            policies.Where(p => p.CreatedByUserId.HasValue).Select(p => p.CreatedByUserId!.Value).Distinct().ToArray(),
+            cancellationToken);
+        return policies.Select(p =>
+        {
+            var response = Fill(new AdminRentalPolicyResponse(), p);
+            response.OrdersCount = counts.GetValueOrDefault(p.RentalPolicyId);
+            response.CreatedByName = p.CreatedByUserId is { } id ? names.GetValueOrDefault(id) : null;
+            response.CreatedAt = RentalPeriodCalculator.ToUtc(p.CreatedAt);
+            return response;
+        }).ToList();
+    }
 
     public async Task<RentalPolicyResponse> CreateVersionAsync(
         Guid adminUserId,
@@ -141,25 +168,28 @@ public sealed class RentalPolicyService(IUnitOfWork unitOfWork, TimeProvider tim
     public RentalPolicyResponse ToResponse(RentalPolicySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new RentalPolicyResponse
-        {
-            RentalPolicyId = snapshot.RentalPolicyId == Guid.Empty ? null : snapshot.RentalPolicyId,
-            Version = snapshot.Version,
-            Name = snapshot.Name,
-            Status = RentalPolicyStatuses.Active,
-            DepositPercent = snapshot.DepositPercent,
-            FreeCancelLimit = snapshot.FreeCancelLimit,
-            FreeCancelWindowDays = snapshot.FreeCancelWindowDays,
-            OverLimitCancelFeePercent = snapshot.OverLimitCancelFeePercent,
-            ReturnGraceHours = snapshot.ReturnGraceHours,
-            ExtensionMaxDaysLate = snapshot.ExtensionMaxDaysLate,
-            SuspectedLossAfterDays = snapshot.SuspectedLossAfterDays,
-            ReceiptAutoConfirmHours = snapshot.ReceiptAutoConfirmHours,
-            MinPhotosPerAsset = snapshot.MinPhotosPerAsset,
-            Tiers = snapshot.PickupTiers.Select(t => MapTier(RentalPolicyTierScopes.PickupLate, t))
-                .Concat(snapshot.ReturnTiers.Select(t => MapTier(RentalPolicyTierScopes.ReturnLate, t)))
-                .ToList()
-        };
+        return FillFromSnapshot(new RentalPolicyResponse(), snapshot);
+    }
+
+    private static T FillFromSnapshot<T>(T response, RentalPolicySnapshot snapshot) where T : RentalPolicyResponse
+    {
+        response.RentalPolicyId = snapshot.RentalPolicyId == Guid.Empty ? null : snapshot.RentalPolicyId;
+        response.Version = snapshot.Version;
+        response.Name = snapshot.Name;
+        response.Status = RentalPolicyStatuses.Active;
+        response.DepositPercent = snapshot.DepositPercent;
+        response.FreeCancelLimit = snapshot.FreeCancelLimit;
+        response.FreeCancelWindowDays = snapshot.FreeCancelWindowDays;
+        response.OverLimitCancelFeePercent = snapshot.OverLimitCancelFeePercent;
+        response.ReturnGraceHours = snapshot.ReturnGraceHours;
+        response.ExtensionMaxDaysLate = snapshot.ExtensionMaxDaysLate;
+        response.SuspectedLossAfterDays = snapshot.SuspectedLossAfterDays;
+        response.ReceiptAutoConfirmHours = snapshot.ReceiptAutoConfirmHours;
+        response.MinPhotosPerAsset = snapshot.MinPhotosPerAsset;
+        response.Tiers = snapshot.PickupTiers.Select(t => MapTier(RentalPolicyTierScopes.PickupLate, t))
+            .Concat(snapshot.ReturnTiers.Select(t => MapTier(RentalPolicyTierScopes.ReturnLate, t)))
+            .ToList();
+        return response;
     }
 
     private static RentalPolicyTierResponse MapTier(string scope, RentalPenaltyTier tier) => new()
@@ -170,9 +200,11 @@ public sealed class RentalPolicyService(IUnitOfWork unitOfWork, TimeProvider tim
         IsTerminal = tier.IsTerminal
     };
 
-    private RentalPolicyResponse Map(RentalPolicy policy)
+    private RentalPolicyResponse Map(RentalPolicy policy) => Fill(new RentalPolicyResponse(), policy);
+
+    private static T Fill<T>(T response, RentalPolicy policy) where T : RentalPolicyResponse
     {
-        var response = ToResponse(RentalPolicySnapshot.From(policy));
+        FillFromSnapshot(response, RentalPolicySnapshot.From(policy));
         response.PolicyFamilyId = policy.PolicyFamilyId;
         response.Status = policy.Status;
         response.EffectiveFrom = RentalPeriodCalculator.ToUtc(policy.EffectiveFrom);

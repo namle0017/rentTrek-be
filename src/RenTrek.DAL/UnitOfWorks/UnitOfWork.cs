@@ -46,6 +46,7 @@ public class UnitOfWork : IUnitOfWork
     private IRefreshTokenRepository? _refreshTokens;
     private IRefundCaseRepository? _refundCases;
     private IRefundPolicyRepository? _refundPolicies;
+    private IRefundProofRepository? _refundProofs;
     private IRefundPolicyRuleRepository? _refundPolicyRules;
     private IRentalBundleItemSnapshotRepository? _rentalBundleItemSnapshots;
     private IRentalChargeRepository? _rentalCharges;
@@ -109,6 +110,7 @@ public class UnitOfWork : IUnitOfWork
     public IPromotionTierRepository PromotionTiers => _promotionTiers ??= new PromotionTierRepository(_context);
     public IRefreshTokenRepository RefreshTokens => _refreshTokens ??= new RefreshTokenRepository(_context);
     public IRefundCaseRepository RefundCases => _refundCases ??= new RefundCaseRepository(_context);
+    public IRefundProofRepository RefundProofs => _refundProofs ??= new RefundProofRepository(_context);
     public IRefundPolicyRepository RefundPolicies => _refundPolicies ??= new RefundPolicyRepository(_context);
     public IRefundPolicyRuleRepository RefundPolicyRules => _refundPolicyRules ??= new RefundPolicyRuleRepository(_context);
     public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => _rentalBundleItemSnapshots ??= new RentalBundleItemSnapshotRepository(_context);
@@ -204,6 +206,8 @@ public class UnitOfWork : IUnitOfWork
         await _transaction.RollbackAsync(cancellationToken);
         await DisposeTransactionAsync();
     }
+
+    public void ClearChangeTracker() => _context.ChangeTracker.Clear();
 
     // AppDbContext do DI container quản lý vòng đời, UnitOfWork chỉ dọn transaction của mình
     public void Dispose()
