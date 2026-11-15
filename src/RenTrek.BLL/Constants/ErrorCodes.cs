@@ -63,6 +63,7 @@ public static class ErrorCodes
     public const string RefundVerificationInvalid = "REFUND_VERIFICATION_INVALID";
     public const string RefundVerificationExpired = "REFUND_VERIFICATION_EXPIRED";
     public const string RefundSensitiveDataPurged = "REFUND_SENSITIVE_DATA_PURGED";
+    public const string RefundPayoutDecryptFailed = "REFUND_PAYOUT_DECRYPT_FAILED";
     public const string TooManyRequests = "TOO_MANY_REQUESTS";
 
     // Danh mục admin: tour, sản phẩm, chính sách hoàn tiền (03-API-CONTRACT.md §6, §13, §20)

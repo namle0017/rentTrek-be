@@ -72,7 +72,8 @@ public static class DependencyInjection
         services.AddScoped<IAdminTourService, AdminTourService>();
         services.AddScoped<IAdminGovernanceService, AdminGovernanceService>();
         services.AddScoped<IAdminReportService, AdminReportService>();
-        services.AddScoped<IAdminSessionService, AdminSessionService>();
+        // Kiểm tra phiên cũng theo giờ thật, cùng đồng hồ với AuthService lúc cấp token
+        services.AddScoped<IAdminSessionService>(sp => ActivatorUtilities.CreateInstance<AdminSessionService>(sp, TimeProvider.System));
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();

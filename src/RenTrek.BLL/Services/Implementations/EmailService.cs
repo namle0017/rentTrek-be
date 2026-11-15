@@ -163,7 +163,7 @@ public class EmailService : IEmailService
                 ("Số người tham gia", $"{participantCount} người"),
                 ("Tổng tiền vé tour", $"<strong style=\"color: #1B4332; font-size: 16px;\">{totalAmount:N0} đ</strong>")
             },
-            instruction: "Hướng dẫn viên (Tour Guide) sẽ liên hệ trước ngày khởi hành để cung cấp chi tiết lịch trình và hướng dẫn chuẩn bị thể lực, tư trang.",
+            instruction: null,
             accentColor: "#264653");
 
         await SendEmailOrDevFallbackAsync(toEmail, recipientName, subject, htmlBody, null, "TOUR BOOKING CONFIRMATION", cancellationToken);
@@ -247,7 +247,7 @@ public class EmailService : IEmailService
         string orderCode,
         string orderTypeLabel,
         (string Label, string Value)[] detailRows,
-        string instruction,
+        string? instruction,
         string accentColor)
     {
         var rowsHtml = string.Join("\n", detailRows.Select(row => $"""
@@ -256,6 +256,14 @@ public class EmailService : IEmailService
               <td style="padding: 10px 14px; border-bottom: 1px solid #edf2f7; color: #1a202c; font-size: 14px; text-align: right;">{row.Value}</td>
             </tr>
             """));
+
+        var instructionHtml = string.IsNullOrWhiteSpace(instruction)
+            ? string.Empty
+            : $"""
+                          <div style="background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 14px 16px; border-radius: 4px; font-size: 13px; color: #2b6cb0; line-height: 1.5; margin-bottom: 24px;">
+                            <strong>Hướng dẫn tiếp theo:</strong> {instruction}
+                          </div>
+              """;
 
         return $"""
             <!DOCTYPE html>
@@ -299,9 +307,7 @@ public class EmailService : IEmailService
                             </table>
                           </div>
 
-                          <div style="background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 14px 16px; border-radius: 4px; font-size: 13px; color: #2b6cb0; line-height: 1.5; margin-bottom: 24px;">
-                            <strong>Hướng dẫn tiếp theo:</strong> {instruction}
-                          </div>
+                          {instructionHtml}
 
                           <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #718096;">
                             Nếu cần hỗ trợ thêm thông tin, bạn có thể xem lại tại mục <strong>Đơn của tôi</strong> trên website renTrek hoặc liên hệ hotline chăm sóc khách hàng của chúng tôi.

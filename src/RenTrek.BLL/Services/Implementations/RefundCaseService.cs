@@ -418,6 +418,14 @@ public sealed class RefundCaseService(
                     "Chưa có hồ sơ đã duyệt để xuất cho kế toán. Hãy duyệt hồ sơ đang chờ trước khi xuất.",
                     ErrorCodes.RefundExportEmpty);
 
+            // Gom mọi hồ sơ giải mã lỗi để báo một lần, không trả lỗi crypto thô ra UI
+            var undecryptable = refunds.Where(x => !TryReadPayoutDetails(x, out _)).ToList();
+            if (undecryptable.Count > 0)
+                throw new ConflictException(
+                    $"Không giải mã được số tài khoản của {undecryptable.Count} hồ sơ ({string.Join(", ", undecryptable.Select(x => x.Order?.OrderCode ?? x.RefundCaseId.ToString()))}). " +
+                    "Khóa RefundDataEncryptionKey của server hiện tại khác khóa lúc khách nhập; mọi server dùng chung DB phải cùng một khóa.",
+                    ErrorCodes.RefundPayoutDecryptFailed);
+
             var rows = refunds.Select(x => (x, ReadPayoutDetails(x))).ToList();
             foreach (var refund in refunds)
             {
@@ -1022,10 +1030,38 @@ public sealed class RefundCaseService(
         if (refund.PayoutDetailsCiphertext is null || refund.PayoutDetailsNonce is null || refund.PayoutDetailsTag is null)
             throw new ConflictException("Thông tin tài khoản đã được xóa theo thời hạn lưu trữ", ErrorCodes.RefundSensitiveDataPurged);
 
-        return dataProtector.Unprotect(
-            new ProtectedRefundPayload(refund.PayoutDetailsCiphertext, refund.PayoutDetailsNonce, refund.PayoutDetailsTag),
-            refund.RefundCaseId,
-            refund.OrderId);
+        try
+        {
+            return dataProtector.Unprotect(
+                new ProtectedRefundPayload(refund.PayoutDetailsCiphertext, refund.PayoutDetailsNonce, refund.PayoutDetailsTag),
+                refund.RefundCaseId,
+                refund.OrderId);
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            throw new ConflictException(
+                "Không giải mã được số tài khoản: khóa RefundDataEncryptionKey của server khác khóa lúc khách nhập.",
+                ErrorCodes.RefundPayoutDecryptFailed);
+        }
+    }
+
+    private bool TryReadPayoutDetails(RefundCase refund, out RefundPayoutDetails? details)
+    {
+        details = null;
+        if (refund.PayoutDetailsCiphertext is null || refund.PayoutDetailsNonce is null || refund.PayoutDetailsTag is null)
+            return true; // Đã xóa theo thời hạn: để ReadPayoutDetails báo lỗi riêng
+        try
+        {
+            details = dataProtector.Unprotect(
+                new ProtectedRefundPayload(refund.PayoutDetailsCiphertext, refund.PayoutDetailsNonce, refund.PayoutDetailsTag),
+                refund.RefundCaseId,
+                refund.OrderId);
+            return true;
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            return false;
+        }
     }
 
     private static void Transition(RefundCase refund, string status, DateTimeOffset utcNow)

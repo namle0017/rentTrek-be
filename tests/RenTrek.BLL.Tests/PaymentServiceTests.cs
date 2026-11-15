@@ -137,7 +137,9 @@ public sealed class PaymentServiceTests
         Assert.Equal(confirmedUser.UserId, verifiedSeat.LinkedUserId);
         Assert.Null(unverifiedSeat.LinkedUserId);
         Assert.Null(childSeat.LinkedUserId);
-        Assert.Equal(2, fixture.EmailSender.Sent.Count);
+        // Người đặt cũng nhận mail đặt thành công kèm bill
+        Assert.Equal(3, fixture.EmailSender.Sent.Count);
+        Assert.Contains(fixture.EmailSender.Sent, m => m.To == "buyer@example.com");
         Assert.Contains(fixture.EmailSender.Sent, m => m.To == "verified@example.com");
         Assert.Contains(fixture.EmailSender.Sent, m => m.To == "unverified@example.com");
     }

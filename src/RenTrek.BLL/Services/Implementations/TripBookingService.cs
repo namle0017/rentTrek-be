@@ -328,6 +328,8 @@ public sealed class TripBookingService(
                     DateOfBirth = draft.DateOfBirth,
                     EmergencyContactName = draft.EmergencyContactName,
                     EmergencyContactPhone = draft.EmergencyContactPhone,
+                    // Người đặt tự đi thì gắn luôn tài khoản của họ, không chờ xác thực email
+                    LinkedUserId = request.BuyerParticipates && idx == 0 ? account.UserId : null,
                     Status = BookingParticipantStatuses.Pending,
                     TripId = trip.TripId,
                     CreatedAt = utcNow.AddTicks(idx),
