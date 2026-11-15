@@ -8,6 +8,9 @@ public class ProductFilter
     /// <summary>Tìm trong tên hoặc mô tả (chứa, phân biệt hoa thường như DB).</summary>
     public string? Search { get; set; }
     public Guid? CategoryId { get; set; }
+    public string? OfferingType { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
 
     /// <summary>"name", "priceperday" (giá ngày thấp nhất, null cuối) hoặc mặc định CreatedAt.</summary>
     public string? SortBy { get; set; }

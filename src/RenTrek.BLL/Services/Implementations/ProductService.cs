@@ -69,6 +69,9 @@ public class ProductService : IProductService
         {
             Search = request.Search,
             CategoryId = request.CategoryId,
+            OfferingType = request.OfferingType,
+            MinPrice = request.MinPrice,
+            MaxPrice = request.MaxPrice,
             SortBy = request.SortBy,
             IsDescending = request.IsDescending,
             PageNumber = request.PageNumber,
