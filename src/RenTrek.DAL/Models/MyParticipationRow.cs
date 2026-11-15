@@ -17,4 +17,9 @@ public class MyParticipationRow
     public string OrderPaymentStatus { get; set; } = string.Empty;
     public int UnreadPostCount { get; set; }
     public bool HasReview { get; set; }
+    /// <summary>Mã đơn đặt tour chứa lượt tham gia, dùng để liên kết sang trang booking.</summary>
+    public Guid OrderId { get; set; }
+    public Guid? ReviewId { get; set; }
+    public int? ReviewRating { get; set; }
+    public string? ReviewComment { get; set; }
 }

@@ -91,6 +91,7 @@ public sealed class TripBookingService(
                         .ToList()
                 },
             AppliedCase = quote.AppliedCase,
+            IsPaid = IsPaid(order),
             PaidAmount = quote.PaidAmount,
             EstimatedRefundAmount = quote.RefundAmount,
             ConsentVersion = RefundBankCodes.ConsentVersion

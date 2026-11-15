@@ -41,7 +41,7 @@ public class AssetsController : ControllerBase
     /// 14.2. Thêm hàng loạt thiết bị vật lý vào kho theo tiền tố mã tự sinh (Màn O20).
     /// </summary>
     [HttpPost("bulk-create")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AssetResponse>>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

@@ -92,6 +92,10 @@ public sealed class ParticipationService(
             TripStatus = row.TripStatus,
             UnreadPostCount = row.UnreadPostCount,
             HasReview = row.HasReview,
+            OrderId = row.OrderId,
+            ReviewId = row.ReviewId,
+            ReviewRating = row.ReviewRating,
+            ReviewComment = row.ReviewComment,
             CanReview = IsReviewEligible(row)
         };
 

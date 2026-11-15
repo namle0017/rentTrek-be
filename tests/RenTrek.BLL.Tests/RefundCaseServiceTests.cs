@@ -504,6 +504,33 @@ public sealed class RefundCaseServiceTests
     }
 
     [Fact]
+    public async Task Cancel_UnpaidBooking_OpensNoRefundAndNeedsNoBankInfo()
+    {
+        var fixture = new BookingFixture(refundAmount: 0m);
+        fixture.Order.Status = OrderStatuses.PendingPayment;
+        fixture.Order.PaymentStatus = OrderPaymentStatuses.Unpaid;
+
+        // Không gửi STK / consent: đơn chưa thanh toán thì không cần
+        var result = await fixture.Service.CancelAsync(fixture.Order.OrderId, new CancelTripBookingRequest { Reason = "Đổi kế hoạch" });
+
+        Assert.Equal(OrderStatuses.Cancelled, result.Status);
+        Assert.False(fixture.CaseOpened);
+        Assert.Null(result.RefundCase);
+    }
+
+    [Fact]
+    public async Task Preview_ReportsWhetherOrderIsPaid()
+    {
+        var paid = new BookingFixture(refundAmount: 1_600_000m);
+        Assert.True((await paid.Service.GetCancellationPreviewAsync(paid.Order.OrderId)).IsPaid);
+
+        var unpaid = new BookingFixture(refundAmount: 0m);
+        unpaid.Order.Status = OrderStatuses.PendingPayment;
+        unpaid.Order.PaymentStatus = OrderPaymentStatuses.Unpaid;
+        Assert.False((await unpaid.Service.GetCancellationPreviewAsync(unpaid.Order.OrderId)).IsPaid);
+    }
+
+    [Fact]
     public async Task Cancel_UnsupportedPaidStateIsRejected()
     {
         var fixture = new BookingFixture(refundAmount: 1_600_000m);

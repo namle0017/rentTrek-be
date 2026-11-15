@@ -1090,6 +1090,7 @@ public sealed class RefundCaseService(
             MaskedAccount = Mask(refund),
             Timeline = BuildTimeline(refund),
             CompletedAt = refund.CompletedAt,
+            ProviderTransactionId = refund.Status == RefundCaseStatuses.Completed ? refund.ProviderTransactionId : null,
             // Khách chỉ thấy chứng từ khi hồ sơ đã hoàn tất
             Proofs = refund.Status == RefundCaseStatuses.Completed ? MapProofs(refund) : [],
             FailureReason = FailureReasonOf(refund),

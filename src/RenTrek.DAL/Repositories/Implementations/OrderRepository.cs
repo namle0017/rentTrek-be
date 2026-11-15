@@ -159,21 +159,27 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             .ToPageAsync(filter.PageNumber, filter.PageSize, ToAdminRow, cancellationToken);
     }
 
+    // Trang admin dùng mã đơn; link từ thông báo / cảnh báo chỉ có OrderId (GUID) nên nhận cả hai
     public Task<AdminOrderRow?> GetAdminRowAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default)
-        => Scoped(_dbSet.AsNoTracking(), scopeUserId).Where(x => x.OrderCode == orderCode)
+        => ByCodeOrId(Scoped(_dbSet.AsNoTracking(), scopeUserId), orderCode)
             .Select(ToAdminRow).SingleOrDefaultAsync(cancellationToken);
+
+    private static IQueryable<Order> ByCodeOrId(IQueryable<Order> query, string orderCodeOrId)
+        => Guid.TryParse(orderCodeOrId, out var orderId)
+            ? query.Where(x => x.OrderId == orderId)
+            : query.Where(x => x.OrderCode == orderCodeOrId);
 
     public Task<string?> GetOrderCodeAsync(Guid orderId, Guid? scopeUserId, CancellationToken cancellationToken = default)
         => Scoped(_dbSet.AsNoTracking(), scopeUserId).Where(x => x.OrderId == orderId)
             .Select(x => x.OrderCode).SingleOrDefaultAsync(cancellationToken);
 
     public Task<Order?> GetAdminForUpdateAsync(string orderCode, Guid? scopeUserId, CancellationToken cancellationToken = default)
-        => Scoped(_dbSet, scopeUserId)
+        => ByCodeOrId(Scoped(_dbSet, scopeUserId), orderCode)
             .Include(x => x.Payments)
             .Include(x => x.TripBookingOrder)
                 .ThenInclude(t => t.Trip)
                 .ThenInclude(t => t.Tour)
-            .SingleOrDefaultAsync(x => x.OrderCode == orderCode, cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
 
     public Task<List<BookingParticipant>> GetParticipantsAsync(Guid orderId, CancellationToken cancellationToken = default)
         => _context.Set<BookingParticipant>().Where(x => !x.IsDeleted && x.BookingOrderId == orderId).ToListAsync(cancellationToken);

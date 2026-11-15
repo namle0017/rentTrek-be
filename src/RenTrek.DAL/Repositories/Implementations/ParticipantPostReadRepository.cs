@@ -51,7 +51,17 @@ public class ParticipantPostReadRepository : GenericRepository<ParticipantPostRe
                     && !_context.ParticipantPostReads.Any(r =>
                         r.ParticipantId == bp.ParticipantId && r.PostId == tp.PostId)),
                 HasReview = _context.Reviews.Any(r =>
-                    r.ParticipantId == bp.ParticipantId && !r.IsDeleted)
+                    r.ParticipantId == bp.ParticipantId && !r.IsDeleted),
+                OrderId = bp.BookingOrder.Order.OrderId,
+                ReviewId = _context.Reviews
+                    .Where(r => r.ParticipantId == bp.ParticipantId && !r.IsDeleted)
+                    .Select(r => (Guid?)r.ReviewId).FirstOrDefault(),
+                ReviewRating = _context.Reviews
+                    .Where(r => r.ParticipantId == bp.ParticipantId && !r.IsDeleted)
+                    .Select(r => (int?)r.Rating).FirstOrDefault(),
+                ReviewComment = _context.Reviews
+                    .Where(r => r.ParticipantId == bp.ParticipantId && !r.IsDeleted)
+                    .Select(r => r.Comment).FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
