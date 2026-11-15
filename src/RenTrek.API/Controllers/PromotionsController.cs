@@ -7,10 +7,10 @@ using RenTrek.BLL.Services.Interfaces;
 namespace RenTrek.API.Controllers;
 
 /// <summary>
-/// Mã khuyến mãi công khai cho khách chọn ở giỏ hàng / báo giá thuê.
+/// Mã khuyến mãi cho khách đã đăng nhập chọn ở giỏ hàng / báo giá thuê.
 /// </summary>
 [ApiController]
-[AllowAnonymous]
+[Authorize]
 [Route("api/v1/promotions")]
 [Produces("application/json")]
 public sealed class PromotionsController(IPromotionService promotionService, TimeProvider timeProvider) : ControllerBase
