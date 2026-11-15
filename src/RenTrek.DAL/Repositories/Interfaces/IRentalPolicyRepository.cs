@@ -16,7 +16,16 @@ public interface IRentalPolicyRepository : IGenericRepository<RentalPolicy>
     /// <summary>Policy đang Active có tracking (để archive khi kích hoạt bản mới).</summary>
     Task<RentalPolicy?> GetActiveForUpdateAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Mọi policy chưa xoá kèm bậc phạt (chỉ đọc), version giảm dần rồi mới tạo trước.</summary>
     Task<IReadOnlyList<RentalPolicy>> GetAllWithTiersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Số đơn thuê snapshot từng policy (chỉ có khoá khi số đơn &gt; 0).</summary>
+    Task<IReadOnlyDictionary<Guid, int>> GetOrderCountsAsync(
+        IReadOnlyCollection<Guid> rentalPolicyIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Họ tên người tạo theo user id (kể cả tài khoản đã xoá).</summary>
+    Task<IReadOnlyDictionary<Guid, string>> GetCreatorNamesAsync(
+        IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default);
 
     Task<int> GetMaxVersionAsync(Guid policyFamilyId, CancellationToken cancellationToken = default);
 }

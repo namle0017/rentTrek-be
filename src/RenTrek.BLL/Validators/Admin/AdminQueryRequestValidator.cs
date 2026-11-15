@@ -14,7 +14,7 @@ public sealed class AdminQueryRequestValidator : AbstractValidator<AdminQueryReq
         RuleFor(x => x.Rating).InclusiveBetween(1, 5).When(x => x.Rating.HasValue);
         RuleFor(x => x.PaymentType!).OneOf("Loại giao dịch", "Collection", "Refund").When(x => x.PaymentType != null);
         RuleFor(x => x.Purpose!).OneOf("Mục đích", "TourFee", "RentalFee", "AdditionalCharge").When(x => x.Purpose != null);
-        RuleFor(x => x.GroupBy).Must(x => x is "month" or "week");
+        RuleFor(x => x.GroupBy).Must(x => x is "month" or "week" or "day" || (x != null && x.ToLowerInvariant() is "month" or "week" or "day"));
         RuleFor(x => x.To).GreaterThanOrEqualTo(x => x.From).When(x => x.From.HasValue && x.To.HasValue);
         RuleFor(x => x.ToDate).GreaterThanOrEqualTo(x => x.FromDate).When(x => x.FromDate.HasValue && x.ToDate.HasValue);
     }

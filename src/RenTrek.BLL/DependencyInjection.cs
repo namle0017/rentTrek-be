@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService>(sp => ActivatorUtilities.CreateInstance<AuthService>(sp, TimeProvider.System));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, FileStorageService>();
+        services.AddSingleton<IPrivateFileStorage, PrivateFileStorage>();
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IAdminMasterDataService, AdminMasterDataService>();
         services.AddScoped<IAdminOrderService, AdminOrderService>();

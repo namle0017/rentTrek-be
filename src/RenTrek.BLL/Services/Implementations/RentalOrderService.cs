@@ -234,7 +234,16 @@ public class RentalOrderService : IRentalOrderService, IRentalExtensionApplier
                 BankAccountLast4 = refundCase.BankAccountLast4,
                 CreatedAt = refundCase.CreatedAt.UtcDateTime,
                 CompletedAt = refundCase.CompletedAt?.UtcDateTime,
-                RejectionReason = refundCase.RejectionReason
+                RejectionReason = refundCase.RejectionReason,
+                Proofs = refundCase.Status == RefundCaseStatuses.Completed
+                    ? refundCase.Proofs.Where(x => !x.IsDeleted).OrderBy(x => x.CreatedAt).Select(x => new RenTrek.BLL.DTOs.Refund.Responses.RefundProofResponse
+                    {
+                        ProofId = x.RefundProofId,
+                        FileName = x.FileName,
+                        ContentType = x.ContentType,
+                        CreatedAt = DateTime.SpecifyKind(x.CreatedAt, DateTimeKind.Utc)
+                    }).ToList()
+                    : []
             };
         }
 

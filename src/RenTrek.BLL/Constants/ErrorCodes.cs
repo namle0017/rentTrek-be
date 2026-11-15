@@ -65,6 +65,9 @@ public static class ErrorCodes
     public const string NotFound = "NOT_FOUND";
     public const string ItineraryLocked = "ITINERARY_LOCKED";
     public const string PolicyAlreadyInUse = "POLICY_ALREADY_IN_USE";
+    public const string RefundPolicyLastActive = "REFUND_POLICY_LAST_ACTIVE";
+    public const string PolicyNotLatestVersion = "POLICY_NOT_LATEST_VERSION";
+    public const string InvalidPolicyState = "INVALID_POLICY_STATE";
     public const string SkuAlreadyExists = "SKU_ALREADY_EXISTS";
 
     // Đánh giá sau chuyến đi (T2)
@@ -85,5 +88,6 @@ public static class ErrorCodes
     public const string RentalReportNotFound = "RENTAL_REPORT_NOT_FOUND";
     public const string RentalReportNotReviewable = "RENTAL_REPORT_NOT_REVIEWABLE";
     public const string RefundBankInfoNotRequired = "REFUND_BANK_INFO_NOT_REQUIRED";
+    public const string RefundCaseNotResubmittable = "REFUND_CASE_NOT_RESUBMITTABLE";
     public const string RentalExtensionPending = "RENTAL_EXTENSION_PENDING";
 }

@@ -66,7 +66,8 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
         public Task<RentalPolicySnapshot> GetActiveSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(Snapshot);
         public Task<RentalPolicySnapshot> GetSnapshotAsync(Guid? rentalPolicyId, CancellationToken cancellationToken = default) => Task.FromResult(Snapshot);
         public Task<RentalPolicyResponse> GetActiveAsync(CancellationToken cancellationToken = default) => Task.FromResult(ToResponse(Snapshot));
-        public Task<IReadOnlyList<RentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default) => _inner.GetAllAsync(cancellationToken);
+        public Task<IReadOnlyList<AdminRentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default) => _inner.GetAllAsync(cancellationToken);
+        public Task<AdminRentalPolicyResponse> GetByIdAsync(Guid rentalPolicyId, CancellationToken cancellationToken = default) => _inner.GetByIdAsync(rentalPolicyId, cancellationToken);
         public Task<RentalPolicyResponse> CreateVersionAsync(Guid adminUserId, CreateRentalPolicyVersionRequest request, CancellationToken cancellationToken = default)
             => _inner.CreateVersionAsync(adminUserId, request, cancellationToken);
         public RentalPolicyResponse ToResponse(RentalPolicySnapshot snapshot) => _inner.ToResponse(snapshot);

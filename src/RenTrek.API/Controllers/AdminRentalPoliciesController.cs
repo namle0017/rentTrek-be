@@ -20,10 +20,17 @@ public sealed class AdminRentalPoliciesController(
     ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<RentalPolicyResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminRentalPolicyResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
-        => Ok(ApiResponse<IReadOnlyList<RentalPolicyResponse>>.Ok(
+        => Ok(ApiResponse<IReadOnlyList<AdminRentalPolicyResponse>>.Ok(
             await rentalPolicyService.GetAllAsync(cancellationToken), "Lấy danh sách chính sách thuê đồ thành công"));
+
+    /// <summary>Chi tiết một version (kể cả bản đã thay thế) cho màn quản trị.</summary>
+    [HttpGet("{rentalPolicyId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminRentalPolicyResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByIdAsync(Guid rentalPolicyId, CancellationToken cancellationToken)
+        => Ok(ApiResponse<AdminRentalPolicyResponse>.Ok(
+            await rentalPolicyService.GetByIdAsync(rentalPolicyId, cancellationToken), "Lấy chi tiết chính sách thuê đồ thành công"));
 
     /// <summary>Chính sách đang áp dụng; ai cũng xem được để hiển thị ở trang thuê / checkout.</summary>
     [HttpGet("/api/v1/rental-policies/active")]

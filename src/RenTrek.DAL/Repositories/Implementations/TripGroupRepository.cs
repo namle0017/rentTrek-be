@@ -57,15 +57,17 @@ public class TripGroupRepository : GenericRepository<TripGroup>, ITripGroupRepos
     }
 
     public Task<Guid?> GetActiveTourRefundPolicyIdAsync(CancellationToken cancellationToken = default)
-        => _context.RefundPolicies
+    {
+        var now = DateTime.UtcNow;
+        return _context.RefundPolicies
             .AsNoTracking()
-            .Where(p => !p.IsDeleted &&
-                        p.Status.ToLower() == "active" &&
-                        p.PolicyType.ToUpper() == "TOUR")
-            .OrderByDescending(p => p.Version)
-            .ThenByDescending(p => p.EffectiveFrom)
+            .Where(p => !p.IsDeleted && p.Status == "Active" && p.PolicyType == "Tour"
+                        && p.EffectiveFrom <= now && (p.EffectiveUntil == null || p.EffectiveUntil > now))
+            .OrderByDescending(p => p.EffectiveFrom)
+            .ThenByDescending(p => p.Version)
             .Select(p => (Guid?)p.RefundPolicyId)
             .FirstOrDefaultAsync(cancellationToken);
+    }
 
     public Task<Guid?> GetDefaultManagerUserIdAsync(CancellationToken cancellationToken = default)
         => _context.Accounts

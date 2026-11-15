@@ -3439,22 +3439,23 @@ HTTP 409 Conflict
 
 - **Mục đích:** Dành cho các khoản hoàn bị lỗi không thể hoàn qua SePay tự động, kế toán chuyển khoản trực tiếp qua Internet Banking doanh nghiệp. Bắt buộc nhập mã tham chiếu giao dịch ngân hàng (`manualReference`) và lưu audit log.
 
-**Request body**
+**Request:** `multipart/form-data`
 
-```json
-{
-  "manualReference": "VCB-REFUND-20261101-778899",
-  "note": "Đã chuyển khoản trực tiếp từ tài khoản VCB công ty tới STK của khách hàng"
-}
-```
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `manualReference` | Có | Tối đa 100 ký tự |
+| `note` | Không | Tối đa 500 ký tự |
+| `files` | Có | 1-3 ảnh chứng từ, JPG/PNG/WebP, tối đa 5MB mỗi ảnh (kiểm tra bằng magic bytes) |
 
 - `manualReference` bắt buộc, tối đa 100 ký tự; `note` tối đa 500 ký tự. **Rate limit:** `RefundSensitive`.
 - Chỉ áp dụng cho dòng hoàn `Pending` (đã duyệt) hoặc `Failed`. Dòng hoàn chuyển `Succeeded`, lưu `manualReference` vào `providerTransactionId`; đơn chuyển `paymentStatus` = `Refunded` (đã hoàn hết tiền thu) hoặc `PartiallyRefunded`. Ghi audit `RefundMarkedManual` kèm `note`.
 - Gọi lại với cùng `manualReference` sau khi đã thành công → `200` (idempotent, không ghi audit lần 2).
+- Ảnh lưu ở storage riêng tư, ghi vào `refund_proofs` (`payment_id`). Xem ảnh: `GET /admin/refunds/{paymentId}/proofs/{proofId}` (Admin) trả file thô, `Cache-Control: private, no-store` (không bọc `ApiResponse`).
+- Item của `GET /admin/refunds` có thêm `manualReference` (= `providerTransactionId` của khoản hoàn) và `proofs: [{ proofId, fileName, contentType, createdAt }]`. Tab hỗ trợ thêm `Succeeded` để xem khoản đã hoàn thủ công cùng chứng từ.
 
 | Status | Khi nào | Code |
 |---|---|---|
-| `400` | Thiếu / quá dài `manualReference` | `VALIDATION_ERROR` |
+| `400` | Thiếu / quá dài `manualReference`, hoặc thiếu / sai ảnh (`errors.files`) | `VALIDATION_ERROR` |
 | `404` | Không tìm thấy dòng hoàn | `NOT_FOUND` |
 | `409` | Dòng hoàn không ở `Pending` / `Failed`, hoặc đã có hồ sơ hoàn tiền | `REFUND_NOT_COMPLETABLE` |
 | `409` | Đơn đang `NeedsReconciliation` (đối soát trước bằng 17.6 / 17.7) | `ORDER_NOT_RECONCILABLE` |
@@ -3607,14 +3608,55 @@ Lỗi: `409 REFUND_CASE_NOT_REJECTABLE`.
 
 ### 17.13. Ghi nhận chuyển khoản thành công
 
-`POST /admin/refund-cases/{refundCaseId}/complete` · **Auth:** Admin
+`POST /admin/refund-cases/{refundCaseId}/complete` · **Auth:** Admin · **Content-Type:** `multipart/form-data`
 
-```json
-{ "providerTransactionId": "FT26110512345", "expectedRowVersion": 2 }
-```
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `providerTransactionId` | Có | Tối đa 255 ký tự, duy nhất toàn hệ thống |
+| `expectedRowVersion` | Có | Số nguyên, khóa lạc quan |
+| `files` | Có | 1-3 ảnh chứng từ, JPG/PNG/WebP, tối đa 5MB mỗi ảnh (kiểm tra magic bytes) |
 
 Chỉ áp dụng cho hồ sơ `Approved` → `Completed`. Trả `RefundCaseSummaryResponse`.
-Lỗi: `409 REFUND_CASE_NOT_COMPLETABLE`, `409 REFUND_TRANSACTION_DUPLICATED` (mã giao dịch đã dùng).
+Lỗi: `400 VALIDATION_ERROR` (`errors.files` khi thiếu / sai ảnh), `409 REFUND_CASE_NOT_COMPLETABLE`, `409 REFUND_TRANSACTION_DUPLICATED` (mã giao dịch đã dùng).
+
+### 17.13b. Nhập kết quả chuyển khoản từ Excel
+
+`POST /admin/refund-cases/import-result` · **Auth:** Admin · **Content-Type:** `multipart/form-data` · **Rate limit:** `RefundSensitive`
+
+| Field | Bắt buộc | Ghi chú |
+|---|---|---|
+| `file` | Có | `.xlsx`, tối đa 20MB: đúng file đã xuất, kế toán điền thêm 4 cột cuối |
+| `dryRun` | Không | Mặc định `true`: chỉ kiểm tra, không ghi DB. `false`: áp dụng |
+
+Cột đọc theo tên header: `Đã chuyển`, `Mã giao dịch`, `Lý do chưa chuyển`, `Hình ảnh minh chứng`, cột ẩn `RefundCaseId` (nếu thiếu thì khớp theo `Mã hồ sơ`, chỉ nhận khi khớp duy nhất một hồ sơ `Approved`). Ảnh chèn nổi hoặc "Place in Cell" đều được nhận, gán theo dòng.
+
+Quy tắc mỗi dòng: hồ sơ tồn tại, đang `Approved`, không phải hồ sơ của chính admin thao tác, không lặp trong file. `Có/Co/Yes/X/1` → `Complete` (cần mã giao dịch không trùng trong file và DB, 1-3 ảnh hợp lệ). `Không/Khong/No/0` → `Fail` (cần lý do tối đa 500 ký tự). Trống / giá trị khác → `Skip` với lỗi `Chưa điền trạng thái`. Dòng lỗi có `action = "Skip"`. Dòng trống hoàn toàn bị bỏ qua.
+
+```json
+{
+  "batchId": null,
+  "fileName": "ket-qua.xlsx",
+  "dryRun": true,
+  "totalRows": 3, "validRows": 2, "completedCount": 1, "failedCount": 1, "errorCount": 1,
+  "rows": [
+    {
+      "rowNumber": 2, "refundCaseId": "guid", "refundCode": "HT-1A2B3C4D", "customerName": "Nguyễn Văn A",
+      "amount": 500000, "action": "Complete", "transactionId": "FT26110512345", "reason": null,
+      "imageCount": 1, "errors": [], "applied": false, "resultStatus": null
+    }
+  ]
+}
+```
+
+- `dryRun=false`: mỗi dòng hợp lệ được áp dụng độc lập (một dòng lỗi không rollback dòng khác); trả `batchId`, `applied`, `resultStatus` (`Completed` | `Failed`) và lỗi phát sinh khi áp dụng. Audit có `importBatchId`, `importFileName`, `importRowNumber`.
+- `400`: file không phải `.xlsx`, không đọc được hoặc thiếu cột bắt buộc.
+
+### 17.13c. Xem ảnh chứng từ
+
+- `GET /admin/refund-cases/{refundCaseId}/proofs/{proofId}` · Admin.
+- `GET /refund-cases/{refundCaseId}/proofs/{proofId}` · Khách sở hữu hồ sơ đã `Completed`; mọi trường hợp khác `404`.
+
+Trả file thô (`Content-Type` của ảnh, `Cache-Control: private, no-store`), không bọc `ApiResponse`; FE gọi bằng axios `responseType: 'blob'`. Hàng đợi (17.9) có thêm `failureReason` (lý do khi `Failed`) và `proofs`; `GET /refund-cases/{id}` có `proofs` (chỉ khi `Completed`) và `failureReason`.
 
 ### 17.14. Ghi nhận chuyển khoản thất bại
 
@@ -3852,122 +3894,132 @@ Body giống 17.12. Chỉ áp dụng cho hồ sơ `Approved` → `Failed`. Trả
 
 ---
 
-## 20. Admin: Chính sách Hoàn tiền (Màn O34)
+## 20. Admin: Chính sách Hoàn tiền (Màn O34) và Chính sách Thuê đồ
 
-### 20.1. Danh sách chính sách hoàn tiền
+Đọc: Staff / Admin. Ghi: chỉ Admin. Mọi thao tác ghi đều có audit log.
+
+**Trạng thái.** DB lưu `status` = `Draft | Active | Archived`. `displayStatus` do BE tính: `Draft`, `Scheduled` (`effectiveFrom > now`), `Active`, `Expired` (`effectiveUntil <= now`), `Archived`.
+
+**Mã lỗi:** `409 POLICY_ALREADY_IN_USE` (sửa/xoá chính sách đã có chuyến hoặc đơn dùng), `409 REFUND_POLICY_LAST_ACTIVE` (archive/xoá chính sách đang hiệu lực duy nhất của loại), `409 POLICY_NOT_LATEST_VERSION` (activate bản Archived không phải mới nhất), `409 INVALID_POLICY_STATE` (activate bản đang Active, archive bản không Active), `400` validation, `404 NOT_FOUND`.
+
+### 20.1. Danh sách chính sách hoàn tiền (phân trang)
 `GET /admin/refund-policies` · **Auth:** Staff / Admin
 
-- **Mục đích:** Màn O34 — danh sách các bộ chính sách hoàn tiền áp dụng cho Tour hoặc Đơn thuê.
-- **Thống kê:** Số chuyến đi và đơn hàng đang liên kết với chính sách này (`COUNT(TRIPS)` + `COUNT(ORDERS)`).
+Query: `pageNumber`, `pageSize`, `search` (tên, tối đa 200), `sortBy` (`createdAt|name|effectiveFrom|version`), `sortOrder` (`asc|desc`), `policyType` (`Tour|Rental`), `status` (`Draft|Scheduled|Active|Expired|Archived`, là displayStatus), `latestOnly` (mặc định `true`: mỗi họ chính sách chỉ hiện phiên bản mới nhất).
 
-**Response `200 OK`**
+**Response `200 OK`** — `data` là `PagedResponse`:
 
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Thành công",
-  "data": [
-    {
-      "policyId": "99999999-0000-1111-2222-333333333333",
-      "policyFamilyId": "99999999-0000-0000-0000-333333333333",
-      "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
-      "policyType": "Tour",
-      "version": 1,
-      "effectiveFrom": "2026-01-01",
-      "effectiveUntil": null,
-      "status": "Active",
-      "activeTripsCount": 35
-    }
-  ],
-  "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
+  "data": {
+    "items": [
+      {
+        "policyId": "99999999-0000-1111-2222-333333333333",
+        "policyFamilyId": "99999999-0000-0000-0000-333333333333",
+        "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
+        "description": null,
+        "policyType": "Tour",
+        "version": 2,
+        "versionsCount": 2,
+        "effectiveFrom": "2026-01-01",
+        "effectiveUntil": null,
+        "status": "Active",
+        "displayStatus": "Active",
+        "rulesCount": 4,
+        "tripsCount": 30,
+        "ordersCount": 5,
+        "usageCount": 35,
+        "createdByName": "Admin",
+        "createdAt": "2026-01-01T00:00:00Z"
+      }
+    ],
+    "pageNumber": 1, "pageSize": 10, "totalItems": 1, "totalPages": 1, "hasPrevious": false, "hasNext": false
+  }
 }
 ```
+
+(`activeTripsCount` đã bỏ; dùng `tripsCount`, `ordersCount`, `usageCount = tripsCount + ordersCount`.)
 
 ---
 
 ### 20.2. Tạo chính sách hoàn tiền mới
-`POST /admin/refund-policies` · **Auth:** Admin
-
-**Request body**
+`POST /admin/refund-policies` · **Auth:** Admin · `201 Created`, `data` = `policyId` (Guid).
 
 ```json
 {
   "name": "Chính sách hoàn tiền Mùa Lễ Tết (Chặt chẽ)",
   "policyType": "Tour",
-  "effectiveFrom": "2026-12-20"
+  "description": "Áp dụng cho tour dịp Tết",
+  "effectiveFrom": "2026-12-20",
+  "effectiveUntil": null,
+  "rules": [
+    { "minHoursBefore": 168, "refundPercentage": 100 },
+    { "minHoursBefore": 24, "refundPercentage": 50 },
+    { "minHoursBefore": 0, "refundPercentage": 0 }
+  ],
+  "saveAsDraft": true
 }
 ```
+
+- Chính sách và rules được lưu trong **một transaction**.
+- `saveAsDraft = true` → `Draft`. `saveAsDraft = false` → `Active` và áp dụng hiệu ứng kích hoạt (xem 20.7).
+- Validation: `name` bắt buộc ≤ 200; `policyType` ∈ `Tour|Rental`; `description` ≤ 2000; `effectiveUntil > effectiveFrom` khi có; `rules` 1–20 bậc, `minHoursBefore` số nguyên 0–8760 không trùng, `refundPercentage` 0–100 và không tăng khi `minHoursBefore` giảm (càng gần giờ khởi hành).
 
 ---
 
 ### 20.3. Chi tiết chính sách & bảng quy tắc bậc thang
 `GET /admin/refund-policies/{policyId}` · **Auth:** Staff / Admin
 
-- **Mục đích:** Màn O34 — hiển thị bảng quy tắc hoàn tiền theo giờ và biểu đồ bậc thang trực quan ("Số giờ trước giờ khởi hành -> % tiền được hoàn").
-
-**Response `200 OK`**
-
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Thành công",
-  "data": {
-    "policyId": "99999999-0000-1111-2222-333333333333",
-    "name": "Chính sách hoàn tiền Tour Trekking Tiêu chuẩn",
-    "isLocked": true,
-    "rules": [
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667777",
-        "minHoursBefore": 168,
-        "refundPercentage": 100,
-        "description": "Trước 7 ngày (≥ 168h): Hoàn 100%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667778",
-        "minHoursBefore": 72,
-        "refundPercentage": 80,
-        "description": "Từ 3 đến 7 ngày (72h - 168h): Hoàn 80%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667779",
-        "minHoursBefore": 24,
-        "refundPercentage": 50,
-        "description": "Từ 24h đến 72h: Hoàn 50%"
-      },
-      {
-        "ruleId": "1111aaaa-2222-3333-4444-555566667780",
-        "minHoursBefore": 0,
-        "refundPercentage": 0,
-        "description": "Dưới 24h: Không hoàn tiền (0%)"
-      }
-    ]
-  },
-  "errors": null,
-  "timestamp": "2026-11-01T08:30:00Z"
-}
-```
+`data` gồm mọi trường của một dòng danh sách, cộng: `updatedAt`, `isLocked`, các cờ `canEdit`, `canDelete`, `canArchive`, `canActivate`, `canClone` (BE tính theo vai trò, số lượng dùng, guard "hiệu lực duy nhất"), `rules[]` (`ruleId`, `minHoursBefore`, `refundPercentage`, `description`; sắp `minHoursBefore` giảm dần) và `versions[]` (`policyId`, `version`, `displayStatus`, `effectiveFrom`, `effectiveUntil`, `usageCount`; version giảm dần).
 
 ---
 
 ### 20.4. Sửa chính sách hoàn tiền
-`PUT /admin/refund-policies/{policyId}` · **Auth:** Admin
+`PUT /admin/refund-policies/{policyId}` · **Auth:** Admin · `data` = null
 
-- **Ràng buộc:** Nếu chính sách này đã được áp dụng vào bất kỳ chuyến đi (`TRIPS`) hoặc đơn hàng (`ORDERS`) nào, API từ chối sửa đổi trực tiếp (`POLICY_ALREADY_IN_USE`) để bảo vệ tính bất biến của hợp đồng pháp lý đã giao kết với khách hàng. Quản trị viên phải dùng API nhân bản phiên bản mới (`clone-version`).
+- Body như 20.2 (`policyType` phải bằng loại hiện tại, `saveAsDraft` bị bỏ qua); thay cả bảng rules.
+- **Ràng buộc:** nếu đã có chuyến (`TRIPS`) hoặc đơn (`ORDERS`) dùng → `409 POLICY_ALREADY_IN_USE`. Hãy dùng `clone-version`.
 
 ---
 
 ### 20.5. Cập nhật bảng quy tắc hoàn tiền
-`PUT /admin/refund-policies/{policyId}/rules` · **Auth:** Admin
+`PUT /admin/refund-policies/{policyId}/rules` · **Auth:** Admin · cùng ràng buộc và validator rules với 20.4.
 
 ---
 
-### 20.6. Nhân bản chính sách sang phiên bản mới (Clone Policy Version)
-`POST /admin/refund-policies/{policyId}/clone-version` · **Auth:** Admin
+### 20.6. Nhân bản sang phiên bản mới (Clone Policy Version)
+`POST /admin/refund-policies/{policyId}/clone-version` · **Auth:** Admin · `201 Created`, `data` = Guid bản mới.
 
-- **Mục đích:** Khi chính sách cũ đã có chuyến áp dụng nhưng cần điều chỉnh quy định mới: Đặt ngày `effectiveUntil = now` cho bản cũ và tạo một bản ghi mới với cùng `policyFamilyId`, `version = version_cũ + 1`.
+- Tạo một **bản nháp (`Draft`)** cùng `policyFamilyId`, `version = max + 1`, sao chép rules. **Bản gốc giữ nguyên**; bản cũ chỉ bị đóng khi bản mới được kích hoạt (20.7).
+
+---
+
+### 20.7. Kích hoạt
+`POST /admin/refund-policies/{policyId}/activate` · **Auth:** Admin · `data` = null
+
+- Cho phép từ `Draft` (cần ≥ 1 rule; nếu `effectiveFrom` trước hôm nay thì đặt bằng thời điểm hiện tại) hoặc từ `Archived` nếu là phiên bản mới nhất của họ (nếu không: `409 POLICY_NOT_LATEST_VERSION`).
+- Hiệu ứng: các phiên bản cũ cùng họ đang hiệu lực được đặt `effectiveUntil = effectiveFrom` của bản mới; với loại `Rental`, các họ Rental khác đang hiệu lực tại thời điểm đó cũng bị đóng (mỗi lúc chỉ một chính sách Rental hiệu lực).
+
+### 20.8. Ngừng áp dụng
+`POST /admin/refund-policies/{policyId}/archive` · **Auth:** Admin · chỉ từ `Active`. `409 REFUND_POLICY_LAST_ACTIVE` nếu là chính sách đang hiệu lực duy nhất của loại.
+
+### 20.9. Xoá
+`DELETE /admin/refund-policies/{policyId}` · **Auth:** Admin · xoá mềm chính sách và rules. `409 POLICY_ALREADY_IN_USE` nếu đã dùng; `409 REFUND_POLICY_LAST_ACTIVE` như 20.8.
+
+---
+
+### 20.10. Chính sách thuê đồ (Rental policy)
+
+| Method | Route | Auth | Ghi chú |
+|---|---|---|---|
+| GET | `/admin/rental-policies` | Staff / Admin | Mảng `AdminRentalPolicyResponse`, version giảm dần |
+| GET | `/admin/rental-policies/{id}` | Staff / Admin | Một version; `404` nếu không có |
+| POST | `/admin/rental-policies` | Admin | Tạo version mới và áp dụng ngay (version cũ thành `Archived`); body thêm `sourcePolicyId` (tuỳ chọn, chỉ ghi audit) |
+| GET | `/rental-policies/active` | Anonymous | Không lộ các trường admin |
+
+`AdminRentalPolicyResponse` = `RentalPolicyResponse` + `ordersCount` (số đơn thuê đã snapshot version này), `createdByName`, `createdAt`.
 
 ---
 

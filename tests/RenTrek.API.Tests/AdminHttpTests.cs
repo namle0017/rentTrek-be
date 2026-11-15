@@ -22,6 +22,14 @@ namespace RenTrek.API.Tests;
 
 public sealed class AdminHttpTests
 {
+    [Fact]
+    public void AdminRouteCount_IsStable()
+    {
+        var controllers = typeof(AdminOrdersController).Assembly.GetTypes().Where(x => x.Namespace == "RenTrek.API.Controllers" && x.Name.StartsWith("Admin", StringComparison.Ordinal) && typeof(ControllerBase).IsAssignableFrom(x));
+        var count = controllers.SelectMany(c => c.GetMethods()).SelectMany(m => m.GetCustomAttributes<HttpMethodAttribute>()).Sum(r => r.HttpMethods.Count());
+        Assert.Equal(190, count); // gồm 1 route AllowAnonymous (/api/v1/rental-policies/active) được loại khỏi test 401/403
+    }
+
     [AdminPostgresFact]
     public async Task EveryAdminRoute_RejectsAnonymousAndCustomer_WithApiResponse()
     {
@@ -35,7 +43,7 @@ public sealed class AdminHttpTests
         foreach (var controller in controllers)
         {
             var root = controller.GetCustomAttribute<RouteAttribute>()!.Template;
-            foreach (var method in controller.GetMethods())
+            foreach (var method in controller.GetMethods().Where(m => m.GetCustomAttribute<Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute>() is null))
                 foreach (var route in method.GetCustomAttributes<HttpMethodAttribute>())
                 {
                     var path = root + (string.IsNullOrEmpty(route.Template) ? "" : "/" + route.Template);
@@ -57,7 +65,7 @@ public sealed class AdminHttpTests
                     }
                 }
         }
-        Assert.Equal(169, count);
+        Assert.Equal(189, count);
     }
 
     [AdminPostgresFact]
@@ -106,6 +114,118 @@ public sealed class AdminHttpTests
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         var error = await invalid.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(error.GetProperty("errors").TryGetProperty("email", out _));
+    }
+
+    [AdminPostgresFact]
+    public async Task Policies_StaffCanRead_ButCannotWrite_AndAdminGetsPagedList()
+    {
+        await using var database = new AdminTestDatabase(); await database.InitializeAsync();
+        await using var factory = new Factory(database.ConnectionString);
+        using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        using var staff = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        await LoginAsync(admin, database.AdminId); await LoginAsync(staff, database.StaffId);
+        var id = database.PolicyId;
+
+        // TC-RP-P01..P03: Staff đọc được
+        using var list = await staff.GetAsync("/api/v1/admin/refund-policies");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var data = (await list.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items), "refund-policies phải trả PagedResponse");
+        Assert.True(data.GetProperty("totalItems").GetInt32() >= 1);
+        Assert.Equal(id, items.EnumerateArray().Select(x => x.GetProperty("policyId").GetGuid()).Single(x => x == id));
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync($"/api/v1/admin/refund-policies/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync("/api/v1/admin/rental-policies")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync("/api/v1/admin/refund-policies?status=Active&policyType=Tour&latestOnly=false&sortBy=name&sortOrder=asc")).StatusCode);
+
+        // TC-RP-P04..P06 + E08, F05: Staff không ghi được
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.DeleteAsync($"/api/v1/admin/refund-policies/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PostAsync($"/api/v1/admin/refund-policies/{id}/activate", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PostAsync($"/api/v1/admin/refund-policies/{id}/archive", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PostAsync($"/api/v1/admin/refund-policies/{id}/clone-version", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PostAsJsonAsync("/api/v1/admin/refund-policies", new { name = "x", policyType = "Tour", effectiveFrom = "2026-12-01", rules = new[] { new { minHoursBefore = 0, refundPercentage = 0 } }, saveAsDraft = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PutAsJsonAsync($"/api/v1/admin/refund-policies/{id}/rules", new { rules = new[] { new { minHoursBefore = 0, refundPercentage = 0 } } })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.PostAsJsonAsync("/api/v1/admin/rental-policies", new { name = "x" })).StatusCode);
+    }
+
+    [AdminPostgresFact]
+    public async Task Policies_AdminValidationAndConflicts_UseApiEnvelope()
+    {
+        await using var database = new AdminTestDatabase(); await database.InitializeAsync();
+        await using var factory = new Factory(database.ConnectionString);
+        using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await LoginAsync(admin, database.AdminId);
+        var id = database.PolicyId;
+
+        // TC-RP-C: tạo + rules lưu đủ (201 Created)
+        using var created = await admin.PostAsJsonAsync("/api/v1/admin/refund-policies", new
+        {
+            name = "Chính sách mùa lễ",
+            policyType = "Tour",
+            description = "Mô tả",
+            effectiveFrom = "2026-12-01",
+            rules = new object[] { new { minHoursBefore = 72, refundPercentage = 100 }, new { minHoursBefore = 0, refundPercentage = 0 } },
+            saveAsDraft = true
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var newId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetGuid();
+        var detail = (await admin.GetFromJsonAsync<JsonElement>($"/api/v1/admin/refund-policies/{newId}")).GetProperty("data");
+        Assert.Equal(2, detail.GetProperty("rules").GetArrayLength());
+        Assert.Equal("Draft", detail.GetProperty("displayStatus").GetString());
+
+        // TC-RP-V22 / E09: rules sai (% tăng khi sát giờ) -> 400
+        using var invalid = await admin.PutAsJsonAsync($"/api/v1/admin/refund-policies/{newId}/rules", new { rules = new object[] { new { minHoursBefore = 72, refundPercentage = 10 }, new { minHoursBefore = 0, refundPercentage = 90 } } });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.False((await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("success").GetBoolean());
+
+        // TC-RP-Q09: sortBy không hợp lệ -> 400
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/v1/admin/refund-policies?sortBy=evil")).StatusCode);
+
+        // TC-RP-E02 / D02 / LA01: policy đang dùng
+        using var edit = await admin.PutAsJsonAsync($"/api/v1/admin/refund-policies/{id}", new { name = "Đổi tên", policyType = "Tour", effectiveFrom = "2026-01-01", rules = new object[] { new { minHoursBefore = 0, refundPercentage = 0 } }, saveAsDraft = false });
+        Assert.Equal(HttpStatusCode.Conflict, edit.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.DeleteAsync($"/api/v1/admin/refund-policies/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"/api/v1/admin/refund-policies/{id}/archive", null)).StatusCode);
+
+        // TC-RP-D01: xoá nháp chưa dùng
+        Assert.True((await admin.DeleteAsync($"/api/v1/admin/refund-policies/{newId}")).IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/v1/admin/refund-policies/{newId}")).StatusCode);
+    }
+
+    [AdminPostgresFact]
+    public async Task RentalPolicies_PublicActiveHasNoAdminFields_AndAdminListHas()
+    {
+        await using var database = new AdminTestDatabase(); await database.InitializeAsync();
+        await using var factory = new Factory(database.ConnectionString);
+        using var anonymous = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        using var admin = factory.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await LoginAsync(admin, database.AdminId);
+
+        // TC-RP-P09 / R12: endpoint public không lộ field admin
+        using var active = await anonymous.GetAsync("/api/v1/rental-policies/active");
+        Assert.Equal(HttpStatusCode.OK, active.StatusCode);
+        var publicData = (await active.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        foreach (var field in new[] { "ordersCount", "createdByName", "createdAt" })
+            Assert.False(publicData.TryGetProperty(field, out _), field + " không được lộ ở /rental-policies/active");
+
+        // Admin: tạo version rồi list có field admin
+        using var tiers = await admin.GetAsync("/api/v1/admin/rental-policies");
+        Assert.Equal(HttpStatusCode.OK, tiers.StatusCode);
+        var body = new
+        {
+            name = "Policy mới", depositPercent = 20, freeCancelLimit = 2, freeCancelWindowDays = 30, overLimitCancelFeePercent = 5,
+            returnGraceHours = 2, extensionMaxDaysLate = 2, suspectedLossAfterDays = 7, receiptAutoConfirmHours = 24, minPhotosPerAsset = 1,
+            tiers = new object[]
+            {
+                new { scope = "PickupLate", minDaysLate = 1, percentOfDeposit = 100, isTerminal = true },
+                new { scope = "ReturnLate", minDaysLate = 1, percentOfDeposit = 100, isTerminal = true }
+            }
+        };
+        using var created = await admin.PostAsJsonAsync("/api/v1/admin/rental-policies", body);
+        Assert.True(created.IsSuccessStatusCode, await created.Content.ReadAsStringAsync());
+        var list = (await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/rental-policies")).GetProperty("data");
+        var first = list.EnumerateArray().First();
+        foreach (var field in new[] { "ordersCount", "createdByName", "createdAt" })
+            Assert.True(first.TryGetProperty(field, out _), field + " thiếu ở admin list");
+        var id = first.GetProperty("rentalPolicyId").GetGuid();
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/api/v1/admin/rental-policies/{id}")).StatusCode);
     }
 
     private static async Task LoginAsync(HttpClient client, Guid userId)

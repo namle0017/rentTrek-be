@@ -61,19 +61,20 @@ public class TourRecurrenceRuleRepository : GenericRepository<TourRecurrenceRule
         Guid? refundPolicyId,
         CancellationToken cancellationToken = default)
     {
+        var now = DateTime.UtcNow;
+        var currentTourPolicies = _context.RefundPolicies
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && x.Status == "Active" && x.PolicyType == "Tour"
+                        && x.EffectiveFrom <= now && (x.EffectiveUntil == null || x.EffectiveUntil > now));
+
         if (refundPolicyId.HasValue && refundPolicyId.Value != Guid.Empty)
         {
-            return await _context.RefundPolicies
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    x => x.RefundPolicyId == refundPolicyId.Value && !x.IsDeleted && x.Status == "Active",
-                    cancellationToken);
+            return await currentTourPolicies
+                .FirstOrDefaultAsync(x => x.RefundPolicyId == refundPolicyId.Value, cancellationToken);
         }
 
-        return await _context.RefundPolicies
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted && x.Status == "Active")
-            .OrderByDescending(x => x.PolicyType == "Tour" || x.PolicyType == "TripBooking")
+        return await currentTourPolicies
+            .OrderByDescending(x => x.EffectiveFrom)
             .ThenByDescending(x => x.Version)
             .FirstOrDefaultAsync(cancellationToken);
     }

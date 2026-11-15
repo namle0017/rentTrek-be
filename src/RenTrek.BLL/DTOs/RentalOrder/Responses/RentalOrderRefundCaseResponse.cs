@@ -12,4 +12,7 @@ public class RentalOrderRefundCaseResponse
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? RejectionReason { get; set; }
+
+    /// <summary>Chứng từ chuyển khoản (chỉ khi hồ sơ Completed); tải qua GET /refund-cases/{id}/proofs/{proofId}.</summary>
+    public IReadOnlyList<RenTrek.BLL.DTOs.Refund.Responses.RefundProofResponse> Proofs { get; set; } = [];
 }

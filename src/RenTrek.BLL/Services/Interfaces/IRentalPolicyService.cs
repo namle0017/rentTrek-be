@@ -15,7 +15,11 @@ public interface IRentalPolicyService
 
     Task<RentalPolicyResponse> GetActiveAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<RentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>Mọi version cho màn quản trị (version giảm dần) kèm số đơn, người tạo, ngày tạo.</summary>
+    Task<IReadOnlyList<AdminRentalPolicyResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Một version cho màn quản trị; NotFoundException nếu không có.</summary>
+    Task<AdminRentalPolicyResponse> GetByIdAsync(Guid rentalPolicyId, CancellationToken cancellationToken = default);
 
     /// <summary>Admin tạo version mới: kích hoạt ngay, version cũ chuyển Archived. Đơn đã đặt giữ policy cũ.</summary>
     Task<RentalPolicyResponse> CreateVersionAsync(Guid adminUserId, CreateRentalPolicyVersionRequest request, CancellationToken cancellationToken = default);

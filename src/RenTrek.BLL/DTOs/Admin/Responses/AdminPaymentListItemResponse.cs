@@ -1,3 +1,5 @@
+using RenTrek.BLL.DTOs.Refund.Responses;
+
 namespace RenTrek.BLL.DTOs.Admin.Responses;
 
 /// <summary>
@@ -7,6 +9,8 @@ namespace RenTrek.BLL.DTOs.Admin.Responses;
 /// <param name="ReceivedAmount">Số tiền thực nhận với khoản thu đã có mã giao dịch; null với khoản hoàn hoặc khoản thu chưa nhận tiền.</param>
 /// <param name="FailureReason">Lý do thất bại / từ chối lấy từ hồ sơ hoàn tiền (nếu có).</param>
 /// <param name="PolicyRuleDescription">Mô tả mốc chính sách hoàn áp dụng, ví dụ "Hủy trước 72 giờ · Hoàn 80%".</param>
+/// <param name="ManualReference">Mã tham chiếu ngân hàng của khoản hoàn đã ghi nhận thủ công (cùng giá trị providerTransactionId); null nếu chưa có.</param>
+/// <param name="Proofs">Ảnh chứng từ của khoản hoàn (luôn là mảng, rỗng nếu không có).</param>
 /// <param name="HasRefundCase">Khoản hoàn đã có hồ sơ hoàn tiền: xử lý ở /admin/refund-cases thay vì các nút ở O28.</param>
 public sealed record AdminPaymentListItemResponse(
     Guid PaymentId,
@@ -23,4 +27,6 @@ public sealed record AdminPaymentListItemResponse(
     string? FailureReason,
     string? PolicyRuleDescription,
     bool HasRefundCase,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? ManualReference = null,
+    IReadOnlyList<RefundProofResponse>? Proofs = null);

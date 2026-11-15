@@ -8,7 +8,7 @@ public sealed class RefundExportRequest
     public Guid ChallengeId { get; set; }
     public string VerificationCode { get; set; } = string.Empty;
 
-    /// <summary>Xuất lại hồ sơ đã gửi kế toán (khi mất file) thay vì hồ sơ mới.</summary>
+    /// <summary>Không còn dùng: mỗi lần xuất luôn gồm cả hồ sơ mới và hồ sơ đã gửi kế toán chưa có kết quả. Giữ để tương thích client cũ.</summary>
     public bool ReExport { get; set; }
 
     public DateTimeOffset? FromDate { get; set; }

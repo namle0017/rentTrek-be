@@ -107,7 +107,7 @@ public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
         if (filter.PaymentType != null) query = query.Where(p => p.PaymentType == filter.PaymentType);
         if (filter.Purpose != null) query = query.Where(p => p.Purpose == filter.Purpose);
         if (filter.Status != null) query = query.Where(p => p.Status == filter.Status);
-        if (filter.Tab is "PendingApproval" or "Pending" or "Failed")
+        if (filter.Tab is "PendingApproval" or "Pending" or "Failed" or "Succeeded")
             query = query.Where(p => p.PaymentType == "Refund" && p.Status == filter.Tab);
         if (filter.Tab == "NeedsReconciliation")
             query = query.Where(p => p.PaymentType == "Collection" && p.Status == "Pending" && p.ProviderTransactionId != null

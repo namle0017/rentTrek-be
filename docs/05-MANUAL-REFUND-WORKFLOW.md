@@ -21,10 +21,26 @@ Nếu số tiền đã đổi giữa preview và lúc hủy, API trả `409 REFU
 1. Admin xem hàng đợi bằng `GET /api/v1/admin/refund-cases`.
 2. Admin yêu cầu OTP bằng `POST /api/v1/admin/refund-cases/export/verification-codes`.
 3. Admin gửi OTP vào `POST /api/v1/admin/refund-cases/export` để tải Excel.
-4. Hồ sơ được xuất chuyển từ `Requested` sang `Approved`.
+4. Mỗi lần xuất gồm mọi hồ sơ đã có STK và chưa có kết quả: `Requested` (chuyển sang `Approved`) và `Approved` (đã gửi kế toán trước đó, giữ nguyên). Không còn chế độ "xuất lại" riêng (`reExport` bị bỏ qua). Hồ sơ `AwaitingBankInfo` không được xuất.
 5. Kế toán chuyển khoản theo Excel.
-6. Admin gọi `complete` với mã giao dịch, hoặc `mark-failed` kèm lý do.
+6. Admin ghi nhận kết quả theo một trong hai cách:
+   - Từng hồ sơ: `complete` (multipart: mã giao dịch + 1-3 ảnh chứng từ bắt buộc) hoặc `mark-failed` kèm lý do ("Báo thất bại", xem mục 3.2).
+   - Hàng loạt từ Excel (mục 3.1).
 7. Hồ sơ sai điều kiện có thể bị `reject` khi chưa xuất.
+
+### 3.1. Vòng Excel với kế toán
+
+1. File xuất có thêm 4 cột cho kế toán điền: `Đã chuyển` (Có / Không), `Mã giao dịch`, `Lý do chưa chuyển`, `Hình ảnh minh chứng`, cùng cột ẩn `RefundCaseId` (GUID đầy đủ) và sheet `Hướng dẫn`.
+2. Kế toán chuyển khoản, điền 4 cột, chèn 1-3 ảnh biên lai vào ô (hoặc đặt ảnh nổi lên đúng dòng), rồi gửi lại file.
+3. Admin tải file lên `POST /api/v1/admin/refund-cases/import-result` với `dryRun=true` để xem trước từng dòng (hành động, lỗi, số ảnh).
+4. Admin gửi lại với `dryRun=false` để áp dụng: dòng `Có` → `Completed` kèm ảnh, dòng `Không` → trả về `AwaitingBankInfo` kèm lý do (như "Báo thất bại"). Mỗi dòng độc lập; dòng lỗi được báo lại, dòng khác vẫn chạy.
+5. Dòng `Có` bắt buộc có mã giao dịch (không trùng) và 1-3 ảnh JPG/PNG/WebP tối đa 5MB.
+
+### 3.2. Báo thất bại → khách nhập lại STK
+
+- `POST /api/v1/admin/refund-cases/{id}/mark-failed` (body `{ reason, expectedRowVersion }`) nhận hồ sơ `Requested`, `Approved` hoặc `AwaitingBankInfo` (nhắc lại khách).
+- Hồ sơ chuyển về `AwaitingBankInfo`: xoá STK đã mã hoá, ngân hàng, 4 số cuối; lưu lý do (`failureReason`); payment Refund về `PendingApproval`; khách nhận thông báo `RefundBankInfoRequired` kèm lý do.
+- Khách nhập STK mới qua `POST /api/v1/refund-cases/{id}/bank-info` (form trong thẻ "Tiến độ hoàn tiền" ở trang booking / đơn thuê) → hồ sơ về `Requested`, lý do cũ được xoá, và có trong lần xuất Excel tiếp theo.
 
 ## 4. Máy trạng thái
 
@@ -32,7 +48,8 @@ Nếu số tiền đã đổi giữa preview và lúc hủy, API trả `409 REFU
 - `Approved`: đã xuất; kế toán đang xử lý.
 - `Completed`: chuyển tiền thành công.
 - `Rejected`: Admin từ chối trước khi xuất.
-- `Failed`: chuyển khoản thất bại.
+- `AwaitingBankInfo`: chờ khách nhập (lại) STK; cũng là trạng thái sau khi Admin "Báo thất bại".
+- `Failed`: trạng thái cũ, không còn được tạo mới (dữ liệu trước đây vẫn hiển thị).
 - `Cancelled`: hồ sơ bị hủy bởi quy trình hệ thống.
 
 Khi `Completed`, Payment Refund thành `Succeeded`. `orders.payment_status` chuyển thành `Refunded` hoặc `PartiallyRefunded` theo tổng tiền đã hoàn.
@@ -61,7 +78,14 @@ openssl rand -base64 32
 
 Đặt kết quả vào secret `RefundDataEncryptionKey` của môi trường chạy. Không đổi khóa khi còn hồ sơ chưa purge; dữ liệu cũ sẽ không giải mã được.
 
-## 7. Giới hạn hiện tại
+## 7. Chứng từ chuyển khoản
+
+- Ảnh lưu ở bảng `refund_proofs` (migration `20261116_refund_proofs.sql`), gắn với hồ sơ (`refund_case_id`) hoặc khoản hoàn cũ (`payment_id`), không có URL public.
+- Nơi lưu: bucket Supabase private (`Supabase:PrivateBucket`, mặc định `refund-proofs`, cần tạo thủ công và để Private) hoặc thư mục `App_Data/private-uploads/refund-proofs` khi chưa cấu hình Supabase.
+- Chỉ Admin và khách sở hữu hồ sơ `Completed` xem được, qua endpoint stream có kiểm tra quyền.
+- Luồng khoản hoàn cũ `POST /admin/refunds/{paymentId}/mark-manual` cũng bắt buộc 1-3 ảnh.
+
+## 8. Giới hạn hiện tại
 
 - Hệ thống không tự động chuyển tiền qua SePay.
 - Kế toán vẫn chuyển khoản ngoài hệ thống.

@@ -634,6 +634,7 @@ public sealed class NotificationServiceTests
                 ("ProviderTransactionExistsAsync", _ => Task.FromResult(false)))),
             ("get_TripBookings", _ => TestProxy.Create<ITripBookingRepository>(
                 ("GetSucceededPaymentTotalAsync", _ => Task.FromResult(500_000m)))),
+            ("get_RefundProofs", _ => TestProxy.Create<IRefundProofRepository>(("AddRangeAsync", _ => Task.CompletedTask))),
             ("get_RefundCases", _ => TestProxy.Create<IRefundCaseRepository>(
                 ("GetForUpdateAsync", _ => Task.FromResult<RefundCase?>(refund)),
                 ("ReloadOrderAsync", _ => Task.CompletedTask),
@@ -651,19 +652,30 @@ public sealed class NotificationServiceTests
             TestProxy.Create<IRefundVerificationService>(),
             TestProxy.Create<IEmailSender>(),
             NullLogger<RefundCaseService>.Instance,
-            harness.Service);
+            harness.Service,
+            privateStorage: ProofStorage.Create());
 
         if (action == "Reject")
             await service.RejectAsync(refundCaseId, new RefundDecisionRequest { Reason = "Sai thông tin", ExpectedRowVersion = 1 });
         else if (action == "Complete")
-            await service.CompleteAsync(refundCaseId, new CompleteRefundRequest { ProviderTransactionId = "BANK-TX-1", ExpectedRowVersion = 1 });
+            await service.CompleteAsync(refundCaseId, new CompleteRefundRequest { ProviderTransactionId = "BANK-TX-1", ExpectedRowVersion = 1 }, ProofStorage.Files());
         else
             await service.MarkFailedAsync(refundCaseId, new RefundDecisionRequest { Reason = "Ngân hàng hoàn trả", ExpectedRowVersion = 1 });
 
         var notification = Assert.Single(harness.Repo.Items);
         Assert.Equal(customerId, notification.RecipientUserId);
-        Assert.Equal(NotificationTypes.RefundResult, notification.NotificationType);
-        Assert.Equal($"RefundResult:{refundCaseId}:{refund.Status}", notification.EventKey);
+        if (action == "Fail")
+        {
+            // Báo thất bại trả hồ sơ về cho khách nhập lại STK
+            Assert.Equal(RefundCaseStatuses.AwaitingBankInfo, refund.Status);
+            Assert.Equal(NotificationTypes.RefundBankInfoRequired, notification.NotificationType);
+            Assert.Equal($"RefundBankInfoRequired:{refundCaseId}:{refund.RowVersion}", notification.EventKey);
+        }
+        else
+        {
+            Assert.Equal(NotificationTypes.RefundResult, notification.NotificationType);
+            Assert.Equal($"RefundResult:{refundCaseId}:{refund.Status}", notification.EventKey);
+        }
         Assert.Contains("RT-REF-99", notification.Content);
         Assert.DoesNotContain("6789", notification.Content);
         Assert.DoesNotContain("0123456789", notification.Content);

@@ -470,7 +470,7 @@ public static class TourSeedData
         await context.Database.ExecuteSqlInterpolatedAsync($@"
             INSERT INTO refund_policies (refund_policy_id, created_by_user_id, policy_type, name, description, status,
                 policy_family_id, version, effective_from, created_at, updated_at, is_deleted)
-            VALUES ({policyId}, {systemUserId}, 'TOUR', 'Chính sách hoàn tiền mẫu',
+            VALUES ({policyId}, {systemUserId}, 'Tour', 'Chính sách hoàn tiền mẫu',
                 'Dữ liệu mẫu cho môi trường phát triển', 'Active', {Guid.NewGuid()}, 1, now(), now(), now(), false)");
         foreach (var (hours, percentage) in new[] { (72, 100m), (24, 50m), (0, 0m) })
         {

@@ -251,7 +251,9 @@ CREATE TABLE refund_policies (
     created_at          timestamptz  NOT NULL DEFAULT now(),
     updated_at          timestamptz  NOT NULL DEFAULT now(),
     is_deleted          boolean      NOT NULL DEFAULT false,
-    CONSTRAINT uq_refund_policies_family_version UNIQUE (policy_family_id, version)
+    CONSTRAINT uq_refund_policies_family_version UNIQUE (policy_family_id, version),
+    CONSTRAINT ck_refund_policies_policy_type CHECK (policy_type IN ('Tour', 'Rental')),
+    CONSTRAINT ck_refund_policies_status CHECK (status IN ('Draft', 'Active', 'Archived'))
 );
 
 CREATE TABLE refund_policy_rules (
@@ -745,6 +747,7 @@ CREATE INDEX ix_posts_created_by_user_id              ON posts(created_by_user_i
 CREATE INDEX ix_post_tags_tag_id                      ON post_tags(tag_id);
 CREATE INDEX ix_post_soft_skills_soft_skill_id        ON post_soft_skills(soft_skill_id);
 CREATE INDEX ix_refund_policies_created_by_user_id    ON refund_policies(created_by_user_id);
+CREATE INDEX ix_refund_policies_type_status             ON refund_policies(policy_type, status) WHERE NOT is_deleted;
 CREATE INDEX ix_refund_policy_rules_refund_policy_id  ON refund_policy_rules(refund_policy_id);
 CREATE INDEX ix_products_category_id                  ON products(category_id);
 CREATE INDEX ix_products_created_by_user_id           ON products(created_by_user_id);
