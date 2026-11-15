@@ -9,6 +9,10 @@ public sealed class GuideGroupRosterResponse
     public string GroupName { get; set; } = string.Empty;
     public Guid TripId { get; set; }
     public string TourName { get; set; } = string.Empty;
+
+    /// <summary>Trạng thái chuyến; chỉ điểm danh được khi <c>InProgress</c>.</summary>
+    public string TripStatus { get; set; } = string.Empty;
+
     public GuideCurrentActivityResponse? CurrentActivity { get; set; }
     public IReadOnlyList<GuideGroupParticipantItemResponse> Participants { get; set; } = [];
 }

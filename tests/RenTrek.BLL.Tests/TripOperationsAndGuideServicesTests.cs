@@ -543,6 +543,119 @@ public sealed class TripOperationsAndGuideServicesTests
         Assert.Contains(uow.TripRepo.AddedAuditLogs, l => l.Action == "UPDATE_ATTENDANCE");
     }
 
+    [Theory]
+    [InlineData("Open")]
+    [InlineData("ClosedForBooking")]
+    [InlineData("Completed")]
+    [InlineData("Cancelled")]
+    public async Task GuideBatchAttendance_RejectsWhenTripNotInProgress(string tripStatus)
+    {
+        var fx = BuildAttendanceFixture(tripStatus);
+        var guideService = new GuidePortalService(
+            fx.Uow,
+            new TestCurrentUserService(fx.GuideId, "Guide"),
+            new TestTimeProvider(FixedNow));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            guideService.SubmitBatchAttendanceAsync(
+                fx.TripId,
+                new GuideBatchAttendanceRequest { ActivityId = fx.ActivityId, MarkAllPresent = true }));
+
+        Assert.Equal("TRIP_NOT_IN_PROGRESS", ex.ErrorCode);
+        Assert.Empty(fx.Uow.AttendanceRepo.Attendances);
+    }
+
+    [Theory]
+    [InlineData("Staff")]
+    [InlineData("Guide")]
+    public async Task AdminAttendanceUpdate_OnlyAdminMayWrite(string role)
+    {
+        var fx = BuildAttendanceFixture("InProgress");
+        var service = new AdminTripAttendanceService(
+            fx.Uow,
+            new TestCurrentUserService(Guid.NewGuid(), role),
+            new TestTimeProvider(FixedNow));
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "Khách báo lại")));
+
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Empty(fx.Uow.AttendanceRepo.Attendances);
+    }
+
+    [Fact]
+    public async Task AdminAttendanceUpdate_RequiresReasonAndActiveOrCompletedTrip_AndAudits()
+    {
+        var fx = BuildAttendanceFixture("InProgress");
+        var admin = new AdminTripAttendanceService(
+            fx.Uow,
+            new TestCurrentUserService(Guid.NewGuid(), "Admin"),
+            new TestTimeProvider(FixedNow));
+
+        // Thiếu lý do, kể cả khi ghi mới -> 400
+        var noReason = await Assert.ThrowsAsync<BadRequestException>(() =>
+            admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, null)));
+        Assert.Equal("REASON_REQUIRED_FOR_UPDATE", noReason.ErrorCode);
+
+        // Có lý do -> ghi và lưu audit
+        var result = await admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "HDV mất sóng, gọi điện báo"));
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Contains(fx.Uow.TripRepo.AddedAuditLogs, l => l.Action == "CREATE_ATTENDANCE");
+
+        // Chuyến chưa diễn ra -> 409
+        fx.Trip.Status = "Open";
+        var notEditable = await Assert.ThrowsAsync<ConflictException>(() =>
+            admin.UpdateAttendancesAsync(fx.TripId, AdminRequest(fx, "Thử")));
+        Assert.Equal("ATTENDANCE_NOT_EDITABLE", notEditable.ErrorCode);
+    }
+
+    private static UpdateTripAttendancesRequest AdminRequest(AttendanceFixture fx, string? reason)
+        => new()
+        {
+            ActivityId = fx.ActivityId,
+            Records = [new TripAttendanceItemRequest { ParticipantId = fx.ParticipantId, Status = "Present", Reason = reason }]
+        };
+
+    private sealed record AttendanceFixture(
+        TestUnitOfWork Uow, Trip Trip, Guid TripId, Guid ActivityId, Guid GuideId, Guid ParticipantId);
+
+    private static AttendanceFixture BuildAttendanceFixture(string tripStatus)
+    {
+        var tripId = Guid.NewGuid();
+        var guideId = Guid.NewGuid();
+        var activity = new TourActivity { Id = Guid.NewGuid(), DayNumber = 1, Name = "Tập trung", StartTime = new TimeSpan(7, 0, 0), DurationMinutes = 30 };
+        var tour = new Tour { Id = Guid.NewGuid(), Name = "Tà Năng", Activities = [activity] };
+        var trip = new Trip { TripId = tripId, TourId = tour.Id, Tour = tour, StartAt = FixedNow, EndAt = FixedNow.AddDays(1), Status = tripStatus };
+        var participant = new BookingParticipant
+        {
+            ParticipantId = Guid.NewGuid(),
+            TripId = tripId,
+            FullName = "Trần An",
+            Status = "Confirmed",
+            BookingOrder = new TripBookingOrder { Order = new Order { Status = "Confirmed" } }
+        };
+        var group = new TripGroup
+        {
+            TripGroupId = Guid.NewGuid(),
+            TripId = tripId,
+            Trip = trip,
+            GuideUserId = guideId,
+            GroupName = "Nhóm 1",
+            MaxParticipants = 10,
+            BookingParticipants = [participant]
+        };
+        participant.TripGroupId = group.TripGroupId;
+        participant.TripGroup = group;
+
+        var uow = new TestUnitOfWork();
+        uow.GroupRepo.Trip = trip;
+        uow.GroupRepo.Groups.Add(group);
+        uow.AttendanceRepo.Trip = trip;
+        uow.AttendanceRepo.Participants.Add(participant);
+
+        return new AttendanceFixture(uow, trip, tripId, activity.Id, guideId, participant.ParticipantId);
+    }
+
     private sealed class TestCurrentUserService(Guid userId, string role) : ICurrentUserService
     {
         public Guid? UserId => userId;
