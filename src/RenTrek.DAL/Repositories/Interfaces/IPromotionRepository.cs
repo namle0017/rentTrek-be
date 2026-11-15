@@ -12,6 +12,12 @@ public interface IPromotionRepository : IGenericRepository<Promotion>
     Task<Promotion?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Khuyến mãi có mã, chưa xoá, đang trong thời gian hiệu lực tại <paramref name="nowUtc"/>, kèm các bậc chưa xoá.
+    /// Entity chỉ đọc (AsNoTracking). Chưa lọc trạng thái / đối tượng áp dụng.
+    /// </summary>
+    Task<List<Promotion>> GetRunningWithCodeAsync(DateTime nowUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Số đơn (distinct) đã dùng khuyến mãi với applied_promotions.status thuộc <paramref name="countedStatuses"/>;
     /// khi <paramref name="customerUserId"/> có giá trị thì chỉ đếm đơn của khách đó. Bỏ qua đơn đã xoá.
     /// </summary>

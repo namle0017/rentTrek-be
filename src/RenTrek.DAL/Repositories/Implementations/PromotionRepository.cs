@@ -28,6 +28,15 @@ public class PromotionRepository : GenericRepository<Promotion>, IPromotionRepos
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public Task<List<Promotion>> GetRunningWithCodeAsync(DateTime nowUtc, CancellationToken cancellationToken = default)
+        => _dbSet
+            .AsNoTracking()
+            .Include(p => p.PromotionTiers.Where(t => !t.IsDeleted))
+            .Where(p => !p.IsDeleted && p.PromotionCode != null && p.StartAt <= nowUtc && p.EndAt >= nowUtc)
+            .OrderByDescending(p => p.Priority)
+            .ThenBy(p => p.EndAt)
+            .ToListAsync(cancellationToken);
+
     public Task<int> CountUsageAsync(
         Guid promotionId,
         IReadOnlyCollection<string> countedStatuses,

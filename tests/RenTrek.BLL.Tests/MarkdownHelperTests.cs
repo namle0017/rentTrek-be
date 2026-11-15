@@ -20,6 +20,15 @@ public sealed class MarkdownHelperTests
             MarkdownHelper.ToPlainText(Markdown));
     }
 
+    [Theory]
+    [InlineData("Mở bài\n![Đỉnh](https://cdn.example/a.jpg \"tiêu đề\")\n![x](https://cdn.example/b.jpg)", "https://cdn.example/a.jpg")]
+    [InlineData("Không có ảnh, chỉ [link](https://x.example)", null)]
+    [InlineData("", null)]
+    public void FirstImageUrl_ReturnsFirstMarkdownImage(string markdown, string? expected)
+    {
+        Assert.Equal(expected, MarkdownHelper.FirstImageUrl(markdown));
+    }
+
     [Fact]
     public void ToPlainText_KeepsLegacyPlainTextPosts()
     {

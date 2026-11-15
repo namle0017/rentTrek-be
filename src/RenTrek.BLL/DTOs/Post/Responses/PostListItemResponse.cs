@@ -10,6 +10,10 @@ public sealed class PostListItemResponse
     public string Slug { get; set; } = string.Empty;
     public string PostType { get; set; } = string.Empty;
     public string Excerpt { get; set; } = string.Empty;
+
+    /// <summary>Ảnh đầu tiên trong nội dung bài; null nếu bài không có ảnh.</summary>
+    public string? CoverImageUrl { get; set; }
+
     public DateTime? PublishedAt { get; set; }
     public string AuthorName { get; set; } = string.Empty;
     public IReadOnlyList<PostTagResponse> Tags { get; set; } = [];

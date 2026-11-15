@@ -95,6 +95,8 @@ public class PostRepository : GenericRepository<Post>, IPostRepository
         PostType = p.PostType,
         Status = p.Status,
         ContentPreview = p.Content.Length > PostListRow.PreviewLength ? p.Content.Substring(0, PostListRow.PreviewLength) : p.Content,
+        // Cắt từ chỗ "![" đầu tiên: đủ để lấy URL ảnh bìa mà không kéo cả bài
+        ImageSnippet = p.Content.Contains("![") ? p.Content.Substring(p.Content.IndexOf("!["), PostListRow.ImageSnippetLength) : null,
         PublishedAt = p.PublishedAt,
         UpdatedAt = p.UpdatedAt,
         CreatedByUserId = p.CreatedByUserId,

@@ -1,5 +1,6 @@
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Promotion.Internal;
+using RenTrek.BLL.DTOs.Promotion.Responses;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
 using RenTrek.DAL.UnitOfWorks;
@@ -100,6 +101,39 @@ public class PromotionService : IPromotionService
 
     public Task LockAsync(Guid promotionId, CancellationToken cancellationToken = default)
         => _unitOfWork.Promotions.AcquireLockAsync(promotionId, cancellationToken);
+
+    public async Task<IReadOnlyList<PublicPromotionResponse>> GetAvailableAsync(
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var promotions = await _unitOfWork.Promotions.GetRunningWithCodeAsync(nowUtc, cancellationToken);
+        var result = new List<PublicPromotionResponse>();
+
+        foreach (var promotion in promotions)
+        {
+            if (!string.Equals(promotion.Status, PromotionStatuses.Active, StringComparison.OrdinalIgnoreCase)
+                || !AppliesToOrderType(promotion.AppliesTo, OrderTypes.Rental))
+                continue;
+
+            // Cùng quy tắc với EvaluateAsync: bậc quà tặng không dùng ở luồng thuê
+            var tiers = promotion.PromotionTiers
+                .Where(t => !t.GiftProductVariantId.HasValue && (t.GiftQuantity ?? 0) == 0)
+                .OrderBy(t => t.MinThreshold)
+                .Select(t => new PublicPromotionTierResponse(t.QualificationMetric, t.MinThreshold, t.DiscountType, t.DiscountValue))
+                .ToList();
+            if (tiers.Count == 0)
+                continue;
+
+            // ponytail: đếm lượt từng mã (N truy vấn), gộp một truy vấn nếu số mã đang chạy lớn
+            if (promotion.MaxUses is { } maxUses
+                && await _unitOfWork.Promotions.CountUsageAsync(promotion.PromotionId, CountedStatuses, null, cancellationToken) >= maxUses)
+                continue;
+
+            result.Add(new PublicPromotionResponse(promotion.PromotionCode!, promotion.Name, promotion.Description, promotion.EndAt, tiers));
+        }
+
+        return result;
+    }
 
     private static bool AppliesToOrderType(string appliesTo, string orderType)
         => string.Equals(appliesTo?.Trim(), orderType, StringComparison.OrdinalIgnoreCase)

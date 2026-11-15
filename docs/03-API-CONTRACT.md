@@ -3811,6 +3811,9 @@ Body giống 17.12. Chỉ áp dụng cho hồ sơ `Approved` → `Failed`. Trả
 }
 ```
 
+- `postType`: `Guide` | `Skill` | `Location` | `News` | `Blog` | `Recruitment` (Tuyển dụng).
+- Ảnh bìa không có cột riêng: `coverImageUrl` trong danh sách và chi tiết bài viết (public + admin) là ảnh Markdown đầu tiên `![..](url)` trong `content`; `null` nếu bài không có ảnh.
+
 ---
 
 ### 19.3. Chi tiết bài viết & trình soạn thảo
@@ -5546,3 +5549,4 @@ Copy khối mẫu dưới đây khi bổ sung API mới trong tương lai:
 | 2026-10-06 | Team | 1.1 – 2.3 | Khởi tạo skeleton cơ bản ban đầu |
 | 2026-11-01 | Antigravity Pair | 1.1 – 23.3 | Hoàn tất thiết kế toàn diện 176 API cho Phân hệ Quản trị (Admin & Vận hành) từ Màn O01 đến O39 theo RenTrekk Design System và DB Supabase Schema. Bổ sung mục tiêu, lý do phân rã chi tiết, bảng enum và mã lỗi nghiệp vụ. |
 | 2026-11-01 | Antigravity Pair | 24.1 – 24.6 | Bổ sung phân hệ API Hướng dẫn viên Thực địa (Màn G01 – G06) gồm 6 API chuyên biệt `/api/v1/guide/*`, bảo mật dữ liệu tài chính và hỗ trợ offline sync trên mobile. Nâng tổng số API lên 182 endpoints. |
+| 2026-11-15 | — | 19.x, bài viết public | Thêm `postType` `Blog`, `Recruitment`; trả `coverImageUrl` (ảnh đầu tiên trong nội dung) |
