@@ -210,6 +210,29 @@ public sealed class AdminProductCatalogService(
         }, cancellationToken);
     }
 
+    public async Task SetPrimaryVariantImageAsync(Guid variantId, Guid imageId, CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        await AtomicAsync(LockKey, async () =>
+        {
+            var variant = await GetVariantAsync(variantId, cancellationToken);
+            var images = await UnitOfWork.ProductVariantImages.GetByVariantAsync(variantId, cancellationToken);
+            var target = images.FirstOrDefault(x => x.Id == imageId)
+                ?? throw new NotFoundException("Không tìm thấy ảnh", ErrorCodes.NotFound);
+            foreach (var image in images)
+            {
+                var shouldBePrimary = image.Id == imageId;
+                if (image.IsPrimary != shouldBePrimary)
+                {
+                    image.IsPrimary = shouldBePrimary;
+                    image.UpdatedAt = Now;
+                }
+            }
+            variant.UpdatedAt = Now;
+            await AuditAsync("SetPrimaryImage", "ProductVariant", variantId, new { imageId, target.ImageUrl }, cancellationToken);
+        }, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<AdminPricingItemResponse>> GetPricingAsync(Guid? categoryId, CancellationToken cancellationToken)
     {
         var rows = await UnitOfWork.RentalPriceTiers.GetPricingOverviewAsync(categoryId, cancellationToken);
