@@ -64,6 +64,26 @@ public sealed class AdminProductCatalogService(
         }, cancellationToken);
     }
 
+    public async Task UpdateProductStatusAsync(Guid productId, UpdateProductStatusRequest request, CancellationToken cancellationToken)
+    {
+        RequireAdmin();
+        if (string.IsNullOrWhiteSpace(request.Status)
+            || (!string.Equals(request.Status.Trim(), ActiveStatus, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.Status.Trim(), InactiveStatus, StringComparison.OrdinalIgnoreCase)))
+            throw new RenTrek.BLL.Exceptions.ValidationException("status", "Trạng thái sản phẩm phải là Active hoặc Inactive");
+
+        await AtomicAsync(LockKey, async () =>
+        {
+            var product = await GetProductAsync(productId, cancellationToken);
+            var previousStatus = product.Status.ToString();
+            product.Status = string.Equals(request.Status.Trim(), ActiveStatus, StringComparison.OrdinalIgnoreCase)
+                ? CatalogStatus.Active
+                : CatalogStatus.Inactive;
+            product.UpdatedAt = Now;
+            await AuditAsync("UpdateStatus", "Product", productId, new { before = previousStatus, after = product.Status.ToString() }, cancellationToken);
+        }, cancellationToken);
+    }
+
     public async Task DeleteProductAsync(Guid productId, CancellationToken cancellationToken)
     {
         RequireAdmin();

@@ -54,6 +54,16 @@ public sealed class AdminProductsController(IProductService productService, IAdm
         return Ok(ApiResponse<object?>.Ok(null, "Cập nhật sản phẩm thành công"));
     }
 
+    /// <summary>Đổi nhanh trạng thái sản phẩm cha (Active / Inactive).</summary>
+    [HttpPatch("{id:guid}/status")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateStatusAsync([FromRoute] Guid id, [FromBody] UpdateProductStatusRequest request, CancellationToken cancellationToken)
+    {
+        await catalogService.UpdateProductStatusAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Cập nhật trạng thái sản phẩm thành công"));
+    }
+
     /// <summary>13.5. Xoá mềm sản phẩm.</summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]

@@ -17,6 +17,9 @@ public interface IAdminProductCatalogService
     /// <summary>Sửa thông tin sản phẩm cha.</summary>
     Task UpdateProductAsync(Guid productId, SaveProductRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Đổi nhanh trạng thái sản phẩm cha (Active / Inactive).</summary>
+    Task UpdateProductStatusAsync(Guid productId, UpdateProductStatusRequest request, CancellationToken cancellationToken);
+
     /// <summary>Ẩn sản phẩm (xoá mềm); biến thể của nó tự ẩn theo.</summary>
     Task DeleteProductAsync(Guid productId, CancellationToken cancellationToken);
 
