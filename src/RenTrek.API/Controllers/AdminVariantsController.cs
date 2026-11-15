@@ -57,6 +57,16 @@ public sealed class AdminVariantsController(IAdminProductCatalogService service)
         return Ok(ApiResponse<object?>.Ok(null, "Xoá ảnh biến thể thành công"));
     }
 
+    /// <summary>Đặt một ảnh đã có của biến thể làm ảnh đại diện.</summary>
+    [HttpPatch("{variantId:guid}/images/{imageId:guid}/primary")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SetPrimaryImageAsync(Guid variantId, Guid imageId, CancellationToken cancellationToken)
+    {
+        await service.SetPrimaryVariantImageAsync(variantId, imageId, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Đặt ảnh đại diện biến thể thành công"));
+    }
+
     /// <summary>13.11. Bảng bậc giá thuê theo ngày của biến thể.</summary>
     [HttpGet("{variantId:guid}/price-tiers")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminPriceTierItemResponse>>), StatusCodes.Status200OK)]

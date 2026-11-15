@@ -1,8 +1,11 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging.Abstractions;
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Product.Requests;
+using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Mappings;
 using RenTrek.BLL.Services.Implementations;
+using RenTrek.BLL.Services.Interfaces;
 using RenTrek.BLL.Validators.Product;
 using RenTrek.DAL.Entities;
 using RenTrek.DAL.Entities.Enums;
@@ -119,5 +122,54 @@ public sealed class ProductServiceTests
         Assert.Equal(productId, item.Id);
         Assert.Equal(95000m, item.PricePerDay);
         Assert.True(item.IsRentable);
+    }
+
+    [Fact]
+    public async Task SetPrimaryVariantImageAsync_PromotesTargetImageAndUnsetsPreviousPrimary()
+    {
+        var variantId = Guid.NewGuid();
+        var firstImageId = Guid.NewGuid();
+        var secondImageId = Guid.NewGuid();
+
+        var variant = new ProductVariant
+        {
+            Id = variantId,
+            Sku = "TENT-2P",
+            Name = "Lều 2 người",
+            Status = CatalogStatus.Active
+        };
+
+        var images = new List<ProductVariantImage>
+        {
+            new() { Id = firstImageId, ProductVariantId = variantId, ImageUrl = "https://img/1.jpg", IsPrimary = true, DisplayOrder = 0 },
+            new() { Id = secondImageId, ProductVariantId = variantId, ImageUrl = "https://img/2.jpg", IsPrimary = false, DisplayOrder = 1 }
+        };
+
+        var uow = TestProxy.Create<IUnitOfWork>(
+            ("BeginTransactionAsync", _ => Task.CompletedTask),
+            ("CommitAsync", _ => Task.CompletedTask),
+            ("RollbackAsync", _ => Task.CompletedTask),
+            ("SaveChangesAsync", _ => Task.FromResult(1)),
+            ("get_AdminOperations", _ => TestProxy.Create<IAdminOperationRepository>(("AcquireLockAsync", _ => Task.CompletedTask))),
+            ("get_AuditLogs", _ => TestProxy.Create<IAuditLogRepository>(("AddAsync", _ => Task.CompletedTask))),
+            ("get_ProductVariants", _ => TestProxy.Create<IProductVariantRepository>(
+                ("GetByIdAsync", _ => Task.FromResult<ProductVariant?>(variant)))),
+            ("get_ProductVariantImages", _ => TestProxy.Create<IProductVariantImageRepository>(
+                ("GetByVariantAsync", _ => Task.FromResult(images)))));
+
+        var currentUser = TestProxy.Create<ICurrentUserService>(
+            ("get_Role", _ => RoleNames.Admin),
+            ("get_RequiredUserId", _ => Guid.NewGuid()),
+            ("get_UserId", _ => (Guid?)Guid.NewGuid()));
+
+        var service = new AdminProductCatalogService(uow, currentUser, TimeProvider.System);
+
+        await service.SetPrimaryVariantImageAsync(variantId, secondImageId, CancellationToken.None);
+
+        Assert.False(images[0].IsPrimary);
+        Assert.True(images[1].IsPrimary);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.SetPrimaryVariantImageAsync(variantId, Guid.NewGuid(), CancellationToken.None));
     }
 }
