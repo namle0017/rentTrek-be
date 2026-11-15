@@ -20,6 +20,8 @@ internal static class RefundPolicyRuleListRules
             .Must(x => x is { Count: > 0 and <= MaxRules }).WithMessage($"Cần từ 1 đến {MaxRules} quy tắc hoàn tiền")
             .Must(x => x == null || x.Select(r => r.MinHoursBefore).Distinct().Count() == x.Count)
             .WithMessage("Số giờ trước khởi hành không được trùng")
+            .Must(x => x == null || x.Count == 0 || x.Any(r => r.MinHoursBefore == 0))
+            .WithMessage("Cần có mốc 0 giờ để huỷ sát giờ khởi hành luôn khớp một mức hoàn")
             .Must(NotIncreaseCloserToStart)
             .WithMessage("Phần trăm hoàn không được tăng khi hủy sát giờ khởi hành hơn");
         var items = Expression.Lambda<Func<T, IEnumerable<RefundPolicyRuleRequest>>>(rules.Body, rules.Parameters);

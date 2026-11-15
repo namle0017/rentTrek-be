@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RenTrek.API.Common;
 using RenTrek.BLL.Constants;
+using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
+using RenTrek.BLL.DTOs.TripSuggestion.Responses;
 using RenTrek.BLL.Services.Interfaces;
 
 namespace RenTrek.API.Controllers;
@@ -14,8 +16,21 @@ namespace RenTrek.API.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/trips")]
-public sealed class TripsController(ITripService tripService, ITripRecurrenceService tripRecurrenceService) : ControllerBase
+public sealed class TripsController(
+    ITripService tripService,
+    ITripRecurrenceService tripRecurrenceService,
+    IProductBundleService productBundleService) : ControllerBase
 {
+    [HttpGet("{tripId:guid}/suggested-bundles")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<TripSuggestedBundlesResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSuggestedBundlesAsync(Guid tripId, CancellationToken cancellationToken)
+    {
+        var result = await productBundleService.GetSuggestedForTripAsync(tripId, cancellationToken);
+        return Ok(ApiResponse<TripSuggestedBundlesResponse>.Ok(result, "Lấy combo gợi ý cho chuyến đi thành công"));
+    }
+
     [HttpGet("{tripId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<AdminTripResponse>), StatusCodes.Status200OK)]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
@@ -23,6 +38,16 @@ public sealed class TripsController(ITripService tripService, ITripRecurrenceSer
     {
         var result = await tripService.GetAdminTripAsync(tripId, cancellationToken);
         return Ok(ApiResponse<AdminTripResponse>.Ok(result, "Lấy thông tin chuyến đi thành công"));
+    }
+
+    [HttpGet("{tripId:guid}/refund-policy")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<TripRefundPolicyResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRefundPolicyAsync(Guid tripId, CancellationToken cancellationToken)
+    {
+        var result = await tripService.GetTripRefundPolicyAsync(tripId, cancellationToken);
+        return Ok(ApiResponse<TripRefundPolicyResponse>.Ok(result, "Lấy chính sách hoàn tiền của chuyến đi thành công"));
     }
 
     [HttpPost]

@@ -1,3 +1,4 @@
+using RenTrek.BLL.Helpers;
 using System.Globalization;
 using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Guide.Requests;
@@ -344,6 +345,15 @@ public sealed class GuidePortalService(
                 updatedCount++;
             }
         }
+
+        await AttendanceNoShowRules.ApplyAsync(
+            unitOfWork,
+            group.Trip,
+            request.ActivityId,
+            recordsToApply.GroupBy(r => r.ParticipantId).ToDictionary(
+                g => g.Key, g => AdminTripAttendanceService.NormalizeAttendanceStatus(g.Last().Status)),
+            utcNow,
+            cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(request.ClientBatchId))
         {

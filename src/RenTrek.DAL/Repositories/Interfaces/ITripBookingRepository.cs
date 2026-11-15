@@ -17,4 +17,7 @@ public interface ITripBookingRepository
     Task<decimal> GetSucceededPaymentTotalAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<Order?> GetBookingAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task AddOrderAsync(Order order, CancellationToken cancellationToken = default);
+
+    /// <summary>Đơn chuyến đi còn PendingPayment / Unpaid đã quá hạn giữ chỗ, cũ nhất trước (job hết hạn xử lý theo lô).</summary>
+    Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default);
 }

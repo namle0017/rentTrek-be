@@ -4,6 +4,7 @@ using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.ProductBundle.Requests;
 using RenTrek.BLL.DTOs.ProductBundle.Responses;
 using RenTrek.BLL.DTOs.Rental.Internal;
+using RenTrek.BLL.DTOs.TripSuggestion.Responses;
 using RenTrek.BLL.Exceptions;
 using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Services.Interfaces;
@@ -97,6 +98,42 @@ public class ProductBundleService : IProductBundleService
             .FirstOrDefault(component => component.ProductVariantId == limitingVariantId)?.ProductName;
         response.Availability = ToAvailability(period, quantity, limitingComponent);
 
+        return response;
+    }
+
+    public async Task<TripSuggestedBundlesResponse> GetSuggestedForTripAsync(Guid tripId, CancellationToken cancellationToken = default)
+    {
+        var trip = await _unitOfWork.Trips.GetByIdAsync(tripId, cancellationToken);
+        if (trip is null || trip.IsDeleted || trip.Status is TripStatuses.Draft)
+            throw new NotFoundException("Không tìm thấy chuyến đi", ErrorCodes.ItemNotFound);
+        var tour = await _unitOfWork.Tours.GetSuggestionsAsync(trip.TourId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy tour", ErrorCodes.NotFound);
+
+        var response = new TripSuggestedBundlesResponse
+        {
+            RentalFrom = trip.StartAt.UtcDateTime,
+            RentalTo = trip.EndAt.UtcDateTime,
+            ProvidedVariantIds = tour.ProvidedItems
+                .Where(p => p.ProductVariantId.HasValue)
+                .Select(p => p.ProductVariantId!.Value).Distinct().ToList()
+        };
+        // Chuyến đã khởi hành thì không còn thuê theo ngày chuyến được.
+        if (trip.StartAt <= _timeProvider.GetUtcNow())
+            return response;
+
+        var period = new RentalPeriodQueryRequest { From = response.RentalFrom, To = response.RentalTo };
+        foreach (var suggestion in tour.SuggestedBundles.OrderBy(sb => sb.SortOrder))
+        {
+            try
+            {
+                var bundle = await GetByIdAsync(suggestion.BundleId, period, cancellationToken);
+                response.Bundles.Add(new TripSuggestedBundleResponse { Note = suggestion.Note, Bundle = bundle });
+            }
+            catch (NotFoundException)
+            {
+                // Combo đã ngừng bán sau khi gắn: bỏ qua.
+            }
+        }
         return response;
     }
 

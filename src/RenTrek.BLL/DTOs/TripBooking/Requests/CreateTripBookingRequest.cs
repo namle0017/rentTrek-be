@@ -18,6 +18,10 @@ public sealed class CreateTripBookingRequest
     [StringLength(1000)]
     public string? Note { get; set; }
 
+    /// <summary>Version chính sách hoàn tiền khách đã đọc và đồng ý; lệch version hiện hành ⇒ 409 REFUND_POLICY_CHANGED.</summary>
+    [Range(1, int.MaxValue, ErrorMessage = "Phiên bản chính sách hoàn tiền là bắt buộc")]
+    public int AcceptedRefundPolicyVersion { get; set; }
+
     [MaxLength(20)]
     public IReadOnlyList<CreateBookingParticipantRequest> AdditionalParticipants { get; set; } = [];
 }

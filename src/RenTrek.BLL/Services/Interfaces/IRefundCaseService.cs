@@ -1,3 +1,4 @@
+using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Common.Responses;
 using RenTrek.BLL.DTOs.Refund.Internal;
 using RenTrek.BLL.DTOs.Refund.Requests;
@@ -17,7 +18,8 @@ public interface IRefundCaseService
         RefundBankAccountRequest bankAccount,
         string consentVersion,
         DateTimeOffset utcNow,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string source = RefundCaseSources.TripCancellation);
 
     /// <summary>Khách nhập STK cho hồ sơ đang chờ (AwaitingBankInfo → Requested).</summary>
     Task<RefundCaseSummaryResponse> SubmitBankInfoAsync(Guid refundCaseId, SubmitRefundBankInfoRequest request, CancellationToken cancellationToken = default);
@@ -37,6 +39,7 @@ public interface IRefundCaseService
     Task<PagedResponse<RefundCaseQueueItemResponse>> GetAdminQueueAsync(RefundCaseQueryRequest request, CancellationToken cancellationToken = default);
     Task<RefundChallengeResponse> RequestExportCodeAsync(CancellationToken cancellationToken = default);
     Task<RefundExportFileResponse> ExportAsync(RefundExportRequest request, CancellationToken cancellationToken = default);
+    Task<RefundCaseSummaryResponse> ApproveAsync(Guid refundCaseId, RefundApproveRequest request, CancellationToken cancellationToken = default);
     Task<RefundCaseSummaryResponse> RejectAsync(Guid refundCaseId, RefundDecisionRequest request, CancellationToken cancellationToken = default);
     /// <summary>Hoàn tất hồ sơ kèm 1..3 ảnh chứng từ bắt buộc (JPG/PNG/WebP, tối đa 5MB mỗi ảnh).</summary>
     Task<RefundCaseSummaryResponse> CompleteAsync(

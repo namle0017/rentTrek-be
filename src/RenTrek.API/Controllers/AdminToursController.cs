@@ -264,6 +264,26 @@ public sealed class AdminToursController(ITourService tourService, IAdminTourSer
         return Ok(ApiResponse<object?>.Ok(null, "Cập nhật bài viết của tour thành công"));
     }
 
+    /// <summary>6.23a. Combo thuê gợi ý của tour.</summary>
+    [HttpGet("{tourId:guid}/suggested-bundles")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminTourSuggestedBundleResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSuggestedBundlesAsync([FromRoute] Guid tourId, CancellationToken cancellationToken)
+    {
+        var result = await adminTourService.GetSuggestedBundlesAsync(tourId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminTourSuggestedBundleResponse>>.Ok(result, "Lấy combo gợi ý của tour thành công"));
+    }
+
+    /// <summary>6.23b. Thay toàn bộ combo gợi ý của tour.</summary>
+    [HttpPut("{tourId:guid}/suggested-bundles")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> SetSuggestedBundlesAsync([FromRoute] Guid tourId,
+        [FromBody] TourSuggestedBundlesRequest request, CancellationToken cancellationToken)
+    {
+        await adminTourService.SetSuggestedBundlesAsync(tourId, request, cancellationToken);
+        return Ok(ApiResponse<object?>.Ok(null, "Cập nhật combo gợi ý của tour thành công"));
+    }
+
     /// <summary>6.24. Lịch sử phiên bản trong họ tour.</summary>
     [HttpGet("{tourId:guid}/versions")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdminTourVersionResponse>>), StatusCodes.Status200OK)]

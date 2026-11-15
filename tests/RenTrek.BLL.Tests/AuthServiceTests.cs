@@ -325,6 +325,7 @@ public sealed class AuthServiceTests
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public List<BookingParticipant> Seats { get; } = [];
 
         // Trả tất cả ghế trùng email để chứng minh AuthService tự loại đơn chưa Paid hoặc đã khởi hành

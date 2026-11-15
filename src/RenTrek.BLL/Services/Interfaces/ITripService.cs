@@ -1,3 +1,4 @@
+using RenTrek.BLL.DTOs.Refund.Responses;
 using RenTrek.BLL.DTOs.TripGroup.Requests;
 using RenTrek.BLL.DTOs.TripGroup.Responses;
 
@@ -17,6 +18,11 @@ public interface ITripService
     Task<AdminTripResponse> UpdateTripAsync(
         Guid tripId,
         UpdateTripRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Chính sách huỷ / hoàn của chuyến (công khai). Chuyến nháp hoặc không có chính sách ⇒ 404.</summary>
+    Task<TripRefundPolicyResponse> GetTripRefundPolicyAsync(
+        Guid tripId,
         CancellationToken cancellationToken = default);
 
     Task<AdminTripResponse> UpdateTripStatusAsync(

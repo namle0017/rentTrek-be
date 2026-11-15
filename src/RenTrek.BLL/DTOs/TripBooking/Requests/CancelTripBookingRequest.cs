@@ -5,7 +5,7 @@ namespace RenTrek.BLL.DTOs.TripBooking.Requests;
 /// <summary>
 /// Yêu cầu hủy toàn bộ booking chuyến đi.
 /// </summary>
-public sealed class CancelTripBookingRequest
+public class CancelTripBookingRequest
 {
     public string? Reason { get; set; }
 

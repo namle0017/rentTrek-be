@@ -41,14 +41,17 @@ public sealed class RefundCaseService(
     private const int MaxPageSize = 100;
     private const long MaxImportBytes = 20 * 1024 * 1024;
     private const int MaxFailureReasonLength = 500;
-    private static readonly string[] ExportableStatuses = [RefundCaseStatuses.Requested, RefundCaseStatuses.Approved];
+    private static readonly string[] ExportableStatuses = [RefundCaseStatuses.Approved];
+    private const int MaxAppealReasonLength = 1000;
+    private const int MaxResubmits = 1;
+    private static readonly TimeSpan ResubmitWindow = TimeSpan.FromDays(7);
     private const string ImportActionComplete = "Complete";
     private const string ImportActionFail = "Fail";
     private const string ImportActionSkip = "Skip";
 
     private sealed record ImportContext(Guid BatchId, string FileName, int RowNumber, int TotalRows);
 
-    private static readonly string[] AdminOnly = [RoleNames.Admin];
+    private static readonly string[] AdminOnly = [RoleNames.Admin, RoleNames.Staff];
     private TimeSpan PayoutRetention => TimeSpan.FromDays(refundOptions?.Value.PayoutRetentionDays ?? 30);
 
     public async Task<RefundQuoteResult> QuoteAsync(RefundOrderInput order, DateTimeOffset utcNow, CancellationToken cancellationToken = default)
@@ -57,6 +60,12 @@ public sealed class RefundCaseService(
         var paidAmount = order.PaymentStatus == OrderPaymentStatuses.Paid
             ? await unitOfWork.TripBookings.GetSucceededPaymentTotalAsync(order.OrderId, cancellationToken)
             : 0m;
+        // Đổi lịch sang chuyến rẻ hơn đã hoàn phần chênh: không hoàn lại lần nữa khi hủy
+        if (order.AmountCap > 0)
+            paidAmount = Math.Min(paidAmount, order.AmountCap);
+        // Đã hủy bớt hành khách: chỉ còn phần tiền của số ghế còn lại (cùng UnitPrice)
+        if (order.TotalParticipants > 0 && order.ActiveParticipants < order.TotalParticipants)
+            paidAmount = Math.Floor(paidAmount * order.ActiveParticipants / order.TotalParticipants);
 
         var hoursBefore = (order.TripStartAt - utcNow).TotalHours;
         var rule = policy?.RefundPolicyRules
@@ -81,7 +90,8 @@ public sealed class RefundCaseService(
         RefundBankAccountRequest bankAccount,
         string consentVersion,
         DateTimeOffset utcNow,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string source = RefundCaseSources.TripCancellation)
     {
         var originalPaymentId = await unitOfWork.RefundCases.GetLatestCollectionPaymentIdAsync(order.OrderId, cancellationToken);
         var payment = new Payment
@@ -109,6 +119,7 @@ public sealed class RefundCaseService(
             RefundPolicyRuleId = quote.Rule?.RefundPolicyRuleId,
             Amount = quote.RefundAmount,
             Status = RefundCaseStatuses.Requested,
+            Source = source,
             BankCode = bankAccount.BankCode,
             BankAccountLast4 = accountNumber[^4..],
             ConsentVersion = consentVersion,
@@ -125,7 +136,7 @@ public sealed class RefundCaseService(
 
         await unitOfWork.RefundCases.AddAsync(refund, cancellationToken);
         await AuditAsync(order.CustomerUserId, "RefundCaseCreated", refund, utcNow, cancellationToken);
-        await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
+        await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ duyệt.", refund, utcNow, cancellationToken);
         return MapSummary(refund);
     }
 
@@ -153,7 +164,7 @@ public sealed class RefundCaseService(
             PaymentMethod = PaymentMethodBankTransfer,
             Status = PaymentStatuses.PendingApproval,
             CreatedAt = utcNow,
-            Purpose = PurposeRentalFee
+            Purpose = source is RefundCaseSources.TripCancellation or RefundCaseSources.TripReschedule ? PurposeTourFee : PurposeRentalFee
         };
         await unitOfWork.Payments.AddAsync(payment, cancellationToken);
 
@@ -180,7 +191,7 @@ public sealed class RefundCaseService(
         await AuditAsync(order.CustomerUserId, "RefundCaseCreated", refund, utcNow, cancellationToken);
         if (refund.Status == RefundCaseStatuses.Requested)
         {
-            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
+            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {order.OrderCode} chờ duyệt.", refund, utcNow, cancellationToken);
         }
         else
         {
@@ -221,7 +232,7 @@ public sealed class RefundCaseService(
             refund.RejectionReason = null;
             refund.RowVersion++;
             await AuditAsync(refund.CustomerUserId, "RefundBankInfoSubmitted", refund, utcNow, cancellationToken);
-            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {refund.Order.OrderCode} đã có STK, chờ xuất cho kế toán.", refund, utcNow, cancellationToken);
+            await NotifyRolesAsync(AdminOnly, "Hồ sơ hoàn tiền mới", $"Đơn {refund.Order.OrderCode} đã có STK, chờ duyệt.", refund, utcNow, cancellationToken);
             return MapSummary(refund);
         }, cancellationToken);
 
@@ -263,7 +274,7 @@ public sealed class RefundCaseService(
     {
         var refund = await unitOfWork.RefundCases.GetDetailAsync(refundCaseId, cancellationToken);
         EnsureOwned(refund);
-        return MapCustomer(refund!);
+        return MapCustomer(refund!, timeProvider.GetUtcNow());
     }
 
     public async Task<PagedResponse<RefundCaseResponse>> GetMineAsync(
@@ -280,7 +291,7 @@ public sealed class RefundCaseService(
             currentUser.RequiredUserId, statuses, pageNumber, pageSize, cancellationToken);
         return new PagedResponse<RefundCaseResponse>
         {
-            Items = items.Select(MapCustomer).ToList(),
+            Items = items.Select(x => MapCustomer(x, timeProvider.GetUtcNow())).ToList(),
             PageNumber = pageNumber,
             PageSize = pageSize,
             TotalItems = total
@@ -301,6 +312,9 @@ public sealed class RefundCaseService(
             EnsureOwned(refund);
             if (refund.Status is not (RefundCaseStatuses.Rejected or RefundCaseStatuses.Failed))
                 throw new ConflictException("Chỉ gửi lại được hồ sơ bị từ chối hoặc thất bại", ErrorCodes.RefundCaseNotResubmittable);
+            var isAppeal = refund.Status == RefundCaseStatuses.Rejected;
+            if (isAppeal && !CanAppeal(refund, utcNow))
+                throw new ConflictException("Hồ sơ đã hết lượt hoặc quá hạn 7 ngày để khiếu nại", ErrorCodes.RefundCaseNotResubmittable);
             if (await unitOfWork.RefundCases.HasOtherOpenCaseAsync(refund.OrderId, refund.RefundCaseId, cancellationToken))
                 throw new ConflictException("Đơn này đang có hồ sơ hoàn tiền khác đang xử lý", ErrorCodes.RefundCaseNotResubmittable);
 
@@ -309,8 +323,19 @@ public sealed class RefundCaseService(
                 errors["bankAccount"] = ["Cần cung cấp tài khoản nhận hoàn"];
             if (!request.ConsentAccepted || request.ConsentVersion != RefundBankCodes.ConsentVersion)
                 errors["consentAccepted"] = ["Bạn cần đồng ý xử lý dữ liệu ngân hàng"];
+            var appealReason = request.Reason?.Trim();
+            if (isAppeal && string.IsNullOrEmpty(appealReason))
+                errors["reason"] = ["Vui lòng nhập lý do khiếu nại"];
+            else if (appealReason?.Length > MaxAppealReasonLength)
+                errors["reason"] = [$"Lý do khiếu nại tối đa {MaxAppealReasonLength} ký tự"];
             if (errors.Count > 0)
                 throw new ValidationException(errors);
+
+            if (isAppeal)
+            {
+                refund.ResubmitCount++;
+                refund.AppealReason = appealReason;
+            }
 
             var previousStatus = refund.Status;
             var previousReason = refund.RejectionReason;
@@ -319,6 +344,7 @@ public sealed class RefundCaseService(
             refund.RejectionReason = null;
             refund.ApprovedAt = null;
             refund.ApprovedByAdminUserId = null;
+            refund.ExportedAt = null;
             refund.ProviderTransactionId = null;
             refund.CompletedAt = null;
             refund.RefundPayment.Status = PaymentStatuses.PendingApproval;
@@ -329,7 +355,7 @@ public sealed class RefundCaseService(
             await NotifyRolesAsync(
                 AdminOnly,
                 "Khách gửi lại yêu cầu hoàn tiền",
-                $"Đơn {refund.Order.OrderCode} ({previousStatus}: {previousReason}) đã có STK mới, chờ xuất cho kế toán.",
+                $"Đơn {refund.Order.OrderCode} ({previousStatus}: {previousReason}) đã có STK mới, chờ duyệt.",
                 refund,
                 utcNow,
                 cancellationToken);
@@ -384,23 +410,22 @@ public sealed class RefundCaseService(
         {
             await VerifyOtpAsync(adminId, request, cancellationToken);
 
-            // Một lần xuất gồm hồ sơ mới (Requested) và hồ sơ đã gửi kế toán nhưng chưa có kết quả (Approved)
+            // Chỉ hồ sơ đã duyệt (Approved), gồm cả hồ sơ đã gửi kế toán nhưng chưa có kết quả
             var refunds = await unitOfWork.RefundCases.GetForExportAsync(
                 ExportableStatuses, adminId, request.FromDate, request.ToDate, cancellationToken);
             if (refunds.Count == 0)
                 throw new ConflictException(
-                    "Chưa có hồ sơ nào có số tài khoản để chuyển khoản. Hồ sơ đang chờ khách nhập STK sẽ được xuất sau khi khách cung cấp.",
+                    "Chưa có hồ sơ đã duyệt để xuất cho kế toán. Hãy duyệt hồ sơ đang chờ trước khi xuất.",
                     ErrorCodes.RefundExportEmpty);
 
             var rows = refunds.Select(x => (x, ReadPayoutDetails(x))).ToList();
             foreach (var refund in refunds)
             {
-                if (refund.Status == RefundCaseStatuses.Requested)
+                if (refund.ExportedAt is null)
                 {
-                    Transition(refund, RefundCaseStatuses.Approved, utcNow);
-                    refund.ApprovedByAdminUserId = adminId;
-                    refund.ApprovedAt = utcNow;
-                    refund.RefundPayment.Status = PaymentStatuses.Pending;
+                    refund.ExportedAt = utcNow;
+                    refund.UpdatedAt = utcNow;
+                    refund.RowVersion++;
                     await NotifyAsync(refund.CustomerUserId, "Hoàn tiền đang được xử lý", "Hồ sơ của bạn đã được chuyển cho kế toán.", refund, utcNow, cancellationToken);
                 }
 
@@ -419,6 +444,36 @@ public sealed class RefundCaseService(
         }
     }
 
+    /// <summary>Admin/Staff duyệt hồ sơ (Requested → Approved); chỉ hồ sơ Approved mới được xuất cho kế toán.</summary>
+    public Task<RefundCaseSummaryResponse> ApproveAsync(
+        Guid refundCaseId,
+        RefundApproveRequest request,
+        CancellationToken cancellationToken = default)
+        => MutateAsync(refundCaseId, async (refund, utcNow) =>
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var actorId = currentUser.RequiredUserId;
+            EnsureNotOwnRefund(refund, actorId);
+            if (refund.Status != RefundCaseStatuses.Requested)
+                throw new ConflictException("Chỉ duyệt được hồ sơ đang chờ duyệt", ErrorCodes.RefundCaseNotApprovable);
+            EnsureRowVersion(refund, request.ExpectedRowVersion);
+
+            Transition(refund, RefundCaseStatuses.Approved, utcNow);
+            refund.ApprovedByAdminUserId = actorId;
+            refund.ApprovedAt = utcNow;
+            refund.ExportedAt = null;
+            refund.RefundPayment.Status = PaymentStatuses.Pending;
+            await AuditAsync(actorId, "RefundCaseApproved", refund, utcNow, cancellationToken);
+            await NotifyAsync(
+                refund.CustomerUserId,
+                "Hồ sơ hoàn tiền đã được duyệt",
+                $"Hồ sơ hoàn tiền cho đơn {refund.Order.OrderCode} đã được duyệt, đang chờ chuyển khoản.",
+                refund,
+                utcNow,
+                cancellationToken);
+            return MapSummary(refund);
+        }, cancellationToken);
+
     public Task<RefundCaseSummaryResponse> RejectAsync(
         Guid refundCaseId,
         RefundDecisionRequest request,
@@ -432,6 +487,7 @@ public sealed class RefundCaseService(
 
             Transition(refund, RefundCaseStatuses.Rejected, utcNow);
             refund.RejectionReason = request.Reason.Trim();
+            refund.RejectedAt = utcNow;
             refund.RefundPayment.Status = PaymentStatuses.Cancelled;
             await AuditAsync(currentUser.RequiredUserId, "RefundCaseRejected", refund, utcNow, cancellationToken);
             await notificationService.QueueAsync(
@@ -595,6 +651,7 @@ public sealed class RefundCaseService(
             refund.BankInfoRequestedAt = utcNow;
             refund.ApprovedAt = null;
             refund.ApprovedByAdminUserId = null;
+            refund.ExportedAt = null;
             refund.RefundPayment.Status = PaymentStatuses.PendingApproval;
             refund.RefundPayment.ProcessedAt = null;
             await AuditAsync(currentUser.RequiredUserId, "RefundMarkedFailed", refund, utcNow, cancellationToken, import);
@@ -1078,7 +1135,14 @@ public sealed class RefundCaseService(
             RowVersion = refund.RowVersion
         };
 
-    private static RefundCaseResponse MapCustomer(RefundCase refund)
+    // Khiếu nại (gửi lại hồ sơ Rejected): tối đa 1 lần, trong 7 ngày từ lúc bị từ chối
+    private static bool CanAppeal(RefundCase refund, DateTimeOffset utcNow)
+        => refund.ResubmitCount < MaxResubmits && (ResubmitDeadlineOf(refund) is not { } deadline || utcNow <= deadline);
+
+    private static DateTimeOffset? ResubmitDeadlineOf(RefundCase refund)
+        => refund.Status == RefundCaseStatuses.Rejected ? (refund.RejectedAt ?? refund.UpdatedAt) + ResubmitWindow : null;
+
+    private static RefundCaseResponse MapCustomer(RefundCase refund, DateTimeOffset utcNow)
         => new()
         {
             RefundCaseId = refund.RefundCaseId,
@@ -1100,7 +1164,12 @@ public sealed class RefundCaseService(
             CreatedAt = refund.CreatedAt,
             UpdatedAt = refund.UpdatedAt,
             CanSubmitBankInfo = refund.Status == RefundCaseStatuses.AwaitingBankInfo,
-            CanResubmit = refund.Status is RefundCaseStatuses.Rejected or RefundCaseStatuses.Failed
+            CanResubmit = refund.Status == RefundCaseStatuses.Failed
+                || (refund.Status == RefundCaseStatuses.Rejected && CanAppeal(refund, utcNow)),
+            ResubmitDeadline = refund.Status == RefundCaseStatuses.Rejected && refund.ResubmitCount < MaxResubmits
+                ? ResubmitDeadlineOf(refund)
+                : null,
+            AppealReason = refund.AppealReason
         };
 
     private static List<RefundProofResponse> MapProofs(RefundCase refund)
@@ -1161,6 +1230,10 @@ public sealed class RefundCaseService(
             MinHoursBefore = refund.RefundPolicyRule?.MinHoursBefore,
             RefundPercentage = refund.RefundPolicyRule?.RefundPercentage,
             CancelReason = refund.Order.CancelReason,
+            AppealReason = refund.AppealReason,
+            RejectionReason = refund.Status == RefundCaseStatuses.Rejected ? refund.RejectionReason : null,
+            ApprovedAt = refund.ApprovedAt,
+            ExportedAt = refund.ExportedAt,
             ProviderTransactionId = refund.ProviderTransactionId,
             CreatedAt = refund.CreatedAt,
             RowVersion = refund.RowVersion,

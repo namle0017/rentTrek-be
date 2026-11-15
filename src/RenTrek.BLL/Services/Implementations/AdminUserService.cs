@@ -42,7 +42,7 @@ public sealed class AdminUserService(
     public async Task<List<AdminUserResponse>> GetGuidesAsync(CancellationToken cancellationToken)
     {
         var rows = await UnitOfWork.Accounts.GetByRolesAsync(
-            [RoleNames.Guide, RoleNames.TourGuide], AccountStatuses.Active, cancellationToken);
+            [RoleNames.Guide], AccountStatuses.Active, cancellationToken);
         return rows.Select(ToResponse).ToList();
     }
 

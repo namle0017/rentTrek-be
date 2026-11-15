@@ -523,16 +523,14 @@ public sealed class TripGroupingService(
         }
 
         var userId = currentUser.RequiredUserId;
-        if (string.Equals(role, RoleNames.Guide, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(role, RoleNames.TourGuide, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(role, RoleNames.Guide, StringComparison.OrdinalIgnoreCase))
         {
             return userId;
         }
 
         var account = await unitOfWork.TripGroups.GetAccountWithRoleAsync(userId, cancellationToken);
         var accountRole = account?.Role?.RoleName;
-        if (string.Equals(accountRole, RoleNames.Guide, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(accountRole, RoleNames.TourGuide, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(accountRole, RoleNames.Guide, StringComparison.OrdinalIgnoreCase))
         {
             return userId;
         }

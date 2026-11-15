@@ -26,6 +26,7 @@ public sealed class TripBookingOrderConfiguration : IEntityTypeConfiguration<Tri
         builder.Property(x => x.SplitApprovedByUserId).HasColumnName("split_approved_by_user_id");
         builder.Property(x => x.SplitAt).HasColumnName("split_at");
         builder.Property(x => x.InviteVersion).HasColumnName("invite_version").HasDefaultValue(0);
+        builder.Property(x => x.RescheduleCount).HasColumnName("reschedule_count").HasDefaultValue(0);
 
         builder.HasIndex(x => x.SplitApprovedByUserId, "ix_trip_booking_orders_split_approved_by_user_id");
         builder.HasIndex(x => x.TripId, "ix_trip_booking_orders_trip_id");

@@ -24,7 +24,7 @@ public sealed class AdminUsersController(IAdminUserService service, IAdminGovern
         return Ok(ApiResponse<PagedResponse<AdminUserResponse>>.Ok(result, "Lấy danh sách người dùng thành công"));
     }
 
-    /// <summary>Hướng dẫn viên đang hoạt động (Guide / TourGuide) cho dropdown phân công; Admin và Staff.</summary>
+    /// <summary>Hướng dẫn viên Guide đang hoạt động cho dropdown phân công; Admin và Staff.</summary>
     [HttpGet("guides")]
     [ProducesResponseType(typeof(ApiResponse<List<AdminUserResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GuidesAsync(CancellationToken cancellationToken)

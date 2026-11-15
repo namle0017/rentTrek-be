@@ -4,7 +4,7 @@ using RenTrek.DAL.Entities;
 
 namespace RenTrek.BLL.Services.Internal;
 
-/// <summary>Mở hồ sơ hoàn tiền cho đơn thuê trong transaction của caller (huỷ, no-show, hoàn cọc).</summary>
+/// <summary>Mở hồ sơ hoàn tiền trong transaction của caller: đơn thuê (huỷ, no-show, hoàn cọc) và công ty huỷ chuyến.</summary>
 public interface IRentalRefundOpener
 {
     /// <summary>Không có STK thì hồ sơ ở AwaitingBankInfo chờ khách nhập; không tự commit.</summary>

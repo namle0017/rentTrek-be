@@ -16,6 +16,11 @@ public sealed class RefundPolicyDetailResponse : RefundPolicyListItemResponse
     public bool CanActivate { get; set; }
     public bool CanClone { get; set; }
 
+    public int? RescheduleMinHoursBefore { get; set; }
+    public decimal RescheduleFee { get; set; }
+    public int MaxReschedules { get; set; }
+    public int NoShowGraceMinutes { get; set; }
+
     public IReadOnlyList<RefundPolicyRuleResponse> Rules { get; set; } = [];
 
     public IReadOnlyList<RefundPolicyVersionResponse> Versions { get; set; } = [];

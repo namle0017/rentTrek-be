@@ -18,10 +18,10 @@ Nếu số tiền đã đổi giữa preview và lúc hủy, API trả `409 REFU
 
 ## 3. Luồng Admin và kế toán
 
-1. Admin xem hàng đợi bằng `GET /api/v1/admin/refund-cases`.
+1. Admin hoặc Staff xem hàng đợi bằng `GET /api/v1/admin/refund-cases`, đọc lý do huỷ / khiếu nại rồi `approve` (`Requested` → `Approved`) hoặc `reject` (bắt buộc lý do).
 2. Admin yêu cầu OTP bằng `POST /api/v1/admin/refund-cases/export/verification-codes`.
 3. Admin gửi OTP vào `POST /api/v1/admin/refund-cases/export` để tải Excel.
-4. Mỗi lần xuất gồm mọi hồ sơ đã có STK và chưa có kết quả: `Requested` (chuyển sang `Approved`) và `Approved` (đã gửi kế toán trước đó, giữ nguyên). Không còn chế độ "xuất lại" riêng (`reExport` bị bỏ qua). Hồ sơ `AwaitingBankInfo` không được xuất.
+4. Mỗi lần xuất chỉ gồm hồ sơ `Approved` chưa có kết quả (cả hồ sơ đã gửi kế toán trước đó). Lần xuất đầu set `exported_at`. Hồ sơ `Requested` (chưa duyệt) và `AwaitingBankInfo` không được xuất. `reExport` bị bỏ qua.
 5. Kế toán chuyển khoản theo Excel.
 6. Admin ghi nhận kết quả theo một trong hai cách:
    - Từng hồ sơ: `complete` (multipart: mã giao dịch + 1-3 ảnh chứng từ bắt buộc) hoặc `mark-failed` kèm lý do ("Báo thất bại", xem mục 3.2).
@@ -40,12 +40,18 @@ Nếu số tiền đã đổi giữa preview và lúc hủy, API trả `409 REFU
 
 - `POST /api/v1/admin/refund-cases/{id}/mark-failed` (body `{ reason, expectedRowVersion }`) nhận hồ sơ `Requested`, `Approved` hoặc `AwaitingBankInfo` (nhắc lại khách).
 - Hồ sơ chuyển về `AwaitingBankInfo`: xoá STK đã mã hoá, ngân hàng, 4 số cuối; lưu lý do (`failureReason`); payment Refund về `PendingApproval`; khách nhận thông báo `RefundBankInfoRequired` kèm lý do.
-- Khách nhập STK mới qua `POST /api/v1/refund-cases/{id}/bank-info` (form trong thẻ "Tiến độ hoàn tiền" ở trang booking / đơn thuê) → hồ sơ về `Requested`, lý do cũ được xoá, và có trong lần xuất Excel tiếp theo.
+- Khách nhập STK mới qua `POST /api/v1/refund-cases/{id}/bank-info` (form trong thẻ "Tiến độ hoàn tiền" ở trang booking / đơn thuê) → hồ sơ về `Requested`, lý do cũ được xoá, chờ duyệt lại trước khi vào lần xuất Excel tiếp theo.
+
+### 3.3. Từ chối và khiếu nại
+
+- `reject` bắt buộc lý do, set `rejected_at`.
+- Khách gửi lại (khiếu nại) qua `POST /api/v1/refund-cases/{id}/resubmit` kèm STK và `reason` (bắt buộc, tối đa 1000 ký tự). Chỉ 1 lần, trong 7 ngày kể từ `rejected_at`; quá hạn hoặc hết lượt ⇒ `409 REFUND_CASE_NOT_RESUBMITTABLE`. Thành công: `resubmit_count + 1`, lưu `appeal_reason`, hồ sơ về `Requested` chờ duyệt.
+- Hồ sơ `Failed` cũ (trước khi có "Báo thất bại") vẫn gửi lại được, không tính lượt.
 
 ## 4. Máy trạng thái
 
-- `Requested`: chờ Admin xuất cho kế toán.
-- `Approved`: đã xuất; kế toán đang xử lý.
+- `Requested`: chờ Admin/Staff duyệt.
+- `Approved`: đã duyệt. `exported_at = null` ⇒ chờ Admin xuất; có giá trị ⇒ đã gửi kế toán, đang xử lý.
 - `Completed`: chuyển tiền thành công.
 - `Rejected`: Admin từ chối trước khi xuất.
 - `AwaitingBankInfo`: chờ khách nhập (lại) STK; cũng là trạng thái sau khi Admin "Báo thất bại".

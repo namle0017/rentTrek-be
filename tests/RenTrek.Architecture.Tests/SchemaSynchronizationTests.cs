@@ -105,6 +105,20 @@ public sealed class SchemaSynchronizationTests
         }
     }
 
+    [Fact]
+    public void TripRefundPolicyConsentIsOptionalForLegacyOrdersAndKeepsZeroGraceMinutes()
+    {
+        using var context = CreateContext();
+        var acceptedVersion = FindEntity(context, "Order").FindProperty("AcceptedRefundPolicyVersion");
+        Assert.NotNull(acceptedVersion);
+        Assert.True(acceptedVersion.IsNullable);
+        Assert.Equal("accepted_refund_policy_version", acceptedVersion.GetColumnName());
+
+        var graceMinutes = FindEntity(context, "RefundPolicy").FindProperty("NoShowGraceMinutes")!;
+        Assert.Equal(30, graceMinutes.GetDefaultValue());
+        Assert.Equal(30, graceMinutes.Sentinel);
+    }
+
     private static AppDbContext CreateContext()
         => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql().Options);
 

@@ -14,6 +14,9 @@ public static class PaymentPurposes
     /// <summary>Thanh toán gia hạn đơn thuê.</summary>
     public const string RentalExtension = "RentalExtension";
 
+    /// <summary>Trả chênh lệch khi đổi lịch booking sang chuyến đắt hơn.</summary>
+    public const string TripReschedule = "TripReschedule";
+
     /// <summary>Khoản thu sau khi đơn đã thanh toán (không tính vào "đã trả tiền đơn").</summary>
-    public static readonly IReadOnlyList<string> AfterOrderPaid = [AdditionalCharge, RentalExtension];
+    public static readonly IReadOnlyList<string> AfterOrderPaid = [AdditionalCharge, RentalExtension, TripReschedule];
 }

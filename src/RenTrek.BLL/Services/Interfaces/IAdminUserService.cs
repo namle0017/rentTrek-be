@@ -13,7 +13,7 @@ public interface IAdminUserService
     Task UpdateUserProfileAsync(Guid userId, AdminProfileRequest request, CancellationToken cancellationToken);
     Task ChangeRoleAsync(Guid userId, ChangeRoleRequest request, CancellationToken cancellationToken);
     Task SetUserLockAsync(Guid userId, bool locked, string? reason, CancellationToken cancellationToken);
-    /// <summary>Hướng dẫn viên đang hoạt động (Guide / TourGuide) để chọn khi phân công; Admin và Staff đều gọi được.</summary>
+    /// <summary>Hướng dẫn viên Guide đang hoạt động để chọn khi phân công; Admin và Staff đều gọi được.</summary>
     Task<List<AdminUserResponse>> GetGuidesAsync(CancellationToken cancellationToken);
     Task<List<AdminSessionResponse>> GetSessionsAsync(Guid userId, CancellationToken cancellationToken);
     Task RevokeSessionsAsync(Guid userId, Guid? sessionId, CancellationToken cancellationToken);

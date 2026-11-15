@@ -25,6 +25,10 @@ public class RefundPolicyConfiguration : IEntityTypeConfiguration<RefundPolicy>
         builder.Property(e => e.Description).HasColumnName("description");
         builder.Property(e => e.EffectiveFrom).HasColumnName("effective_from");
         builder.Property(e => e.EffectiveUntil).HasColumnName("effective_until");
+        builder.Property(e => e.RescheduleMinHoursBefore).HasColumnName("reschedule_min_hours_before");
+        builder.Property(e => e.RescheduleFee).HasPrecision(12, 2).HasColumnName("reschedule_fee");
+        builder.Property(e => e.MaxReschedules).HasColumnName("max_reschedules");
+        builder.Property(e => e.NoShowGraceMinutes).HasDefaultValue(30).HasSentinel(30).HasColumnName("no_show_grace_minutes");
         builder.Property(e => e.IsDeleted)
             .HasDefaultValue(false)
             .HasColumnName("is_deleted");

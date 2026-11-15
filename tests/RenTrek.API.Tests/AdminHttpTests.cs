@@ -27,7 +27,7 @@ public sealed class AdminHttpTests
     {
         var controllers = typeof(AdminOrdersController).Assembly.GetTypes().Where(x => x.Namespace == "RenTrek.API.Controllers" && x.Name.StartsWith("Admin", StringComparison.Ordinal) && typeof(ControllerBase).IsAssignableFrom(x));
         var count = controllers.SelectMany(c => c.GetMethods()).SelectMany(m => m.GetCustomAttributes<HttpMethodAttribute>()).Sum(r => r.HttpMethods.Count());
-        Assert.Equal(190, count); // gồm 1 route AllowAnonymous (/api/v1/rental-policies/active) được loại khỏi test 401/403
+        Assert.Equal(193, count); // gồm 1 route AllowAnonymous (/api/v1/rental-policies/active) được loại khỏi test 401/403
     }
 
     [AdminPostgresFact]

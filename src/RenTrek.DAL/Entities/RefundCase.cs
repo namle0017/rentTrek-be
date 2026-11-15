@@ -28,6 +28,10 @@ public sealed class RefundCase
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? SensitiveDataPurgedAt { get; set; }
     public string? RejectionReason { get; set; }
+    public DateTimeOffset? ExportedAt { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public int ResubmitCount { get; set; }
+    public string? AppealReason { get; set; }
     public int RowVersion { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

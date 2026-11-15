@@ -60,6 +60,29 @@ public sealed class TripBookingsController(
         return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Hủy booking thành công"));
     }
 
+    [HttpGet("{orderId:guid}/participants/cancellation-preview")]
+    [ProducesResponseType(typeof(ApiResponse<CancellationPreviewResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetParticipantCancellationPreviewAsync(
+        Guid orderId,
+        [FromQuery] List<Guid> participantIds,
+        CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.GetParticipantCancellationPreviewAsync(orderId, participantIds, cancellationToken);
+        return Ok(ApiResponse<CancellationPreviewResponse>.Ok(result, "Lấy thông tin hủy hành khách thành công"));
+    }
+
+    [HttpPost("{orderId:guid}/participants/cancel")]
+    [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status200OK)]
+    [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
+    public async Task<IActionResult> CancelParticipantsAsync(
+        Guid orderId,
+        [FromBody] CancelTripParticipantsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await tripBookingService.CancelParticipantsAsync(orderId, request, cancellationToken);
+        return Ok(ApiResponse<TripBookingResponse>.Ok(result, "Hủy hành khách thành công"));
+    }
+
     [HttpPut("{orderId:guid}/participants/{participantId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TripBookingResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateParticipantAsync(

@@ -102,6 +102,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 builder.Services.AddHostedService<RefundDataPurgeBackgroundService>();
 builder.Services.AddHostedService<RentalLifecycleBackgroundService>();
+builder.Services.AddHostedService<TripBookingExpiryBackgroundService>();
 
 // Render gọi /health để biết container đã sẵn sàng (liveness, không gọi DB)
 builder.Services.AddHealthChecks();

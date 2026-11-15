@@ -30,7 +30,8 @@ public sealed partial class PaymentService(
     ITripGroupingService tripGroupingService,
     INotificationService notificationService,
     ILogger<PaymentService> logger,
-    IRentalPostPaymentService? rentalPostPaymentService = null) : IPaymentService
+    IRentalPostPaymentService? rentalPostPaymentService = null,
+    ITripReschedulePaymentHandler? tripRescheduleService = null) : IPaymentService
 {
     private const string PaymentTypeCollection = "Collection";
     private const string PaymentMethodBankTransfer = "BankTransfer";
@@ -182,7 +183,14 @@ public sealed partial class PaymentService(
                 var afterPaidPayable = payment.Status == PaymentStatuses.Pending
                                        && request.TransferAmount == payment.Amount
                                        && order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Expired);
-                if (afterPaidPayable && rentalPostPaymentService is not null)
+                if (afterPaidPayable && payment.Purpose == PaymentPurposes.TripReschedule && tripRescheduleService is not null)
+                {
+                    payment.Status = PaymentStatuses.Succeeded;
+                    payment.ProviderTransactionId = providerTransactionId;
+                    payment.ProcessedAt = now;
+                    await tripRescheduleService.ApplySucceededPaymentAsync(payment, now, cancellationToken);
+                }
+                else if (afterPaidPayable && payment.Purpose != PaymentPurposes.TripReschedule && rentalPostPaymentService is not null)
                 {
                     payment.Status = PaymentStatuses.Succeeded;
                     payment.ProviderTransactionId = providerTransactionId;
