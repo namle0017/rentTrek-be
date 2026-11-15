@@ -68,4 +68,11 @@ public class ProductVariantRepository : GenericRepository<ProductVariant>, IProd
             .Where(v => variantIds.Contains(v.Id))
             .ToDictionaryAsync(v => v.Id, v => v.ReplacementValue, cancellationToken);
     }
+
+    public Task<List<ProductVariant>> GetByProductForUpdateAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+        => _dbSet
+            .Where(v => v.ProductId == productId && !v.IsDeleted)
+            .ToListAsync(cancellationToken);
 }

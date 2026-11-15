@@ -91,8 +91,18 @@ public sealed class AdminProductCatalogService(
         {
             var product = await GetProductAsync(productId, cancellationToken);
             product.IsDeleted = true;
+            product.Status = CatalogStatus.Inactive;
             product.UpdatedAt = Now;
-            await AuditAsync("Delete", "Product", productId, new { product.Name }, cancellationToken);
+
+            var variants = await UnitOfWork.ProductVariants.GetByProductForUpdateAsync(productId, cancellationToken);
+            foreach (var variant in variants)
+            {
+                variant.IsDeleted = true;
+                variant.Status = CatalogStatus.Inactive;
+                variant.UpdatedAt = Now;
+            }
+
+            await AuditAsync("Delete", "Product", productId, new { product.Name, deletedVariantsCount = variants.Count }, cancellationToken);
         }, cancellationToken);
     }
 
