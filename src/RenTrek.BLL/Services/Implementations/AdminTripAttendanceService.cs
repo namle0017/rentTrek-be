@@ -91,9 +91,31 @@ public sealed class AdminTripAttendanceService(
         if (request.Records is null || request.Records.Count == 0)
             throw new BadRequestException("Danh sách bản ghi điểm danh không được rỗng", "VALIDATION_ERROR");
 
+        // Điểm danh do HDV ghi tại hiện trường; màn quản trị chỉ để Admin xử lý ngoại lệ (Staff chỉ xem)
+        if (!string.Equals(currentUser.Role, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "Chỉ hướng dẫn viên tại hiện trường mới được điểm danh; Admin xử lý ngoại lệ",
+                ErrorCodes.Forbidden);
+        }
+
+        if (request.Records.Any(r => string.IsNullOrWhiteSpace(r.Reason)))
+        {
+            throw new BadRequestException(
+                "Bắt buộc nhập lý do khi Admin điều chỉnh điểm danh",
+                ErrorCodes.AttendanceReasonRequired);
+        }
+
         var trip = await unitOfWork.ActivityAttendances.GetTripWithTourAndActivitiesAsync(tripId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chuyến đi");
-        TripGroupRules.EnsureManagesTrip(currentUser, trip);
+
+        if (!string.Equals(trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(trip.Status, TripStatuses.Completed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException(
+                "Chỉ điều chỉnh điểm danh khi chuyến đang diễn ra hoặc đã hoàn tất",
+                ErrorCodes.AttendanceNotEditable);
+        }
 
         var activity = trip.Tour?.Activities.FirstOrDefault(a => a.Id == request.ActivityId && !a.IsDeleted)
             ?? throw new NotFoundException("Không tìm thấy hoạt động trong lịch trình của tour này");
@@ -125,18 +147,12 @@ public sealed class AdminTripAttendanceService(
         {
             var normalizedStatus = NormalizeAttendanceStatus(record.Status);
             var participant = participantMap[record.ParticipantId];
+            var reason = record.Reason!.Trim();
 
             if (existingByParticipant.TryGetValue(record.ParticipantId, out var existing))
             {
                 if (!string.Equals(existing.AttendanceStatus, normalizedStatus, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.IsNullOrWhiteSpace(record.Reason))
-                    {
-                        throw new BadRequestException(
-                            "Bắt buộc nhập lý do khi thay đổi trạng thái điểm danh đã lưu",
-                            "REASON_REQUIRED_FOR_UPDATE");
-                    }
-
                     var oldStatus = existing.AttendanceStatus;
                     existing.AttendanceStatus = normalizedStatus;
                     existing.CheckedAt = utcNow;
@@ -149,7 +165,7 @@ public sealed class AdminTripAttendanceService(
                         Action = "UPDATE_ATTENDANCE",
                         EntityType = "ActivityAttendance",
                         EntityId = tripId,
-                        Details = $"Hoạt động '{activity.Name}' (Ngày {activity.DayNumber}): sửa điểm danh của khách '{participant.FullName}' từ '{oldStatus}' sang '{normalizedStatus}'. Lý do: {record.Reason.Trim()}",
+                        Details = $"Hoạt động '{activity.Name}' (Ngày {activity.DayNumber}): sửa điểm danh của khách '{participant.FullName}' từ '{oldStatus}' sang '{normalizedStatus}'. Lý do: {reason}",
                         CreatedAt = utcNow
                     }, cancellationToken);
 
@@ -170,6 +186,18 @@ public sealed class AdminTripAttendanceService(
                 };
                 await unitOfWork.ActivityAttendances.AddAsync(created, cancellationToken);
                 existingByParticipant[record.ParticipantId] = created;
+
+                await unitOfWork.Trips.AddAuditLogAsync(new AuditLog
+                {
+                    AuditLogId = Guid.NewGuid(),
+                    ActorUserId = currentUser.UserId,
+                    Action = "CREATE_ATTENDANCE",
+                    EntityType = "ActivityAttendance",
+                    EntityId = tripId,
+                    Details = $"Hoạt động '{activity.Name}' (Ngày {activity.DayNumber}): Admin ghi điểm danh '{normalizedStatus}' cho khách '{participant.FullName}'. Lý do: {reason}",
+                    CreatedAt = utcNow
+                }, cancellationToken);
+
                 updatedCount++;
             }
         }

@@ -12,7 +12,7 @@ namespace RenTrek.API.Controllers;
 /// Cung cấp các endpoint HTTP cho khu vực Hướng dẫn viên thực địa trên di động (Màn G01–G06 - Mục 24).
 /// </summary>
 [ApiController]
-[Authorize(Roles = $"{RoleNames.Guide},{RoleNames.Admin}")]
+[Authorize(Roles = $"{RoleNames.Guide},{RoleNames.TourGuide},{RoleNames.Admin}")]
 [Route("api/v1/guide")]
 public sealed class GuideController(IGuidePortalService guidePortalService) : ControllerBase
 {

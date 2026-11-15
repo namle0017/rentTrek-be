@@ -15,6 +15,9 @@ public sealed class RefundCaseResponse
     public IReadOnlyList<RefundTimelineEventResponse> Timeline { get; set; } = [];
     public DateTimeOffset? CompletedAt { get; set; }
 
+    /// <summary>Mã giao dịch ngân hàng của lần chuyển khoản hoàn tiền; chỉ có khi hồ sơ Completed.</summary>
+    public string? ProviderTransactionId { get; set; }
+
     /// <summary>Chứng từ chuyển khoản; chỉ có khi hồ sơ Completed.</summary>
     public IReadOnlyList<RefundProofResponse> Proofs { get; set; } = [];
 

@@ -132,6 +132,7 @@ public sealed class GuidePortalService(
             GroupName = group.GroupName,
             TripId = group.TripId,
             TourName = group.Trip.Tour?.Name ?? string.Empty,
+            TripStatus = group.Trip.Status,
             CurrentActivity = currentActivity is null
                 ? null
                 : new GuideCurrentActivityResponse
@@ -217,6 +218,15 @@ public sealed class GuidePortalService(
             throw new BadRequestException("Mã hoạt động là bắt buộc", "VALIDATION_ERROR");
 
         var group = await GetRequiredGuideGroupAsync(tripId, cancellationToken);
+
+        // HDV chỉ điểm danh tại hiện trường, tức khi chuyến đang diễn ra
+        if (!string.Equals(group.Trip.Status, TripStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException(
+                "Chỉ điểm danh được khi chuyến đi đang diễn ra",
+                ErrorCodes.TripNotInProgress);
+        }
+
         var activity = group.Trip.Tour?.Activities.FirstOrDefault(a => a.Id == request.ActivityId && !a.IsDeleted)
             ?? throw new NotFoundException("Không tìm thấy hoạt động trong lịch trình chuyến đi");
 

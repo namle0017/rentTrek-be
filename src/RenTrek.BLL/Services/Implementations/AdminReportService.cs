@@ -32,7 +32,7 @@ public sealed class AdminReportService(
         var missing = await reports.GetMissingGearAsync(OrderScope, now, AlertLimit, cancellationToken);
         alerts.AddRange(missing.Select(x => new AdminAlertResponse("TripMissingGear", "High", $"Chuyến {x.TourName} thiếu đồ cấp", $"Cần chuẩn bị thêm {x.RequiredQuantity - x.AssignedQuantity} thiết bị", "Trip", x.TripId.ToString(), $"/ops/trips/{x.TripId}/provided-items")));
         var overdue = await reports.GetOverdueRentalOrdersAsync(OrderScope, Now, AlertLimit, cancellationToken);
-        alerts.AddRange(overdue.Select(x => new AdminAlertResponse("OverdueRental", "Medium", $"Đơn {x.OrderCode} quá hạn trả", "Còn thiết bị chưa được hoàn trả", "RentalOrder", x.OrderId.ToString(), $"/admin/rental-orders/{x.OrderCode}")));
+        alerts.AddRange(overdue.Select(x => new AdminAlertResponse("OverdueRental", "Medium", $"Đơn {x.OrderCode} quá hạn trả", "Còn thiết bị chưa được hoàn trả", "RentalOrder", x.OrderId.ToString(), $"/admin/rental-orders/{x.OrderId}")));
         var expiring = await reports.GetExpiringOrdersAsync(OrderScope, now, now.AddMinutes(15), AlertLimit, cancellationToken);
         alerts.AddRange(expiring.Select(x => new AdminAlertResponse("PaymentExpiring", "Medium", $"Đơn {x.OrderCode} sắp hết hạn", "Kiểm tra thanh toán trước khi hết hạn giữ chỗ", "Order", x.OrderId.ToString(), $"/admin/orders/{x.OrderCode}")));
         if (IsAdmin)

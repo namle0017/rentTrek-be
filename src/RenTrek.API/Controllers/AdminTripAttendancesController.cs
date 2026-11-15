@@ -10,9 +10,10 @@ namespace RenTrek.API.Controllers;
 
 /// <summary>
 /// Cung cấp các endpoint HTTP cho ma trận điểm danh hoạt động tour và lịch sử chỉnh sửa (Màn O14 - Mục 11).
+/// Staff chỉ xem; chỉ Admin được ghi/sửa (xử lý ngoại lệ, bắt buộc lý do). HDV điểm danh qua <c>/guide</c>.
 /// </summary>
 [ApiController]
-[Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff},{RoleNames.Guide}")]
+[Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
 [Route("api/v1/admin/trips/{tripId:guid}")]
 public sealed class AdminTripAttendancesController(
     IAdminTripAttendanceService attendanceService) : ControllerBase
@@ -29,6 +30,7 @@ public sealed class AdminTripAttendancesController(
     }
 
     [HttpPut("attendances")]
+    [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<UpdateTripAttendancesResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateAttendancesAsync(
         Guid tripId,
@@ -41,7 +43,6 @@ public sealed class AdminTripAttendancesController(
 
     [HttpGet("attendances/history")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AttendanceAuditHistoryItemResponse>>), StatusCodes.Status200OK)]
-    [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Staff}")]
     public async Task<IActionResult> GetAttendanceHistoryAsync(
         Guid tripId,
         CancellationToken cancellationToken)

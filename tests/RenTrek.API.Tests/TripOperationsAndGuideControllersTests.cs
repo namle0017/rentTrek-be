@@ -32,11 +32,18 @@ public sealed class TripOperationsAndGuideControllersTests
 
         var attendancesAuth = Assert.Single(
             typeof(AdminTripAttendancesController).GetCustomAttributes(typeof(AuthorizeAttribute), true));
-        Assert.Equal("Admin,Staff,Guide", ((AuthorizeAttribute)attendancesAuth).Roles);
+        Assert.Equal("Admin,Staff", ((AuthorizeAttribute)attendancesAuth).Roles);
+
+        // Staff chỉ xem ma trận; chỉ Admin được ghi/sửa điểm danh ở màn quản trị
+        var updateAttendancesAuth = Assert.Single(
+            typeof(AdminTripAttendancesController)
+                .GetMethod(nameof(AdminTripAttendancesController.UpdateAttendancesAsync))!
+                .GetCustomAttributes(typeof(AuthorizeAttribute), true));
+        Assert.Equal("Admin", ((AuthorizeAttribute)updateAttendancesAuth).Roles);
 
         var guideAuth = Assert.Single(
             typeof(GuideController).GetCustomAttributes(typeof(AuthorizeAttribute), true));
-        Assert.Equal("Guide,Admin", ((AuthorizeAttribute)guideAuth).Roles);
+        Assert.Equal("Guide,TourGuide,Admin", ((AuthorizeAttribute)guideAuth).Roles);
     }
 
     [Fact]

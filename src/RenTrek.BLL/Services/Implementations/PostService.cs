@@ -84,7 +84,7 @@ public class PostService : IPostService
         var softSkills = await _unitOfWork.SoftSkills.GetActiveAsync(cancellationToken);
 
         return new PostTaxonomyResponse(
-            tags.Select(t => new PostTagResponse(t.Name, t.Slug)).ToList(),
+            tags.Select(t => new PostTagResponse(t.Name, t.Slug, t.TagId)).ToList(),
             softSkills.Select(s => new PostSoftSkillResponse(s.SoftSkillId, s.Name)).ToList());
     }
 

@@ -9,6 +9,8 @@ public sealed class CancellationPreviewResponse
     public string? BlockedReason { get; set; }
     public PolicyInfo? RefundPolicy { get; set; }
     public string AppliedCase { get; set; } = string.Empty;
+    /// <summary>Đơn đã thanh toán chưa; chưa thanh toán thì huỷ không phát sinh hoàn tiền, không cần STK.</summary>
+    public bool IsPaid { get; set; }
     public decimal PaidAmount { get; set; }
     public decimal EstimatedRefundAmount { get; set; }
     public string ProcessingMethod { get; set; } = "ManualBankTransfer";
