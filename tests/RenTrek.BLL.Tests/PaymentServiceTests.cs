@@ -316,6 +316,7 @@ public sealed class PaymentServiceTests
 
     private sealed class FakeTripBookingRepository : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Order? BookingOrder { get; set; }
         public List<Account> Accounts { get; } = [];
 

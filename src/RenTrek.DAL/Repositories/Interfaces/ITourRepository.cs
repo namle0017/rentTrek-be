@@ -30,6 +30,9 @@ public interface ITourRepository : IGenericRepository<Tour>
     /// <summary>Tour kèm ảnh, hoạt động, đồ tự mang, đồ cấp (có biến thể + sản phẩm); tracked để sửa.</summary>
     Task<Tour?> GetForEditAsync(Guid tourId, CancellationToken cancellationToken = default);
 
+    /// <summary>Tour kèm combo gợi ý và đồ cấp; không tracked.</summary>
+    Task<Tour?> GetSuggestionsAsync(Guid tourId, CancellationToken cancellationToken = default);
+
     /// <summary>Đã có đơn đặt chỗ trên bất kỳ chuyến nào của tour (kể cả chuyến/đơn đã xoá).</summary>
     Task<bool> HasBookingsAsync(Guid tourId, CancellationToken cancellationToken = default);
 

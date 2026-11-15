@@ -38,4 +38,9 @@ public sealed class RefundCaseResponse
 
     /// <summary>Hồ sơ bị từ chối / thất bại: khách nhập STK và gửi lại yêu cầu.</summary>
     public bool CanResubmit { get; set; }
+
+    /// <summary>Hạn chót khiếu nại khi bị từ chối (7 ngày từ lúc từ chối); null nếu không áp dụng.</summary>
+    public DateTimeOffset? ResubmitDeadline { get; set; }
+
+    public string? AppealReason { get; set; }
 }

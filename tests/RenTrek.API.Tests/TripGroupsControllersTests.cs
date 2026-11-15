@@ -13,7 +13,7 @@ public sealed class TripGroupsControllersTests
             typeof(TripGroupsController).GetMethod(nameof(TripGroupsController.GetGroupingSnapshotAsync))!
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
         Assert.Equal(
-            $"{RoleNames.Staff},{RoleNames.Admin},{RoleNames.Guide},{RoleNames.TourGuide}",
+            $"{RoleNames.Staff},{RoleNames.Admin},{RoleNames.Guide}",
             Assert.IsType<AuthorizeAttribute>(snapshotAuth).Roles);
 
         foreach (var mutationName in new[]
@@ -33,13 +33,13 @@ public sealed class TripGroupsControllersTests
     }
 
     [Fact]
-    public void GuideTripGroupsController_RequiresGuideOrTourGuideRole()
+    public void GuideTripGroupsController_RequiresGuideRole()
     {
         var attribute = Assert.Single(
             typeof(GuideTripGroupsController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true));
 
         var authorize = Assert.IsType<AuthorizeAttribute>(attribute);
-        Assert.Equal($"{RoleNames.Guide},{RoleNames.TourGuide}", authorize.Roles);
+        Assert.Equal(RoleNames.Guide, authorize.Roles);
     }
 
     [Fact]

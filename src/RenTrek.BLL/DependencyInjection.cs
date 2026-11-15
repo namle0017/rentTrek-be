@@ -77,6 +77,9 @@ public static class DependencyInjection
         services.AddScoped<ITourService, TourService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ITripBookingService, TripBookingService>();
+        services.AddScoped<TripRescheduleService>();
+        services.AddScoped<ITripRescheduleService>(sp => sp.GetRequiredService<TripRescheduleService>());
+        services.AddScoped<ITripReschedulePaymentHandler>(sp => sp.GetRequiredService<TripRescheduleService>());
         services.AddScoped<RefundCaseService>();
         services.AddScoped<IRefundCaseService>(sp => sp.GetRequiredService<RefundCaseService>());
         services.AddScoped<IRentalRefundOpener>(sp => sp.GetRequiredService<RefundCaseService>());
@@ -96,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<IRentalNoticeDispatcher, RentalNoticeDispatcher>();
         services.AddScoped<IRentalCancellationService, RentalCancellationService>();
         services.AddScoped<IRentalLifecycleService, RentalLifecycleService>();
+        services.AddScoped<ITripBookingExpiryService, TripBookingExpiryService>();
         services.AddScoped<IRentalEvidenceService, RentalEvidenceService>();
         services.AddScoped<IRentalReportService, RentalReportService>();
         // Một instance cho cả quyết toán và xử lý khoản thu sau (webhook) trong cùng scope

@@ -1,3 +1,4 @@
+using RenTrek.BLL.Services.Internal;
 using System.Globalization;
 using System.Text;
 using RenTrek.BLL.Constants;
@@ -19,7 +20,8 @@ public sealed class AdminTripService(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUser,
     TimeProvider timeProvider,
-    INotificationService notificationService) : IAdminTripService
+    INotificationService notificationService,
+    IRentalRefundOpener refundOpener) : IAdminTripService
 {
     public async Task<PagedResponse<AdminTripItemResponse>> GetPagedAsync(
         AdminTripQueryRequest request,
@@ -372,6 +374,7 @@ public sealed class AdminTripService(
         }
 
         var utcNow = timeProvider.GetUtcNow();
+        await TripRefundPolicyResolver.EnsureCanOpenAsync(unitOfWork.RefundPolicies, trip, utcNow, cancellationToken);
         trip.Status = TripStatuses.Open;
         trip.RowVersion++;
         trip.UpdatedAt = utcNow;
@@ -481,7 +484,8 @@ public sealed class AdminTripService(
         {
             booking.Order.Status = OrderStatuses.Completed;
             booking.Order.UpdatedAt = utcNow;
-            foreach (var participant in booking.Participants.Where(p => p.Status != BookingParticipantStatuses.Cancelled))
+            foreach (var participant in booking.Participants.Where(p =>
+                         p.Status is not (BookingParticipantStatuses.Cancelled or BookingParticipantStatuses.NoShow)))
             {
                 participant.Status = BookingParticipantStatuses.Completed;
                 participant.UpdatedAt = utcNow;
@@ -532,7 +536,6 @@ public sealed class AdminTripService(
                 .GroupBy(p => p.OrderId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            var refundPayments = new List<Payment>();
             var affectedParticipantsCount = 0;
             var totalRefundAmount = 0m;
             var cancelRecipients = CollectTripNotificationRecipients(activeBookings);
@@ -560,25 +563,12 @@ public sealed class AdminTripService(
 
                 if (paidAmount > 0m)
                 {
-                    var originalPayment = orderPayments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
-                    refundPayments.Add(new Payment
-                    {
-                        PaymentId = Guid.NewGuid(),
-                        OrderId = booking.OrderId,
-                        OriginalPaymentId = originalPayment?.PaymentId,
-                        PaymentType = "Refund",
-                        Amount = paidAmount,
-                        PaymentMethod = originalPayment?.PaymentMethod ?? "BankTransfer",
-                        Status = PaymentStatuses.PendingApproval,
-                        Purpose = $"Hoàn tiền 100% do hủy chuyến: {reason}",
-                        CreatedAt = utcNow
-                    });
+                    // D4: hoàn 100% qua hồ sơ (AwaitingBankInfo), khách nhập STK rồi đi luồng duyệt / kế toán
+                    await refundOpener.OpenRentalRefundAsync(
+                        booking.Order, paidAmount, RefundCaseSources.TripCancellation, null, null, utcNow, cancellationToken);
                     totalRefundAmount += paidAmount;
                 }
             }
-
-            if (refundPayments.Count > 0)
-                await unitOfWork.Trips.AddPaymentsAsync(refundPayments, cancellationToken);
 
             var groups = await unitOfWork.Trips.GetActiveTripGroupsForUpdateAsync(tripId, cancellationToken);
             foreach (var group in groups)
@@ -618,7 +608,7 @@ public sealed class AdminTripService(
                     recipientUserId,
                     NotificationTypes.TripCancelled,
                     "Chuyến đi đã bị hủy",
-                    $"Chuyến đi{tourSuffix} (đơn {orderCode}) đã bị hủy. Lý do: {reason}.",
+                    $"Chuyến đi{tourSuffix} (đơn {orderCode}) đã bị hủy. Lý do: {reason}. Bạn được hoàn 100% (nhập tài khoản nhận hoàn) hoặc chuyển miễn phí sang chuyến khác trong trang chi tiết đơn.",
                     "Trip",
                     trip.TripId,
                     cancelEventKey,

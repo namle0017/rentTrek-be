@@ -12,6 +12,12 @@ public sealed class SaveRefundPolicyRequest
     public DateOnly? EffectiveUntil { get; set; }
     public List<RefundPolicyRuleRequest> Rules { get; set; } = [];
 
+    /// <summary>Chỉ dùng cho loại Tour. null = không cho đổi lịch.</summary>
+    public int? RescheduleMinHoursBefore { get; set; }
+    public decimal RescheduleFee { get; set; }
+    public int MaxReschedules { get; set; }
+    public int NoShowGraceMinutes { get; set; } = 30;
+
     /// <summary>Chỉ dùng khi tạo: true lưu nháp, false kích hoạt ngay. Bỏ qua khi sửa.</summary>
     public bool SaveAsDraft { get; set; }
 }

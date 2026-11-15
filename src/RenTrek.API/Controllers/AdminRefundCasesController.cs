@@ -12,10 +12,10 @@ using RenTrek.BLL.Services.Interfaces;
 namespace RenTrek.API.Controllers;
 
 /// <summary>
-/// Cho Admin xem hồ sơ hoàn tiền, xuất Excel cho kế toán và ghi nhận kết quả chuyển khoản.
+/// Admin/Staff xem và duyệt / từ chối hồ sơ hoàn tiền; chỉ Admin xuất Excel cho kế toán và ghi nhận kết quả chuyển khoản.
 /// </summary>
 [ApiController]
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.Admin + "," + RoleNames.Staff)]
 [Route("api/v1/admin/refund-cases")]
 public sealed class AdminRefundCasesController(IRefundCaseService refundCaseService) : ControllerBase
 {
@@ -29,6 +29,7 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
         return Ok(ApiResponse<PagedResponse<RefundCaseQueueItemResponse>>.Ok(result, "Lấy danh sách hồ sơ thành công"));
     }
 
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpPost("export/verification-codes")]
     [ProducesResponseType(typeof(ApiResponse<RefundChallengeResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
@@ -39,6 +40,7 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     /// <summary>Xuất Excel chứa số tài khoản rõ; mỗi lần xuất cần OTP mới.</summary>
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpPost("export")]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, ExcelContentType)]
@@ -47,6 +49,18 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
         var result = await refundCaseService.ExportAsync(request, cancellationToken);
         Response.Headers.CacheControl = "no-store";
         return File(result.Content, ExcelContentType, result.FileName);
+    }
+
+    [HttpPost("{refundCaseId:guid}/approve")]
+    [ProducesResponseType(typeof(ApiResponse<RefundCaseSummaryResponse>), StatusCodes.Status200OK)]
+    [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]
+    public async Task<IActionResult> ApproveAsync(
+        Guid refundCaseId,
+        [FromBody] RefundApproveRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await refundCaseService.ApproveAsync(refundCaseId, request, cancellationToken);
+        return Ok(ApiResponse<RefundCaseSummaryResponse>.Ok(result, "Đã duyệt hồ sơ"));
     }
 
     [HttpPost("{refundCaseId:guid}/reject")]
@@ -62,6 +76,7 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     /// <summary>Hoàn tất hồ sơ kèm 1-3 ảnh chứng từ bắt buộc (multipart/form-data, field files).</summary>
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpPost("{refundCaseId:guid}/complete")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(16 * 1024 * 1024)]
@@ -86,6 +101,7 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
     }
 
     /// <summary>Nhập file Excel kết quả chuyển khoản của kế toán; dryRun (mặc định true) chỉ xem trước.</summary>
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpPost("import-result")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(21 * 1024 * 1024)]
@@ -114,6 +130,7 @@ public sealed class AdminRefundCasesController(IRefundCaseService refundCaseServ
         return File(content, contentType);
     }
 
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpPost("{refundCaseId:guid}/mark-failed")]
     [ProducesResponseType(typeof(ApiResponse<RefundCaseSummaryResponse>), StatusCodes.Status200OK)]
     [EnableRateLimiting(RateLimitPolicies.RefundSensitive)]

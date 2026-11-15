@@ -69,6 +69,10 @@ public sealed class AdminRefundPolicyService(
             (policy.Status == RefundPolicyStatuses.Draft && policy.RefundPolicyRules.Count > 0)
             || (policy.Status == RefundPolicyStatuses.Archived && isLatest && policy.RefundPolicyRules.Count > 0));
         detail.CanClone = IsAdmin;
+        detail.RescheduleMinHoursBefore = policy.RescheduleMinHoursBefore;
+        detail.RescheduleFee = policy.RescheduleFee;
+        detail.MaxReschedules = policy.MaxReschedules;
+        detail.NoShowGraceMinutes = policy.NoShowGraceMinutes;
         detail.Rules = policy.RefundPolicyRules.Select(r => new RefundPolicyRuleResponse
         {
             RuleId = r.RefundPolicyRuleId,
@@ -112,6 +116,7 @@ public sealed class AdminRefundPolicyService(
                 CreatedAt = Now,
                 UpdatedAt = Now
             };
+            ApplyTripTerms(policy, request);
             if (activate) NormalizeEffectiveFrom(policy);
             await UnitOfWork.RefundPolicies.AddAsync(policy, cancellationToken);
             await ReplaceRulesAsync(policyId, request.Rules.Select(r => (r.MinHoursBefore, r.RefundPercentage)), cancellationToken);
@@ -134,6 +139,7 @@ public sealed class AdminRefundPolicyService(
             policy.Description = NormalizeDescription(request.Description);
             policy.EffectiveFrom = ToUtc(request.EffectiveFrom);
             policy.EffectiveUntil = request.EffectiveUntil.HasValue ? ToUtc(request.EffectiveUntil.Value) : null;
+            ApplyTripTerms(policy, request);
             policy.UpdatedAt = Now;
 
             if (policy.Status == RefundPolicyStatuses.Active)
@@ -185,6 +191,10 @@ public sealed class AdminRefundPolicyService(
                 Name = source.Name,
                 Description = source.Description,
                 PolicyType = source.PolicyType,
+                RescheduleMinHoursBefore = source.RescheduleMinHoursBefore,
+                RescheduleFee = source.RescheduleFee,
+                MaxReschedules = source.MaxReschedules,
+                NoShowGraceMinutes = source.NoShowGraceMinutes,
                 Status = RefundPolicyStatuses.Draft,
                 EffectiveFrom = ToUtc(DateOnly.FromDateTime(Now)),
                 CreatedAt = Now,
@@ -353,6 +363,16 @@ public sealed class AdminRefundPolicyService(
         item.CreatedByName = x.CreatedByName;
         item.CreatedAt = x.CreatedAt;
         return item;
+    }
+
+    /// <summary>Điều khoản đổi lịch / NoShow chỉ có nghĩa với chính sách chuyến đi.</summary>
+    private static void ApplyTripTerms(RefundPolicy policy, SaveRefundPolicyRequest request)
+    {
+        var isTour = policy.PolicyType == RefundPolicyTypes.Tour;
+        policy.RescheduleMinHoursBefore = isTour ? request.RescheduleMinHoursBefore : null;
+        policy.RescheduleFee = isTour ? request.RescheduleFee : 0m;
+        policy.MaxReschedules = isTour ? request.MaxReschedules : 0;
+        policy.NoShowGraceMinutes = isTour ? request.NoShowGraceMinutes : 30;
     }
 
     private static string? NormalizeDescription(string? description)

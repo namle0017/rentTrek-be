@@ -43,7 +43,7 @@ public sealed class TripOperationsAndGuideControllersTests
 
         var guideAuth = Assert.Single(
             typeof(GuideController).GetCustomAttributes(typeof(AuthorizeAttribute), true));
-        Assert.Equal("Guide,TourGuide,Admin", ((AuthorizeAttribute)guideAuth).Roles);
+        Assert.Equal("Guide,Admin", ((AuthorizeAttribute)guideAuth).Roles);
     }
 
     [Fact]

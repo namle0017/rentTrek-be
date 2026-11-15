@@ -22,6 +22,7 @@ public sealed class Order
     public DateTimeOffset? CancelledAt { get; set; }
     public string? CancelReason { get; set; }
     public Guid RefundPolicyId { get; set; }
+    public int? AcceptedRefundPolicyVersion { get; set; }
     public bool IsDeleted { get; set; }
     public string? IdempotencyKey { get; set; }
 

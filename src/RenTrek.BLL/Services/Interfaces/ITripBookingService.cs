@@ -11,6 +11,8 @@ public interface ITripBookingService
     Task<TripBookingResponse> UpdateParticipantAsync(Guid orderId, Guid participantId, UpdateBookingParticipantRequest request, CancellationToken cancellationToken = default);
     Task<CancellationPreviewResponse> GetCancellationPreviewAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<TripBookingResponse> CancelAsync(Guid orderId, CancelTripBookingRequest? request = null, CancellationToken cancellationToken = default);
+    Task<CancellationPreviewResponse> GetParticipantCancellationPreviewAsync(Guid orderId, IReadOnlyCollection<Guid> participantIds, CancellationToken cancellationToken = default);
+    Task<TripBookingResponse> CancelParticipantsAsync(Guid orderId, CancelTripParticipantsRequest request, CancellationToken cancellationToken = default);
     Task<InviteLinkResponse> GetInviteLinkAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<InviteLinkResponse> RotateInviteLinkAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<InvitationPreviewResponse> GetInvitationPreviewAsync(Guid orderId, string token, CancellationToken cancellationToken = default);

@@ -527,6 +527,5 @@ internal static class TripGroupRules
         => !account.IsDeleted
            && string.Equals(account.Status, AccountStatuses.Active, StringComparison.OrdinalIgnoreCase)
            && account.Role is not null
-           && (string.Equals(account.Role.RoleName, RoleNames.Guide, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(account.Role.RoleName, RoleNames.TourGuide, StringComparison.OrdinalIgnoreCase));
+           && string.Equals(account.Role.RoleName, RoleNames.Guide, StringComparison.OrdinalIgnoreCase);
 }

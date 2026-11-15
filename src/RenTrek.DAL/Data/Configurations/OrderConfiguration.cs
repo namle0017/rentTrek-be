@@ -30,6 +30,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CancelledAt).HasColumnName("cancelled_at");
         builder.Property(x => x.CancelReason).HasColumnName("cancel_reason").HasMaxLength(500);
         builder.Property(x => x.RefundPolicyId).HasColumnName("refund_policy_id");
+        builder.Property(x => x.AcceptedRefundPolicyVersion).HasColumnName("accepted_refund_policy_version");
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
         builder.Property(x => x.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(100);
         builder.HasQueryFilter(x => !x.IsDeleted);

@@ -70,6 +70,7 @@ public class AppDbContext : DbContext
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<TripBookingOrder> TripBookingOrders => Set<TripBookingOrder>();
+    public DbSet<TripBookingReschedule> TripBookingReschedules => Set<TripBookingReschedule>();
     public DbSet<BookingParticipant> BookingParticipants => Set<BookingParticipant>();
     public DbSet<Payment> Payments => Set<Payment>();
 

@@ -170,6 +170,29 @@ public sealed class TripGroupServiceTests
         Assert.Contains(store.Notifications, n => n.RelatedEntityId == legacyRule.RecurrenceRuleId && n.NotificationType == "OperationalWarning");
     }
 
+    [Fact]
+    public async Task UpdateTripStatusAsync_RejectsOpeningWhenNoRefundPolicyResolves()
+    {
+        var store = new SharedStore();
+        var tour = store.SeedTour(groupMaxParticipants: 6);
+        var scope = store.CreateScope(store.AdminUser);
+        var draft = await scope.Trips.CreateTripAsync(new CreateTripRequest
+        {
+            TourId = tour.Id,
+            StartAt = BaseNow.AddDays(14),
+            EndAt = BaseNow.AddDays(16),
+            TotalSlots = 6,
+            GroupCount = 1
+        });
+        store.Trips.Single().RefundPolicyId = Guid.NewGuid();
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => scope.Trips.UpdateTripStatusAsync(
+            draft.TripId, new UpdateTripStatusRequest { Status = TripStatuses.Open }));
+
+        Assert.Equal(ErrorCodes.RefundPolicyChanged, error.ErrorCode);
+        Assert.Equal(TripStatuses.Draft, store.Trips.Single().Status);
+    }
+
     // 7.6 #4 & #5: Trip Draft được lưu khi sức chứa group chưa đủ; chuyển Open bị từ chối cho tới khi sức chứa gồm overflow đủ TotalSlots.
     // Không tạo hoặc xóa group sau khi Trip Open.
     [Fact]
@@ -889,6 +912,7 @@ public sealed class TripGroupServiceTests
 
         var initialBooking = await buyerScope.TripBookings.CreateAsync(new CreateTripBookingRequest
         {
+            AcceptedRefundPolicyVersion = 1,
             TripId = trip.TripId,
             ContactPhone = "0901112222",
             BuyerParticipates = true,
@@ -916,6 +940,7 @@ public sealed class TripGroupServiceTests
 
         var extraBooking = await buyerScope.TripBookings.CreateAsync(new CreateTripBookingRequest
         {
+            AcceptedRefundPolicyVersion = 1,
             TripId = trip.TripId,
             ContactPhone = "0901112222",
             BuyerParticipates = false,
@@ -1046,7 +1071,7 @@ public sealed class TripGroupServiceTests
         {
             AdminUser = SeedAccount("admin@rentrek.vn", "Quản trị viên", RoleNames.Admin);
             StaffUser = SeedAccount("staff@rentrek.vn", "Điều phối viên", RoleNames.Staff);
-            Guide1User = SeedAccount("guide1@rentrek.vn", "HDV Minh", RoleNames.TourGuide, "0911000111");
+            Guide1User = SeedAccount("guide1@rentrek.vn", "HDV Minh", RoleNames.Guide, "0911000111");
             Guide2User = SeedAccount("guide2@rentrek.vn", "HDV Lan", RoleNames.Guide, "0911000222");
             BuyerUser = SeedAccount("buyer1@rentrek.vn", "Khách Mua 1", RoleNames.Customer, "0901112222");
             SecondBuyerUser = SeedAccount("buyer2@rentrek.vn", "Khách Mua 2", RoleNames.Customer, "0903334444");
@@ -1291,7 +1316,18 @@ public sealed class TripGroupServiceTests
         public IPromotionTierRepository PromotionTiers => throw new NotSupportedException();
         public IRefreshTokenRepository RefreshTokens => throw new NotSupportedException();
         public IRefundCaseRepository RefundCases => throw new NotSupportedException();
-        public IRefundPolicyRepository RefundPolicies => throw new NotSupportedException();
+        public IRefundPolicyRepository RefundPolicies => TestProxy.Create<IRefundPolicyRepository>(
+            ("GetDetailAsync", args => Task.FromResult<RefundPolicy?>((Guid)args[0]! == _store.RefundPolicyId
+                ? new RefundPolicy
+                {
+                    RefundPolicyId = _store.RefundPolicyId,
+                    PolicyType = RefundPolicyTypes.Tour,
+                    Status = RefundPolicyStatuses.Active,
+                    Version = RefundPolicyVersion
+                }
+                : null)),
+            ("GetCurrentAsync", _ => Task.FromResult<RefundPolicy?>(null)));
+        public int RefundPolicyVersion { get; set; } = 1;
         public IRefundPolicyRuleRepository RefundPolicyRules => throw new NotSupportedException();
         public IRentalBundleItemSnapshotRepository RentalBundleItemSnapshots => throw new NotSupportedException();
         public IRentalChargeRepository RentalCharges => throw new NotSupportedException();
@@ -1557,6 +1593,7 @@ public sealed class TripGroupServiceTests
         SharedStore store,
         Func<string, CancellationToken, Task> lockAcquirer) : ITripBookingRepository
     {
+        public Task<IReadOnlyList<Guid>> GetExpiredUnpaidHoldOrderIdsAsync(DateTimeOffset utcNow, int take, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AcquireIdempotencyLockAsync(Guid customerUserId, string idempotencyKey, CancellationToken cancellationToken = default)
             => lockAcquirer($"trip-booking:idem:{customerUserId:N}:{idempotencyKey}", cancellationToken);
 

@@ -41,6 +41,10 @@ public sealed class RefundCaseConfiguration : IEntityTypeConfiguration<RefundCas
         builder.Property(x => x.CompletedAt).HasColumnName("completed_at");
         builder.Property(x => x.SensitiveDataPurgedAt).HasColumnName("sensitive_data_purged_at");
         builder.Property(x => x.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(1000);
+        builder.Property(x => x.ExportedAt).HasColumnName("exported_at");
+        builder.Property(x => x.RejectedAt).HasColumnName("rejected_at");
+        builder.Property(x => x.ResubmitCount).HasColumnName("resubmit_count").HasDefaultValue(0);
+        builder.Property(x => x.AppealReason).HasColumnName("appeal_reason").HasMaxLength(1000);
         builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken().HasDefaultValue(1);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");

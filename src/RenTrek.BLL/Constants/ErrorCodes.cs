@@ -55,6 +55,7 @@ public static class ErrorCodes
     // Hoàn tiền thủ công (05-MANUAL-REFUND-WORKFLOW.md §12)
     public const string RefundCaseNotFound = "REFUND_CASE_NOT_FOUND";
     public const string RefundCaseNotRejectable = "REFUND_CASE_NOT_REJECTABLE";
+    public const string RefundCaseNotApprovable = "REFUND_CASE_NOT_APPROVABLE";
     public const string RefundCaseNotCompletable = "REFUND_CASE_NOT_COMPLETABLE";
     public const string RefundExportEmpty = "REFUND_EXPORT_EMPTY";
     public const string RefundTransactionDuplicated = "REFUND_TRANSACTION_DUPLICATED";

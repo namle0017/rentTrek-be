@@ -11,7 +11,7 @@ namespace RenTrek.API.Controllers;
 /// Cung cấp các endpoint HTTP cho hướng dẫn viên xem các TripGroup đã được giao (gồm cả Draft và Published).
 /// </summary>
 [ApiController]
-[Authorize(Roles = $"{RoleNames.Guide},{RoleNames.TourGuide}")]
+[Authorize(Roles = RoleNames.Guide)]
 [Route("api/v1/guide/trip-groups")]
 public sealed class GuideTripGroupsController(ITripGroupViewService tripGroupViewService) : ControllerBase
 {

@@ -26,6 +26,15 @@ public sealed class RefundCaseQueueItemResponse
     public int? MinHoursBefore { get; set; }
     public decimal? RefundPercentage { get; set; }
     public string? CancelReason { get; set; }
+
+    /// <summary>Lý do khiếu nại khách nhập khi gửi lại hồ sơ bị từ chối.</summary>
+    public string? AppealReason { get; set; }
+
+    public string? RejectionReason { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+
+    /// <summary>Thời điểm xuất Excel lần đầu cho kế toán; null = đã duyệt, chờ xuất.</summary>
+    public DateTimeOffset? ExportedAt { get; set; }
     public string? ProviderTransactionId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public int RowVersion { get; set; }

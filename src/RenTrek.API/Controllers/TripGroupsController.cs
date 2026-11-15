@@ -19,7 +19,7 @@ public sealed class TripGroupsController(ITripGroupingService tripGroupingServic
 {
     [HttpGet("grouping")]
     [ProducesResponseType(typeof(ApiResponse<TripGroupingSnapshotResponse>), StatusCodes.Status200OK)]
-    [Authorize(Roles = $"{RoleNames.Staff},{RoleNames.Admin},{RoleNames.Guide},{RoleNames.TourGuide}")]
+    [Authorize(Roles = $"{RoleNames.Staff},{RoleNames.Admin},{RoleNames.Guide}")]
     public async Task<IActionResult> GetGroupingSnapshotAsync(Guid tripId, CancellationToken cancellationToken)
     {
         var result = await tripGroupingService.GetGroupingSnapshotAsync(tripId, cancellationToken);

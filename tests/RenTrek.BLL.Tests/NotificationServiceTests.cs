@@ -1,3 +1,4 @@
+using RenTrek.BLL.Services.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -187,6 +188,14 @@ public sealed class NotificationServiceTests
             ("RollbackAsync", _ => Task.CompletedTask),
             ("SaveChangesAsync", _ => Task.FromResult(1)),
             ("get_Tours", _ => TestProxy.Create<ITourRepository>(("GetByIdAsync", _ => Task.FromResult<Tour?>(tour)))),
+            ("get_RefundPolicies", _ => TestProxy.Create<IRefundPolicyRepository>(
+                ("GetDetailAsync", _ => Task.FromResult<RefundPolicy?>(new RefundPolicy
+                {
+                    RefundPolicyId = trip.RefundPolicyId,
+                    PolicyType = RefundPolicyTypes.Tour,
+                    Status = RefundPolicyStatuses.Active,
+                    Version = 1
+                })))),
             ("get_TripGroups", _ => TestProxy.Create<ITripGroupRepository>(("AcquireTripLockAsync", _ => Task.CompletedTask))),
             ("get_Payments", _ => TestProxy.Create<IPaymentRepository>(
                 ("AcquireOrderLockAsync", _ => Task.CompletedTask),
@@ -222,6 +231,7 @@ public sealed class NotificationServiceTests
 
         var created = await service.CreateAsync(new CreateTripBookingRequest
         {
+            AcceptedRefundPolicyVersion = 1,
             TripId = tripId,
             ContactPhone = "0901234567"
         }, "idem-1");
@@ -502,7 +512,7 @@ public sealed class NotificationServiceTests
                 ("GetTripProvidedItemsForUpdateAsync", _ => Task.FromResult<IReadOnlyList<TripProvidedItem>>([])),
                 ("AddAuditLogAsync", _ => Task.CompletedTask))));
 
-        var service = new AdminTripService(uow, harness.CurrentUser, harness.Clock, harness.Service);
+        var service = new AdminTripService(uow, harness.CurrentUser, harness.Clock, harness.Service, TestProxy.Create<IRentalRefundOpener>());
 
         // 1. Đổi lịch khi chưa có booking -> không tạo thông báo
         var shiftedStart = Now.AddDays(11);

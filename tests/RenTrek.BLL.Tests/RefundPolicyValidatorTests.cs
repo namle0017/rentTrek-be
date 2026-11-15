@@ -98,7 +98,7 @@ public sealed class RefundPolicyValidatorTests
     [InlineData(0, true)]
     [InlineData(8760, true)]
     [InlineData(8761, false)]
-    public void V11_HoursRange(int hours, bool expected) => Assert.Equal(expected, ValidBoth([Rule(hours, 50)]));
+    public void V11_HoursRange(int hours, bool expected) => Assert.Equal(expected, ValidBoth(hours == 0 ? [Rule(0, 50)] : [Rule(hours, 50), Rule(0, 0)]));
 
     [Theory]
     [InlineData("-0.01", false)]
@@ -106,7 +106,31 @@ public sealed class RefundPolicyValidatorTests
     [InlineData("100", true)]
     [InlineData("100.01", false)]
     public void V12_PercentRange(string percent, bool expected)
-        => Assert.Equal(expected, ValidBoth([Rule(24, decimal.Parse(percent, System.Globalization.CultureInfo.InvariantCulture))]));
+        => Assert.Equal(expected, ValidBoth([Rule(24, decimal.Parse(percent, System.Globalization.CultureInfo.InvariantCulture)), Rule(0, 0)]));
+
+    [Theory]
+    [InlineData("Tour")]
+    [InlineData("Rental")]
+    public void MissingZeroHourTierRejectedForBothPolicyTypes(string type)
+    {
+        List<RefundPolicyRuleRequest> rules = [Rule(168, 100), Rule(24, 50)];
+        Assert.False(Valid(Make(type: type, rules: rules)));
+        Assert.False(Valid(rules));
+    }
+
+    [Theory]
+    [InlineData("Tour", false)]
+    [InlineData("Rental", true)]
+    public void TourTermsAreValidatedOnlyForTour(string type, bool expected)
+    {
+        var request = Make(type: type);
+        request.RescheduleMinHoursBefore = -1;
+        request.RescheduleFee = -1;
+        request.MaxReschedules = -1;
+        request.NoShowGraceMinutes = -1;
+
+        Assert.Equal(expected, Valid(request));
+    }
 
     [Fact]
     public void V13_NonIncreasingTowardDeparture() => Assert.True(ValidBoth(ValidRules()));

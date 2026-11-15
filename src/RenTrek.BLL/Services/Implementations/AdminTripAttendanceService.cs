@@ -202,6 +202,13 @@ public sealed class AdminTripAttendanceService(
             }
         }
 
+        await AttendanceNoShowRules.ApplyAsync(
+            unitOfWork,
+            trip,
+            request.ActivityId,
+            request.Records.GroupBy(r => r.ParticipantId).ToDictionary(g => g.Key, g => NormalizeAttendanceStatus(g.Last().Status)),
+            utcNow,
+            cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new UpdateTripAttendancesResponse
