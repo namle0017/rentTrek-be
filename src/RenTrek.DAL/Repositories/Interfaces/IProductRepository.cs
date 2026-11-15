@@ -28,4 +28,11 @@ public interface IProductRepository : IGenericRepository<Product>
 
     /// <summary>Danh mục có ít nhất một sản phẩm công khai, sắp theo tên.</summary>
     Task<List<Category>> GetPublicCategoriesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Danh sách sản phẩm công khai cùng danh mục (trừ sản phẩm hiện tại), sắp theo mới tạo trước.</summary>
+    Task<List<Product>> GetRelatedPublicAsync(
+        Guid categoryId,
+        Guid excludeProductId,
+        int limit,
+        CancellationToken cancellationToken = default);
 }

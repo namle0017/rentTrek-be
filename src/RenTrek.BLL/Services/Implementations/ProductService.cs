@@ -142,6 +142,18 @@ public class ProductService : IProductService
         return _mapper.Map<ProductDetailResponse>(product);
     }
 
+    public async Task<IReadOnlyList<ProductResponse>> GetRelatedAsync(
+        Guid id,
+        int limit = 4,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _unitOfWork.Products.GetPublicDetailAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy sản phẩm");
+        var take = Math.Clamp(limit, 1, 12);
+        var related = await _unitOfWork.Products.GetRelatedPublicAsync(product.CategoryId, id, take, cancellationToken);
+        return _mapper.Map<List<ProductResponse>>(related);
+    }
+
     public async Task<IReadOnlyList<ProductCategoryResponse>> GetCategoriesAsync(CancellationToken cancellationToken = default)
         => _mapper.Map<List<ProductCategoryResponse>>(await _unitOfWork.Products.GetPublicCategoriesAsync(cancellationToken));
 

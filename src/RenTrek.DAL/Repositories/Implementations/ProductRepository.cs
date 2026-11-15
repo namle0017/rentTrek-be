@@ -159,6 +159,21 @@ public class ProductRepository : GenericRepository<Product>, IProductRepository
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<Product>> GetRelatedPublicAsync(
+        Guid categoryId,
+        Guid excludeProductId,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(limit, 1, 12);
+        return WithPublicDetail(PublicProducts
+                .Where(product => product.CategoryId == categoryId && product.Id != excludeProductId)
+                .OrderByDescending(product => product.CreatedAt)
+                .ThenBy(product => product.Id))
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
     private static IQueryable<Product> WithPublicDetail(IQueryable<Product> query)
         => query.AsSplitQuery()
             .Include(product => product.Category)
