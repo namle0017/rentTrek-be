@@ -84,6 +84,18 @@ public class AppDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Location> Locations => Set<Location>();
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Npgsql chỉ ghi được DateTimeOffset offset 0 vào timestamptz: FE gửi "+07:00" sẽ lỗi 500.
+        // Quy đổi mọi DateTimeOffset sang UTC khi ghi; đọc ra vẫn là cùng thời điểm.
+        configurationBuilder.Properties<DateTimeOffset>().HaveConversion<UtcDateTimeOffsetConverter>();
+        configurationBuilder.Properties<DateTimeOffset?>().HaveConversion<UtcDateTimeOffsetConverter>();
+    }
+
+    private sealed class UtcDateTimeOffsetConverter()
+        : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTimeOffset, DateTimeOffset>(
+            v => v.ToUniversalTime(), v => v);
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -18,7 +18,6 @@ RenTrekk Design System
 .vs
 .vscode
 .idea
-.claude
 **/*.user
 
 # Không cần khi chạy

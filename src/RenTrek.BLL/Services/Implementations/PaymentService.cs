@@ -9,6 +9,7 @@ using RenTrek.BLL.Constants;
 using RenTrek.BLL.DTOs.Payment.Requests;
 using RenTrek.BLL.DTOs.Payment.Responses;
 using RenTrek.BLL.Exceptions;
+using RenTrek.BLL.Helpers;
 using RenTrek.BLL.Helpers.Interfaces;
 using RenTrek.BLL.Options;
 using RenTrek.BLL.Services.Interfaces;

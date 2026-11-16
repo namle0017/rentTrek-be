@@ -1,6 +1,6 @@
 using RenTrek.DAL.Entities;
 
-namespace RenTrek.BLL.Services.Internal;
+namespace RenTrek.BLL.Helpers;
 
 /// <summary>Số tiền đơn phải trả khi thanh toán lần đầu.</summary>
 public static class OrderPayableAmount

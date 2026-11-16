@@ -500,9 +500,7 @@ $RECYCLE.BIN/
 .idea/
 
 # AI assistants / local agent workspaces
-CLAUDE.md
 AGENTS.md
-.claude/
 .codex/
 .agents/
 .cursor/
@@ -525,3 +523,6 @@ docs/ADMIN-WORK-PLAN.md
 # Bản thiết kế dùng chung, không thuộc repo BE (khớp ở mọi cấp thư mục)
 RenTrekk Design System*/
 
+
+# Runtime uploads
+src/RenTrek.API/App_Data/

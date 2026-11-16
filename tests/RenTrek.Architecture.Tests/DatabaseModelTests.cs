@@ -30,6 +30,24 @@ public sealed class DatabaseModelTests
     }
 
     [Fact]
+    public void DateTimeOffsetColumnsAreConvertedToUtcBeforeWrite()
+    {
+        // Npgsql từ chối DateTimeOffset có offset khác 0 (FE gửi +07:00 => 500 khi SaveChanges)
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql().Options;
+        using var context = new AppDbContext(options);
+        var vn = new DateTimeOffset(2026, 12, 6, 6, 0, 0, TimeSpan.FromHours(7));
+        var props = context.Model.GetEntityTypes().SelectMany(e => e.GetProperties())
+            .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?)).ToList();
+        Assert.Contains(props, p => p.ClrType == typeof(DateTimeOffset?));
+        foreach (var p in props)
+        {
+            var stored = (DateTimeOffset)p.GetTypeMapping().Converter!.ConvertToProvider(vn)!;
+            Assert.Equal(TimeSpan.Zero, stored.Offset);
+            Assert.Equal(vn, stored);
+        }
+    }
+
+    [Fact]
     public void PostgreSqlModelIsValidOfflineAndUsesSnakeCaseTablesAndColumns()
     {
         // No connection opened, no application host/seed service, no database credentials.
