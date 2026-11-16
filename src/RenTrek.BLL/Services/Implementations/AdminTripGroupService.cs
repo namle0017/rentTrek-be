@@ -201,6 +201,20 @@ public sealed class AdminTripGroupService(
                     ?? throw new NotFoundException("Không tìm thấy nhóm đích trong chuyến đi");
                 EnsureDraftGroup(targetGroup, "Nhóm đích đã chốt (Published), không được thêm hành khách");
 
+                // Đơn đi chung (chưa duyệt tách đoàn) không được có người ở hai nhóm khác nhau.
+                if (!participant.BookingOrder.IsSplit)
+                {
+                    var siblings = await unitOfWork.TripGroups.GetActiveParticipantsForUpdateByTripAsync(tripId, cancellationToken);
+                    if (siblings.Any(p => p.BookingOrderId == participant.BookingOrderId &&
+                                          p.ParticipantId != participant.ParticipantId &&
+                                          p.TripGroupId is Guid g && g != targetId))
+                    {
+                        throw new ConflictException(
+                            $"Đơn {participant.BookingOrder.Order.OrderCode} đăng ký đi chung nhóm. Cần duyệt tách đoàn trước khi xếp hành khách sang nhóm khác",
+                            "BOOKING_SPLIT_NOT_APPROVED");
+                    }
+                }
+
                 // Đếm trong lúc giữ khóa trip nên hai thao tác đồng thời không cùng lọt vào chỗ cuối (BR-10).
                 var currentCount = await unitOfWork.TripGroups.GetGroupParticipantCountAsync(targetId, cancellationToken);
                 if (currentCount >= targetGroup.MaxParticipants)

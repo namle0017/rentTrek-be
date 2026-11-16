@@ -244,8 +244,9 @@ public class TripGroupRepository : GenericRepository<TripGroup>, ITripGroupRepos
     public Task<Account?> GetGuideWithRoleAndProfileAsync(
         Guid guideUserId,
         CancellationToken cancellationToken = default)
+        // Tracked on purpose: caller gán vào TripGroup.GuideUser; nếu AsNoTracking, EF sẽ coi Account/Role/Profile là Added
+        // và INSERT trùng khóa khi SaveChanges ("An error occurred while saving the entity changes").
         => _context.Accounts
-            .AsNoTracking()
             .Include(x => x.Role)
             .Include(x => x.Profile)
             .FirstOrDefaultAsync(x => x.UserId == guideUserId && !x.IsDeleted, cancellationToken);

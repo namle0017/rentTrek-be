@@ -231,6 +231,8 @@ public class TourRepository : GenericRepository<Tour>, ITourRepository
             .Include(t => t.Trips)
             .Include(t => t.TourPosts)
                 .ThenInclude(tp => tp.Post)
+            // 7 collection trong 1 câu JOIN nhân chéo số dòng (ảnh × hoạt động × chuyến × ...) gây treo khi tour có nhiều chuyến
+            .AsSplitQuery()
             // Draft chưa xuất bản thì 404. Archived/Expired không hiện ở danh sách nhưng vẫn mở được
             // để khách xem lại chuyến đã đặt (FR-T06). Tour xoá mềm đã bị query filter ẩn.
             .FirstOrDefaultAsync(t => t.Id == id && t.Status != "Draft", cancellationToken);

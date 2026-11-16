@@ -54,6 +54,8 @@ public sealed class TripBookingService(
         }
 
         var response = MapResponse(order, userId);
+        // Chủ đơn và người đi chung (đã liên kết tài khoản) đều xem được lịch trình
+        response.Activities = BuildActivities(order.TripBookingOrder.Trip, timeProvider.GetUtcNow());
         if (response.CanManage && refundCaseService is not null)
             response.RefundCase = await refundCaseService.GetSummaryByOrderAsync(orderId, cancellationToken);
         return response;
@@ -655,38 +657,7 @@ public sealed class TripBookingService(
         var order = await GetPreviewableOrderAsync(orderId, token, utcNow, cancellationToken);
         var booking = order.TripBookingOrder;
         var trip = booking.Trip;
-        var startDateVn = trip.StartAt.ToOffset(VietnamOffset).Date;
-        var isOngoing = trip.StartAt <= utcNow && utcNow < trip.EndAt;
-
-        var activities = (trip.Tour?.Activities ?? [])
-            .Where(a => !a.IsDeleted)
-            .OrderBy(a => a.DayNumber)
-            .ThenBy(a => a.DisplayOrder)
-            .ThenBy(a => a.StartTime)
-            .Select(a =>
-            {
-                var dayDate = startDateVn.AddDays(Math.Max(0, a.DayNumber - 1));
-                var scheduledStart = new DateTimeOffset(dayDate.Add(a.StartTime), VietnamOffset);
-                var scheduledEnd = scheduledStart.AddMinutes(Math.Max(0, a.DurationMinutes));
-                var isCurrent = isOngoing && utcNow >= scheduledStart &&
-                                (a.DurationMinutes > 0 ? utcNow < scheduledEnd : utcNow == scheduledStart);
-
-                return new TripActivityPreviewResponse
-                {
-                    ActivityId = a.Id,
-                    DayNumber = a.DayNumber,
-                    DayTitle = a.DayTitle,
-                    StartTime = a.StartTime,
-                    DurationMinutes = a.DurationMinutes,
-                    DisplayOrder = a.DisplayOrder,
-                    Name = a.Name,
-                    Description = a.Description,
-                    ScheduledStartAt = scheduledStart,
-                    ScheduledEndAt = scheduledEnd,
-                    IsCurrent = isCurrent
-                };
-            })
-            .ToList();
+        var activities = BuildActivities(trip, utcNow);
 
         return new InvitationPreviewResponse
         {
@@ -953,6 +924,43 @@ public sealed class TripBookingService(
 
         if (!sameRequest)
             throw new ConflictException("Idempotency-Key đã được dùng cho một yêu cầu khác");
+    }
+
+    // Lịch trình của chuyến theo giờ Việt Nam, đánh dấu hoạt động đang diễn ra
+    private static List<TripActivityPreviewResponse> BuildActivities(Trip trip, DateTimeOffset utcNow)
+    {
+        var startDateVn = trip.StartAt.ToOffset(VietnamOffset).Date;
+        var isOngoing = trip.StartAt <= utcNow && utcNow < trip.EndAt;
+
+        return (trip.Tour?.Activities ?? [])
+            .Where(a => !a.IsDeleted)
+            .OrderBy(a => a.DayNumber)
+            .ThenBy(a => a.DisplayOrder)
+            .ThenBy(a => a.StartTime)
+            .Select(a =>
+            {
+                var dayDate = startDateVn.AddDays(Math.Max(0, a.DayNumber - 1));
+                var scheduledStart = new DateTimeOffset(dayDate.Add(a.StartTime), VietnamOffset);
+                var scheduledEnd = scheduledStart.AddMinutes(Math.Max(0, a.DurationMinutes));
+                var isCurrent = isOngoing && utcNow >= scheduledStart &&
+                                (a.DurationMinutes > 0 ? utcNow < scheduledEnd : utcNow == scheduledStart);
+
+                return new TripActivityPreviewResponse
+                {
+                    ActivityId = a.Id,
+                    DayNumber = a.DayNumber,
+                    DayTitle = a.DayTitle,
+                    StartTime = a.StartTime,
+                    DurationMinutes = a.DurationMinutes,
+                    DisplayOrder = a.DisplayOrder,
+                    Name = a.Name,
+                    Description = a.Description,
+                    ScheduledStartAt = scheduledStart,
+                    ScheduledEndAt = scheduledEnd,
+                    IsCurrent = isCurrent
+                };
+            })
+            .ToList();
     }
 
     private static TripBookingResponse MapResponse(Order order, Guid userId)

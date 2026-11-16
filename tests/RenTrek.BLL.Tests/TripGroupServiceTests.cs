@@ -1000,6 +1000,27 @@ public sealed class TripGroupServiceTests
         Assert.Equal(rowVersionBefore + 1, trip.RowVersion);
     }
 
+    [Fact]
+    public async Task KanbanAssignParticipant_KeepTogetherBookingToOtherGroup_RequiresSplitApproval()
+    {
+        var store = new SharedStore();
+        var trip = await CreateOpenTripAsync(store, groupMaxParticipants: 5, groupCount: 2, totalSlots: 10);
+        var order = store.SeedBooking(trip, store.BuyerUser, seatCount: 2, status: "Confirmed", paymentStatus: "Paid");
+        var groups = trip.TripGroups.ToList();
+        var participants = order.TripBookingOrder.Participants.ToList();
+        participants[0].TripGroupId = groups[0].TripGroupId;
+        var request = new AssignParticipantGroupRequest { ParticipantId = participants[1].ParticipantId, TargetGroupId = groups[1].TripGroupId };
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            store.CreateScope(store.StaffUser).Kanban.AssignParticipantGroupAsync(trip.TripId, request));
+        Assert.Equal("BOOKING_SPLIT_NOT_APPROVED", ex.ErrorCode);
+        Assert.Null(participants[1].TripGroupId);
+
+        order.TripBookingOrder.IsSplit = true;
+        await store.CreateScope(store.StaffUser).Kanban.AssignParticipantGroupAsync(trip.TripId, request);
+        Assert.Equal(groups[1].TripGroupId, participants[1].TripGroupId);
+    }
+
     private static async Task<Trip> CreateOpenTripAsync(
         SharedStore store,
         int groupMaxParticipants,
@@ -1397,7 +1418,8 @@ public sealed class TripGroupServiceTests
     {
         Task<IReadOnlyList<BookingParticipant>> ITripGroupRepository.GetActiveParticipantsForUpdateByTripAsync(
                 Guid tripId,
-                CancellationToken cancellationToken) => throw new NotSupportedException();
+                CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookingParticipant>>(TripParticipants(tripId).ToList());
         Task<IReadOnlyList<BookingParticipant>> ITripGroupRepository.GetActiveParticipantsWithOrderByTripAsync(
                 Guid tripId,
                 CancellationToken cancellationToken)

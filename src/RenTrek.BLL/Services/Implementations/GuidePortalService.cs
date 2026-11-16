@@ -28,15 +28,16 @@ public sealed class GuidePortalService(
             guideUserId,
             cancellationToken);
 
-        var utcNow = timeProvider.GetUtcNow();
-        var todayDate = DateOnly.FromDateTime(utcNow.UtcDateTime);
+        // So ngày theo giờ Việt Nam (UTC+7); dùng UTC thì 0h-7h sáng bị lệch sang ngày hôm trước.
+        var vnOffset = TimeSpan.FromHours(7);
+        var todayDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().ToOffset(vnOffset).DateTime);
         var normalizedTab = string.IsNullOrWhiteSpace(tab) ? "today" : tab.Trim().ToLowerInvariant();
 
         var filtered = assignedGroups.Where(g =>
         {
             var trip = g.Trip;
-            var startDate = DateOnly.FromDateTime(trip.StartAt.UtcDateTime);
-            var endDate = DateOnly.FromDateTime(trip.EndAt.UtcDateTime);
+            var startDate = DateOnly.FromDateTime(trip.StartAt.ToOffset(vnOffset).DateTime);
+            var endDate = DateOnly.FromDateTime(trip.EndAt.ToOffset(vnOffset).DateTime);
 
             return normalizedTab switch
             {
@@ -526,15 +527,18 @@ public sealed class GuidePortalService(
         if (activities.Count == 0)
             return null;
 
-        var startDate = DateOnly.FromDateTime(trip.StartAt.UtcDateTime);
-        var currentDate = DateOnly.FromDateTime(utcNow.UtcDateTime);
+        // StartTime của hoạt động là giờ Việt Nam, nên ngày và giờ hiện tại cũng quy về UTC+7.
+        var vnOffset = TimeSpan.FromHours(7);
+        var vnNow = utcNow.ToOffset(vnOffset);
+        var startDate = DateOnly.FromDateTime(trip.StartAt.ToOffset(vnOffset).DateTime);
+        var currentDate = DateOnly.FromDateTime(vnNow.DateTime);
         var currentDayNumber = Math.Clamp((currentDate.DayNumber - startDate.DayNumber) + 1, 1, Math.Max(1, activities.Max(a => a.DayNumber)));
 
         var dayActivities = activities.Where(a => a.DayNumber == currentDayNumber).ToList();
         if (dayActivities.Count == 0)
             return activities[0];
 
-        var nowTime = utcNow.UtcDateTime.TimeOfDay;
+        var nowTime = vnNow.TimeOfDay;
         var ongoing = dayActivities
             .LastOrDefault(a => a.StartTime <= nowTime);
 
